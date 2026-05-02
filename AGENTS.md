@@ -173,3 +173,8 @@ npx tsc --noEmit
 npm run build
 npm run test:run
 ```
+
+Для валидации и дизайна check-ов можно использовать:
+
+- Тесты через Vitest
+- Если ты — агент Pi: tools для работы с браузерными играми game_*
