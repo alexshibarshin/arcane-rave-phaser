@@ -58,7 +58,17 @@ describe('createCombatRuntime', () => {
     expect(runtime.slots).toEqual(
       layout.record.slots.map((slot) => ({
         slotIndex: slot.index,
-        pawnId: null,
+        pawnId:
+          [
+            'pawn-red-generator',
+            'pawn-green-finisher',
+            null,
+            'pawn-blue-generator',
+            'pawn-red-finisher',
+            null,
+            'pawn-green-generator',
+            'pawn-blue-finisher',
+          ][slot.index] ?? null,
         worldPosition: {
           x:
             layout.record.centerX

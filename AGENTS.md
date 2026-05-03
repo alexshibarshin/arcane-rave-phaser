@@ -171,8 +171,8 @@ npm run build
 npm run test:run
 ```
 
-Для валидации и дизайна check-ов можно использовать:
+Для валидации и создания check-ов в процессе Red-Green-Refactor можно использовать:
 
 - Тесты через Vitest
 - Если ты — кодинг-агент Pi: tools для работы с браузерными играми game_*
-- Если ты — кодинг-агент Codex: можешь использовать Playwright CLI
+- Playwright CLI

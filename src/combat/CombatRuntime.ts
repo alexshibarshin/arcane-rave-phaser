@@ -74,6 +74,9 @@ export function createCombatRuntime(): CombatRuntime {
   const startAngle = initialWave?.startAngleDeg ?? CombatBalanceConfig.RECORD_START_ANGLE_DEG;
   const layout = createCombatLayoutPlan();
   const slotAnchorRadius = layout.record.radius * 0.75;
+  const slotPreset =
+    CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
+    ?? null;
 
   return {
     state: 'preview',
@@ -92,7 +95,7 @@ export function createCombatRuntime(): CombatRuntime {
     },
     slots: layout.record.slots.map((slot) => ({
       slotIndex: slot.index,
-      pawnId: null,
+      pawnId: slotPreset?.slots[slot.index] ?? null,
       worldPosition: getSlotWorldPosition(
         layout.record.centerX,
         layout.record.centerY,

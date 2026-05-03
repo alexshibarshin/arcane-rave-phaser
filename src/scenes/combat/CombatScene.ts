@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { emit } from '@events/EventBus';
 import { off, on } from '@events/EventBus';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
+import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { GameScene } from '@scenes/GameScene';
 import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
@@ -16,8 +17,8 @@ interface CombatSlotView {
   pulseRemainingMs: number;
   sectorPulse: Phaser.GameObjects.Graphics;
   zonePulse: Phaser.GameObjects.Graphics;
-  slotLabel: Phaser.GameObjects.Text;
-  zoneLabel: Phaser.GameObjects.Text;
+  uprightContainer: Phaser.GameObjects.Container;
+  rotatingContent: Phaser.GameObjects.Container;
 }
 
 export class CombatScene extends GameScene {
@@ -146,6 +147,12 @@ export class CombatScene extends GameScene {
       const graphics = this.add.graphics();
       const sectorPulse = this.add.graphics();
       const zonePulse = this.add.graphics();
+      const rotatingInnerAnchor = this.add.container(slot.innerAnchor.x, slot.innerAnchor.y);
+      const uprightContainer = this.add.container(slot.outerAnchor.x, slot.outerAnchor.y);
+
+      rotatingInnerAnchor.setRotation(
+        Phaser.Math.DegToRad(slot.innerLabelRotationDeg),
+      );
 
       graphics.fillStyle(slot.index === 0 ? 0x2f365f : 0x22263a, 0.3);
       this.fillSector(
@@ -208,42 +215,22 @@ export class CombatScene extends GameScene {
       );
       zonePulse.setAlpha(0);
 
-      const labelPosition = this.getPolarOffset(
-        slot.centerAngleDeg,
-        (slot.innerRadius + slot.outerRadius) / 2,
-      );
-      const zonePosition = this.getPolarOffset(slot.centerAngleDeg, slot.innerRadius * 0.62);
+      this.renderSlotInnerRotatingPresentation(slot, rotatingInnerAnchor);
+      this.renderSlotUprightPresentation(slot, uprightContainer);
 
-      const slotLabel = this.add.text(
-        labelPosition.x,
-        labelPosition.y,
-        `S${slot.index}`,
-        {
-          color: slot.index === 0 ? '#ffd166' : '#dbe6ff',
-          fontFamily: 'monospace',
-          fontSize: '24px',
-        },
-      );
-      slotLabel.setOrigin(0.5, 0.5);
-
-      const zoneLabel = this.add.text(
-        zonePosition.x,
-        zonePosition.y,
-        'EMPTY',
-        {
-          color: '#86a8c4',
-          fontFamily: 'monospace',
-          fontSize: '14px',
-        },
-      );
-      zoneLabel.setOrigin(0.5, 0.5);
-      recordContainer.add([graphics, sectorPulse, zonePulse, slotLabel, zoneLabel]);
+      recordContainer.add([
+        graphics,
+        sectorPulse,
+        zonePulse,
+        rotatingInnerAnchor,
+        uprightContainer,
+      ]);
       this.slotViews.set(slot.index, {
         pulseRemainingMs: 0,
         sectorPulse,
         zonePulse,
-        slotLabel,
-        zoneLabel,
+        uprightContainer,
+        rotatingContent: rotatingInnerAnchor,
       });
     }
 
@@ -420,14 +407,18 @@ export class CombatScene extends GameScene {
       return;
     }
 
-    this.recordContainer.setRotation(Phaser.Math.DegToRad(this.runtime.record.currentAngle));
+    const recordRotation = Phaser.Math.DegToRad(this.runtime.record.currentAngle);
+
+    this.recordContainer.setRotation(recordRotation);
 
     for (const slotView of this.slotViews.values()) {
+      slotView.uprightContainer.setRotation(-recordRotation);
+
       if (slotView.pulseRemainingMs <= 0) {
         slotView.sectorPulse.setAlpha(0);
         slotView.zonePulse.setAlpha(0);
-        slotView.slotLabel.setScale(1);
-        slotView.zoneLabel.setScale(1);
+        slotView.uprightContainer.setScale(1);
+        slotView.rotatingContent.setScale(1);
         continue;
       }
 
@@ -439,8 +430,132 @@ export class CombatScene extends GameScene {
 
       slotView.sectorPulse.setAlpha(alpha);
       slotView.zonePulse.setAlpha(alpha * 0.85);
-      slotView.slotLabel.setScale(1 + progress * 0.08);
-      slotView.zoneLabel.setScale(1 + progress * 0.05);
+      slotView.uprightContainer.setScale(1 + progress * 0.08);
+      slotView.rotatingContent.setScale(1 + progress * 0.05);
+    }
+  }
+
+  private renderSlotInnerRotatingPresentation(
+    slot: ReturnType<typeof createCombatRenderModel>['record']['slots'][number],
+    container: Phaser.GameObjects.Container,
+  ): void {
+    const accentColor = slot.presentation.accentColor;
+
+    const ruleLabel = slot.presentation.rotating.ruleLabel;
+    const emptyLabel = slot.presentation.rotating.emptyLabel;
+    const labelText = ruleLabel?.text ?? emptyLabel?.text ?? '';
+    const labelColor = ruleLabel?.color ?? emptyLabel?.color ?? accentColor;
+    const fontSizePx =
+      ruleLabel === null
+        ? CombatVisualConfig.EMPTY_LABEL_FONT_SIZE_PX
+        : CombatVisualConfig.RULE_LABEL_FONT_SIZE_PX;
+    const text = this.add.text(0, 0, labelText, {
+      color: `#${labelColor.toString(16).padStart(6, '0')}`,
+      fontFamily: 'monospace',
+      fontSize: `${fontSizePx}px`,
+      align: 'center',
+    });
+
+    text.setOrigin(0.5, 0.5);
+    container.add(text);
+  }
+
+  private renderSlotUprightPresentation(
+    slot: ReturnType<typeof createCombatRenderModel>['record']['slots'][number],
+    container: Phaser.GameObjects.Container,
+  ): void {
+    const pedestal = slot.presentation.upright.pedestal;
+    const construct = slot.presentation.upright.construct;
+    const tierStars = slot.presentation.upright.tierStars;
+
+    if (pedestal) {
+      const pedestalGraphic = this.add.graphics();
+
+      pedestalGraphic.fillStyle(pedestal.color, 0.16);
+      pedestalGraphic.fillRoundedRect(
+        -CombatVisualConfig.SLOT.PEDESTAL_WIDTH / 2,
+        26,
+        CombatVisualConfig.SLOT.PEDESTAL_WIDTH,
+        CombatVisualConfig.SLOT.PEDESTAL_HEIGHT,
+        14,
+      );
+      pedestalGraphic.lineStyle(2, pedestal.color, 0.95);
+      pedestalGraphic.strokeRoundedRect(
+        -CombatVisualConfig.SLOT.PEDESTAL_WIDTH / 2,
+        26,
+        CombatVisualConfig.SLOT.PEDESTAL_WIDTH,
+        CombatVisualConfig.SLOT.PEDESTAL_HEIGHT,
+        14,
+      );
+      pedestalGraphic.lineStyle(2, 0xe4f6ff, 0.35);
+      pedestalGraphic.strokeLineShape(new Phaser.Geom.Line(-28, 18, 28, 18));
+      container.add(pedestalGraphic);
+    }
+
+    if (!construct) {
+      const emptyDock = this.add.graphics();
+
+      emptyDock.lineStyle(2, 0x4c6580, 0.6);
+      emptyDock.strokeCircle(0, 0, CombatVisualConfig.SLOT.CONSTRUCT_RADIUS - 6);
+      emptyDock.lineStyle(2, 0x4c6580, 0.25);
+      emptyDock.strokeCircle(0, 0, CombatVisualConfig.SLOT.CONSTRUCT_RADIUS + 10);
+      container.add(emptyDock);
+
+      return;
+    }
+
+    const graphics = this.add.graphics();
+
+    graphics.lineStyle(3, construct.color, 0.95);
+    graphics.fillStyle(construct.color, 0.14);
+
+    if (construct.family === 'generator') {
+      graphics.beginPath();
+      graphics.moveTo(0, -36);
+      graphics.lineTo(34, 0);
+      graphics.lineTo(0, 36);
+      graphics.lineTo(-34, 0);
+      graphics.closePath();
+      graphics.fillPath();
+      graphics.strokePath();
+      graphics.lineStyle(2, 0xe8fbff, 0.75);
+      graphics.strokeLineShape(
+        new Phaser.Geom.Line(-22, 0, 22, 0),
+      );
+      graphics.strokeLineShape(
+        new Phaser.Geom.Line(0, -22, 0, 22),
+      );
+    } else {
+      graphics.beginPath();
+      graphics.moveTo(0, -42);
+      graphics.lineTo(30, 28);
+      graphics.lineTo(0, 12);
+      graphics.lineTo(-30, 28);
+      graphics.closePath();
+      graphics.fillPath();
+      graphics.strokePath();
+      graphics.lineStyle(2, 0xe8fbff, 0.7);
+      graphics.strokeLineShape(
+        new Phaser.Geom.Line(0, -32, 0, 16),
+      );
+    }
+
+    container.add(graphics);
+
+    if (tierStars) {
+      const stars = this.add.text(
+        0,
+        CombatVisualConfig.SLOT.STAR_OFFSET_Y,
+        '★'.repeat(tierStars.count),
+        {
+          color: `#${tierStars.color.toString(16).padStart(6, '0')}`,
+          fontFamily: 'monospace',
+          fontSize: `${CombatVisualConfig.TIER_STAR_FONT_SIZE_PX}px`,
+        },
+      );
+
+      stars.setOrigin(0.5, 0.5);
+      container.add(stars);
     }
   }
 }

@@ -24,6 +24,14 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 
+if (import.meta.env.DEV) {
+  (
+    globalThis as typeof globalThis & {
+      __ARCANE_RAVE_GAME__?: Phaser.Game;
+    }
+  ).__ARCANE_RAVE_GAME__ = game;
+}
+
 EventBus.on('game:ready', () => {
   // Scaffold runtime is ready.
 });

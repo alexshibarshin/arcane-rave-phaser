@@ -21,6 +21,10 @@ describe('CombatRenderModel', () => {
       innerRadius: CombatLayoutConfig.RECORD_RADIUS / 2,
       centerAngleDeg: -90,
     });
+    expect(model.record.slots[0]?.innerAnchor.x).toBeCloseTo(0);
+    expect(model.record.slots[0]?.innerAnchor.y).toBeCloseTo(-130.2);
+    expect(model.record.slots[0]?.outerAnchor.x).toBeCloseTo(0);
+    expect(model.record.slots[0]?.outerAnchor.y).toBeCloseTo(-310.8);
     expect(model.base.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
     expect(model.baseHpBar.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
     expect(model.notePacketAnchor.depth).toBe(CombatLayoutConfig.DEPTH.NOTE_PACKET);
@@ -38,5 +42,96 @@ describe('CombatRenderModel', () => {
     });
     expect(model.hud.wave.x).toBe(CombatLayoutConfig.RECORD_CENTER_X);
     expect(model.hud.enemies.align).toBe('right');
+  });
+
+  it('maps the starter preset into occupied and empty slot visual primitives', () => {
+    const model = createCombatRenderModel();
+
+    expect(model.record.slots).toHaveLength(8);
+    expect(model.record.slots[0]).toMatchObject({
+      pawn: {
+        id: 'pawn-red-generator',
+        type: 'generator',
+        color: 'red',
+        constructFamily: 'generator',
+        silhouetteKey: 'generator-red',
+        pedestalStyleKey: 'pedestal-red',
+        tierStars: 1,
+        ruleLabel: '+♪♪',
+      },
+    });
+    expect(model.record.slots[1]).toMatchObject({
+      pawn: {
+        id: 'pawn-green-finisher',
+        type: 'finisher',
+        color: 'green',
+        constructFamily: 'finisher',
+        silhouetteKey: 'finisher-green',
+        pedestalStyleKey: 'pedestal-green',
+        tierStars: 2,
+        ruleLabel: '-all ♪ -> +♪',
+      },
+    });
+    expect(model.record.slots[2]?.pawn).toBeNull();
+    expect(model.record.slots[7]).toMatchObject({
+      pawn: {
+        id: 'pawn-blue-finisher',
+        color: 'blue',
+        ruleLabel: '-all ♪ -> +♪',
+      },
+    });
+  });
+
+  it('organizes slot visuals into rotating and upright ownership groups', () => {
+    const model = createCombatRenderModel();
+
+    expect(model.record.slots[0]).toMatchObject({
+      presentation: {
+        accentColor: 0xff5f7a,
+        rotating: {
+          pedestal: null,
+          ruleLabel: {
+            text: '+♪♪',
+          },
+          emptyLabel: null,
+        },
+        upright: {
+          pedestal: {
+            styleKey: 'pedestal-red',
+          },
+          construct: {
+            family: 'generator',
+            silhouetteKey: 'generator-red',
+          },
+          tierStars: {
+            count: 1,
+          },
+        },
+      },
+    });
+    expect(model.record.slots[2]).toMatchObject({
+      presentation: {
+        rotating: {
+          pedestal: null,
+          ruleLabel: null,
+          emptyLabel: {
+            text: 'EMPTY',
+          },
+        },
+        upright: {
+          pedestal: null,
+          construct: null,
+          tierStars: null,
+        },
+      },
+    });
+  });
+
+  it('orients inner rule labels to match each sector heading', () => {
+    const model = createCombatRenderModel();
+
+    expect(model.record.slots[0]?.innerLabelRotationDeg).toBe(0);
+    expect(model.record.slots[4]?.innerLabelRotationDeg).toBe(180);
+    expect(model.record.slots[6]?.innerLabelRotationDeg).toBe(270);
   });
 });
