@@ -1,4 +1,5 @@
 import { Events } from 'phaser';
+import type { CombatState, NoteColor } from '@combat/CombatRuntime';
 
 /**
  * Глобальный типизированный EventBus.
@@ -12,6 +13,21 @@ export interface EventMap {
   'scene:ready': { key: string };
   'scene:shutdown': { key: string };
   'ui:ready': void;
+  'combat:scene-ready': { key: string; state: CombatState };
+  'combat:hud-ready': { key: string };
+  'combat:restarted': void;
+  'combat:state-changed': { state: CombatState };
+  'combat:pause-opened': void;
+  'combat:pause-closed': void;
+  'combat:ended': { outcome: 'victory' | 'defeat' };
+  'combat:hud-wave-updated': { current: number; total: number };
+  'combat:hud-enemies-updated': { remaining: number };
+  'combat:hud-base-hp-updated': { current: number; max: number };
+  'combat:slot-activated': { slotIndex: number };
+  'combat:note-packet-changed': { color: NoteColor | null; count: number };
+  'combat:enemy-spawned': { enemyId: string };
+  'combat:enemy-died': { enemyId: string; remaining: number };
+  'combat:base-damaged': { current: number; max: number };
 }
 
 export type EventKey = keyof EventMap;

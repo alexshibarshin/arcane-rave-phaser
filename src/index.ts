@@ -1,9 +1,7 @@
 import Phaser from 'phaser';
 import { EventBus } from '@events/EventBus';
+import { appScenes } from '@config/AppScenes';
 import { GameConfig } from '@config/GameConfig';
-import { BootScene } from '@scenes/BootScene';
-import { GameScene } from '@scenes/GameScene';
-import { UIScene } from '@scenes/UIScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -14,7 +12,7 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, GameScene, UIScene],
+  scene: appScenes,
   physics: {
     default: 'arcade',
     arcade: {

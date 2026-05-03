@@ -10,8 +10,8 @@ import { emit } from '@events/EventBus';
  * панели.
  */
 export class UIScene extends Phaser.Scene {
-  constructor() {
-    super({ key: SceneKeys.UI });
+  constructor(key: string = SceneKeys.UI) {
+    super({ key });
   }
 
   create(): void {

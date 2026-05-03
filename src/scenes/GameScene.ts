@@ -19,8 +19,8 @@ export class GameScene extends Phaser.Scene {
   protected inputSystems: InputSystem[] = [];
   protected simulationSystems: SimulationSystem[] = [];
 
-  constructor() {
-    super({ key: SceneKeys.GAME });
+  constructor(key: string = SceneKeys.GAME) {
+    super({ key });
   }
 
   create(): void {
@@ -34,8 +34,10 @@ export class GameScene extends Phaser.Scene {
     this.simulationSystems = this.createSimulationSystems();
     this.createSceneContent();
 
-    if (!this.scene.isActive(SceneKeys.UI)) {
-      this.scene.launch(SceneKeys.UI);
+    const overlaySceneKey = this.getOverlaySceneKey();
+
+    if (overlaySceneKey && !this.scene.isActive(overlaySceneKey)) {
+      this.scene.launch(overlaySceneKey);
     }
 
     emit('scene:ready', { key: this.scene.key });
@@ -73,6 +75,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected createSceneContent(): void {}
+
+  protected getOverlaySceneKey(): string | null {
+    return SceneKeys.UI;
+  }
 
   protected registerRootEntity<T extends IRenderable>(entity: T): T {
     this.rootEntities.push(entity);

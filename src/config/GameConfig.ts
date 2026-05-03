@@ -18,4 +18,6 @@ export const SceneKeys = {
   BOOT: 'BootScene',
   GAME: 'GameScene',
   UI: 'UIScene',
+  COMBAT: 'CombatScene',
+  HUD: 'HUDScene',
 } as const;
