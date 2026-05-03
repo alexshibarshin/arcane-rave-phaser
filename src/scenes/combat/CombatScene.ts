@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { emit } from '@events/EventBus';
+import { off, on } from '@events/EventBus';
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { GameScene } from '@scenes/GameScene';
 import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
@@ -10,8 +12,28 @@ import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
 import type { InputSystem } from '@systems/InputSystem';
 import type { SimulationSystem } from '@systems/SimulationSystem';
 
+interface CombatSlotView {
+  pulseRemainingMs: number;
+  sectorPulse: Phaser.GameObjects.Graphics;
+  zonePulse: Phaser.GameObjects.Graphics;
+  slotLabel: Phaser.GameObjects.Text;
+  zoneLabel: Phaser.GameObjects.Text;
+}
+
 export class CombatScene extends GameScene {
   private runtime?: CombatRuntime;
+  private recordContainer?: Phaser.GameObjects.Container;
+  private readonly slotViews = new Map<number, CombatSlotView>();
+
+  private readonly handleSlotActivated = ({ slotIndex }: { slotIndex: number }): void => {
+    const slotView = this.slotViews.get(slotIndex);
+
+    if (!slotView) {
+      return;
+    }
+
+    slotView.pulseRemainingMs = CombatBalanceConfig.SLOT_ACTIVATION_PULSE_DURATION_MS;
+  };
 
   constructor() {
     super(SceneKeys.COMBAT);
@@ -26,9 +48,20 @@ export class CombatScene extends GameScene {
     publishCombatHudSnapshot(this.runtime!);
   }
 
+  update(time: number, delta: number): void {
+    super.update(time, delta);
+    this.syncCombatPresentation(delta);
+  }
+
   protected createSceneContent(): void {
     this.runtime = createCombatRuntime();
     this.renderStaticCombatLayout();
+    on('combat:slot-activated', this.handleSlotActivated);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      off('combat:slot-activated', this.handleSlotActivated);
+      this.slotViews.clear();
+      this.recordContainer = undefined;
+    });
   }
 
   protected createInputSystems(): InputSystem[] {
@@ -94,33 +127,31 @@ export class CombatScene extends GameScene {
   }
 
   private renderRecord(model: ReturnType<typeof createCombatRenderModel>): void {
+    const recordContainer = this.add.container(
+      model.record.base.centerX,
+      model.record.base.centerY,
+    );
     const base = this.add.graphics();
 
-    base.setDepth(model.record.base.depth);
+    recordContainer.setDepth(model.record.base.depth);
     base.fillStyle(0x16111f, 1);
-    base.fillCircle(
-      model.record.base.centerX,
-      model.record.base.centerY,
-      model.record.base.radius,
-    );
+    base.fillCircle(0, 0, model.record.base.radius);
     base.lineStyle(10, 0x2a1f39, 1);
-    base.strokeCircle(
-      model.record.base.centerX,
-      model.record.base.centerY,
-      model.record.base.radius - 4,
-    );
+    base.strokeCircle(0, 0, model.record.base.radius - 4);
     base.fillStyle(0x0b0f17, 1);
-    base.fillCircle(model.record.base.centerX, model.record.base.centerY, 92);
+    base.fillCircle(0, 0, 92);
+    recordContainer.add(base);
 
     for (const slot of model.record.slots) {
       const graphics = this.add.graphics();
+      const sectorPulse = this.add.graphics();
+      const zonePulse = this.add.graphics();
 
-      graphics.setDepth(slot.depth);
       graphics.fillStyle(slot.index === 0 ? 0x2f365f : 0x22263a, 0.3);
       this.fillSector(
         graphics,
-        model.record.base.centerX,
-        model.record.base.centerY,
+        0,
+        0,
         slot.outerRadius,
         slot.startAngleDeg,
         slot.endAngleDeg,
@@ -129,8 +160,8 @@ export class CombatScene extends GameScene {
       graphics.fillStyle(0x0b1320, 0.55);
       this.fillSector(
         graphics,
-        model.record.base.centerX,
-        model.record.base.centerY,
+        0,
+        0,
         slot.innerRadius,
         slot.startAngleDeg,
         slot.endAngleDeg,
@@ -139,12 +170,43 @@ export class CombatScene extends GameScene {
       graphics.lineStyle(2, slot.index === 0 ? 0xffd166 : 0x81a4c5, 0.9);
       this.strokeSector(
         graphics,
-        model.record.base.centerX,
-        model.record.base.centerY,
+        0,
+        0,
         slot.outerRadius,
         slot.startAngleDeg,
         slot.endAngleDeg,
       );
+
+      sectorPulse.fillStyle(0xc8fbff, 0.4);
+      this.fillSector(
+        sectorPulse,
+        0,
+        0,
+        slot.outerRadius,
+        slot.startAngleDeg,
+        slot.endAngleDeg,
+      );
+      sectorPulse.lineStyle(4, 0xf9ff8f, 0.95);
+      this.strokeSector(
+        sectorPulse,
+        0,
+        0,
+        slot.outerRadius,
+        slot.startAngleDeg,
+        slot.endAngleDeg,
+      );
+      sectorPulse.setAlpha(0);
+
+      zonePulse.fillStyle(0x9be7ff, 0.5);
+      this.fillSector(
+        zonePulse,
+        0,
+        0,
+        slot.innerRadius,
+        slot.startAngleDeg,
+        slot.endAngleDeg,
+      );
+      zonePulse.setAlpha(0);
 
       const labelPosition = this.getPolarOffset(
         slot.centerAngleDeg,
@@ -153,8 +215,8 @@ export class CombatScene extends GameScene {
       const zonePosition = this.getPolarOffset(slot.centerAngleDeg, slot.innerRadius * 0.62);
 
       const slotLabel = this.add.text(
-        model.record.base.centerX + labelPosition.x,
-        model.record.base.centerY + labelPosition.y,
+        labelPosition.x,
+        labelPosition.y,
         `S${slot.index}`,
         {
           color: slot.index === 0 ? '#ffd166' : '#dbe6ff',
@@ -163,11 +225,10 @@ export class CombatScene extends GameScene {
         },
       );
       slotLabel.setOrigin(0.5, 0.5);
-      slotLabel.setDepth(slot.depth);
 
       const zoneLabel = this.add.text(
-        model.record.base.centerX + zonePosition.x,
-        model.record.base.centerY + zonePosition.y,
+        zonePosition.x,
+        zonePosition.y,
         'EMPTY',
         {
           color: '#86a8c4',
@@ -176,8 +237,17 @@ export class CombatScene extends GameScene {
         },
       );
       zoneLabel.setOrigin(0.5, 0.5);
-      zoneLabel.setDepth(slot.depth);
+      recordContainer.add([graphics, sectorPulse, zonePulse, slotLabel, zoneLabel]);
+      this.slotViews.set(slot.index, {
+        pulseRemainingMs: 0,
+        sectorPulse,
+        zonePulse,
+        slotLabel,
+        zoneLabel,
+      });
     }
+
+    this.recordContainer = recordContainer;
   }
 
   private renderTimeControlBackplates(model: ReturnType<typeof createCombatRenderModel>): void {
@@ -343,5 +413,34 @@ export class CombatScene extends GameScene {
       x: Math.cos(radians) * radius,
       y: Math.sin(radians) * radius,
     };
+  }
+
+  private syncCombatPresentation(delta: number): void {
+    if (!this.runtime || !this.recordContainer) {
+      return;
+    }
+
+    this.recordContainer.setRotation(Phaser.Math.DegToRad(this.runtime.record.currentAngle));
+
+    for (const slotView of this.slotViews.values()) {
+      if (slotView.pulseRemainingMs <= 0) {
+        slotView.sectorPulse.setAlpha(0);
+        slotView.zonePulse.setAlpha(0);
+        slotView.slotLabel.setScale(1);
+        slotView.zoneLabel.setScale(1);
+        continue;
+      }
+
+      slotView.pulseRemainingMs = Math.max(0, slotView.pulseRemainingMs - delta);
+
+      const progress =
+        slotView.pulseRemainingMs / CombatBalanceConfig.SLOT_ACTIVATION_PULSE_DURATION_MS;
+      const alpha = CombatBalanceConfig.SLOT_ACTIVATION_MAX_ALPHA * (0.35 + progress * 0.65);
+
+      slotView.sectorPulse.setAlpha(alpha);
+      slotView.zonePulse.setAlpha(alpha * 0.85);
+      slotView.slotLabel.setScale(1 + progress * 0.08);
+      slotView.zoneLabel.setScale(1 + progress * 0.05);
+    }
   }
 }

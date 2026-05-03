@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { advanceCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
-import { publishCombatStateTransition } from '@combat/CombatHudEvents';
+import {
+  publishCombatStateTransition,
+  publishPendingCombatEvents,
+} from '@combat/CombatHudEvents';
 import { SimulationSystem } from './SimulationSystem';
 
 export class CombatStateSystem extends SimulationSystem {
@@ -20,6 +23,7 @@ export class CombatStateSystem extends SimulationSystem {
 
     const previousState = runtime.state;
     advanceCombatRuntime(runtime, delta);
+    publishPendingCombatEvents(runtime);
 
     if (runtime.state !== previousState) {
       publishCombatStateTransition(previousState, runtime.state);

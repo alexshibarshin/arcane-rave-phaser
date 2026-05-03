@@ -19,3 +19,9 @@ export function publishCombatStateTransition(
     emit(event.event, event.payload);
   }
 }
+
+export function publishPendingCombatEvents(runtime: CombatRuntime): void {
+  for (const event of runtime.effects.pendingEvents) {
+    emit(event.event, event.payload);
+  }
+}

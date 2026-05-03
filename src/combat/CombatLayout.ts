@@ -2,7 +2,7 @@ import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 
 export const COMBAT_SLOT_COUNT = 8;
 const SLOT_ARC_DEGREES = 360 / COMBAT_SLOT_COUNT;
-const NEEDLE_ANGLE_DEGREES = -90;
+export const COMBAT_NEEDLE_ANGLE_DEGREES = -90;
 
 export interface CombatSlotLayout {
   index: number;
@@ -42,7 +42,7 @@ export interface CombatLayoutPlan {
 }
 
 export function getCombatSlotCenterAngle(index: number): number {
-  return NEEDLE_ANGLE_DEGREES + SLOT_ARC_DEGREES * index;
+  return COMBAT_NEEDLE_ANGLE_DEGREES + SLOT_ARC_DEGREES * index;
 }
 
 export function createCombatLayoutPlan(): CombatLayoutPlan {
