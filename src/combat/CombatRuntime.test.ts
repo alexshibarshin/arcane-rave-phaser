@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatWaveConfig } from '@config/CombatWaveConfig';
-import { createCombatRuntime } from './CombatRuntime';
+import { advanceCombatRuntime, createCombatRuntime } from './CombatRuntime';
 
 describe('createCombatRuntime', () => {
   it('creates the initial combat source of truth from combat config', () => {
@@ -38,5 +38,26 @@ describe('createCombatRuntime', () => {
     expect(runtime.effects).toEqual({
       transientIds: [],
     });
+  });
+
+  it('stores preview timing in runtime from combat balance config', () => {
+    const runtime = createCombatRuntime();
+
+    expect(runtime.preview).toEqual({
+      elapsedMs: 0,
+      durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
+    });
+  });
+
+  it('advances from preview to running after the config-driven preview delay', () => {
+    const runtime = createCombatRuntime();
+
+    advanceCombatRuntime(runtime, CombatBalanceConfig.PREVIEW_DURATION_MS - 1);
+    expect(runtime.state).toBe('preview');
+    expect(runtime.preview.elapsedMs).toBe(CombatBalanceConfig.PREVIEW_DURATION_MS - 1);
+
+    advanceCombatRuntime(runtime, 1);
+    expect(runtime.state).toBe('running');
+    expect(runtime.preview.elapsedMs).toBe(CombatBalanceConfig.PREVIEW_DURATION_MS);
   });
 });

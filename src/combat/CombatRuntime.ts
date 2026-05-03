@@ -37,6 +37,10 @@ export interface CombatRuntime {
   state: CombatState;
   combatElapsedMs: number;
   waveElapsedMs: number;
+  preview: {
+    elapsedMs: number;
+    durationMs: number;
+  };
   baseHp: number;
   record: {
     currentAngle: number;
@@ -65,6 +69,10 @@ export function createCombatRuntime(): CombatRuntime {
     state: 'preview',
     combatElapsedMs: 0,
     waveElapsedMs: 0,
+    preview: {
+      elapsedMs: 0,
+      durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
+    },
     baseHp: CombatBalanceConfig.BASE_HP,
     record: {
       currentAngle: startAngle,
@@ -95,4 +103,33 @@ export function createCombatRuntime(): CombatRuntime {
       transientIds: [],
     },
   };
+}
+
+export function advanceCombatRuntime(runtime: CombatRuntime, deltaMs: number): void {
+  runtime.combatElapsedMs += deltaMs;
+
+  if (runtime.state !== 'preview') {
+    return;
+  }
+
+  runtime.preview.elapsedMs = Math.min(
+    runtime.preview.elapsedMs + deltaMs,
+    runtime.preview.durationMs,
+  );
+
+  if (runtime.preview.elapsedMs >= runtime.preview.durationMs) {
+    setCombatState(runtime, 'running');
+  }
+}
+
+export function setCombatState(runtime: CombatRuntime, nextState: CombatState): boolean {
+  if (runtime.state === nextState) {
+    return false;
+  }
+
+  runtime.state = nextState;
+  runtime.outcome.victory = nextState === 'victory';
+  runtime.outcome.defeat = nextState === 'defeat';
+
+  return true;
 }

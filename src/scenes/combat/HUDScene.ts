@@ -1,14 +1,19 @@
 import Phaser from 'phaser';
+import { getCombatOverlayText } from '@combat/CombatHudBridge';
 import { createCombatRenderModel } from '@combat/CombatRenderModel';
 import { emit, off, on } from '@events/EventBus';
 import { SceneKeys } from '@config/GameConfig';
+import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { UIScene } from '@scenes/UIScene';
+import type { CombatState } from '@combat/CombatRuntime';
 
 export class HUDScene extends UIScene {
   private pauseLabel?: Phaser.GameObjects.Text;
   private stateLabel?: Phaser.GameObjects.Text;
   private waveLabel?: Phaser.GameObjects.Text;
   private enemiesLabel?: Phaser.GameObjects.Text;
+  private overlayBackdrop?: Phaser.GameObjects.Rectangle;
+  private overlayLabel?: Phaser.GameObjects.Text;
 
   constructor() {
     super(SceneKeys.HUD);
@@ -55,6 +60,32 @@ export class HUDScene extends UIScene {
     this.stateLabel.setOrigin(0.5, 0);
     this.stateLabel.setDepth(model.hud.depth);
 
+    this.overlayBackdrop = this.add.rectangle(
+      model.background.width / 2,
+      model.background.height / 2,
+      model.background.width,
+      model.background.height,
+      0x050914,
+      0.58,
+    );
+    this.overlayBackdrop.setDepth(CombatLayoutConfig.DEPTH.OVERLAY);
+    this.overlayBackdrop.setVisible(false);
+
+    this.overlayLabel = this.add.text(
+      model.hud.wave.x,
+      model.background.height / 2,
+      '',
+      {
+        color: '#f2f6ff',
+        fontFamily: 'monospace',
+        fontSize: '48px',
+        align: 'center',
+      },
+    );
+    this.overlayLabel.setOrigin(0.5, 0.5);
+    this.overlayLabel.setDepth(CombatLayoutConfig.DEPTH.OVERLAY);
+    this.overlayLabel.setVisible(false);
+
     on('combat:state-changed', this.handleStateChanged);
     on('combat:hud-wave-updated', this.handleWaveUpdated);
     on('combat:hud-enemies-updated', this.handleEnemiesUpdated);
@@ -62,8 +93,9 @@ export class HUDScene extends UIScene {
     emit('combat:hud-ready', { key: this.scene.key });
   }
 
-  private readonly handleStateChanged = (payload: { state: string }): void => {
+  private readonly handleStateChanged = (payload: { state: CombatState }): void => {
     this.stateLabel?.setText(`State: ${payload.state}`);
+    this.syncOverlay(payload.state);
   };
 
   private readonly handleWaveUpdated = (payload: { current: number; total: number }): void => {
@@ -90,6 +122,18 @@ export class HUDScene extends UIScene {
       fontSize: '16px',
       align: 'center',
     };
+  }
+
+  private syncOverlay(state: CombatState): void {
+    const overlayText = getCombatOverlayText(state);
+    const isVisible = overlayText !== null;
+
+    this.overlayBackdrop?.setVisible(isVisible);
+    this.overlayLabel?.setVisible(isVisible);
+
+    if (overlayText) {
+      this.overlayLabel?.setText(overlayText);
+    }
   }
 
   private handleShutdown(): void {

@@ -4,9 +4,14 @@ import { SceneKeys } from '@config/GameConfig';
 import { GameScene } from '@scenes/GameScene';
 import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
 import { createCombatRenderModel } from '@combat/CombatRenderModel';
+import { publishCombatHudSnapshot } from '@combat/CombatHudEvents';
+import { CombatStateSystem } from '@systems/CombatStateSystem';
+import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
+import type { InputSystem } from '@systems/InputSystem';
+import type { SimulationSystem } from '@systems/SimulationSystem';
 
 export class CombatScene extends GameScene {
-  private runtime!: CombatRuntime;
+  private runtime?: CombatRuntime;
 
   constructor() {
     super(SceneKeys.COMBAT);
@@ -16,9 +21,9 @@ export class CombatScene extends GameScene {
     super.create();
     emit('combat:scene-ready', {
       key: this.scene.key,
-      state: this.runtime.state,
+      state: this.runtime!.state,
     });
-    this.publishHudSnapshot();
+    publishCombatHudSnapshot(this.runtime!);
   }
 
   protected createSceneContent(): void {
@@ -26,27 +31,16 @@ export class CombatScene extends GameScene {
     this.renderStaticCombatLayout();
   }
 
-  protected getOverlaySceneKey(): string | null {
-    return SceneKeys.HUD;
+  protected createInputSystems(): InputSystem[] {
+    return [new CombatDebugInputSystem(this, () => this.runtime)];
   }
 
-  private publishHudSnapshot(): void {
-    emit('combat:state-changed', { state: this.runtime.state });
-    emit('combat:hud-wave-updated', {
-      current: this.runtime.wave.currentWaveIndex + 1,
-      total: this.runtime.wave.totalWaves,
-    });
-    emit('combat:hud-enemies-updated', {
-      remaining: this.runtime.wave.enemiesRemaining,
-    });
-    emit('combat:hud-base-hp-updated', {
-      current: this.runtime.baseHp,
-      max: this.runtime.baseHp,
-    });
-    emit('combat:note-packet-changed', {
-      color: this.runtime.notePacket.color,
-      count: this.runtime.notePacket.count,
-    });
+  protected createSimulationSystems(): SimulationSystem[] {
+    return [new CombatStateSystem(this, () => this.runtime)];
+  }
+
+  protected getOverlaySceneKey(): string | null {
+    return SceneKeys.HUD;
   }
 
   private renderStaticCombatLayout(): void {
