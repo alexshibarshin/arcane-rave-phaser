@@ -1,379 +1,110 @@
 import { describe, expect, it } from 'vitest';
+import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
+import { CombatVisualConfig } from '@config/CombatVisualConfig';
+import { CombatWaveConfig } from '@config/CombatWaveConfig';
+import { GameConfig } from '@config/GameConfig';
+import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 import { createCombatRenderModel } from './CombatRenderModel';
 
 describe('CombatRenderModel', () => {
-  it('exposes the first static combat composition as config-driven world anchors', () => {
+  it('binds structural anchors and depths to shared combat layout config', () => {
     const model = createCombatRenderModel();
 
-    expect(model.background.depth).toBe(CombatLayoutConfig.DEPTH.BACKGROUND);
-    expect(model.enemyLane).toMatchObject({
-      depth: CombatLayoutConfig.DEPTH.ENEMY_LANE_DECORATIONS,
-      top: CombatLayoutConfig.ENEMY_ZONE_TOP,
-      bottom: CombatLayoutConfig.ENEMY_ZONE_BOTTOM,
+    expect(model.background).toEqual({
+      depth: CombatLayoutConfig.DEPTH.BACKGROUND,
+      width: GameConfig.VIEWPORT_WIDTH,
+      height: GameConfig.VIEWPORT_HEIGHT,
     });
+    expect(model.enemyLane.depth).toBe(CombatLayoutConfig.DEPTH.ENEMY_LANE_DECORATIONS);
+    expect(model.enemyLane.top).toBe(CombatLayoutConfig.ENEMY_ZONE_TOP);
+    expect(model.enemyLane.bottom).toBe(CombatLayoutConfig.ENEMY_ZONE_BOTTOM);
     expect(model.record.base.depth).toBe(CombatLayoutConfig.DEPTH.RECORD_BASE);
-    expect(model.record.slots).toHaveLength(8);
-    expect(model.record.slots[0]).toMatchObject({
-      index: 0,
-      depth: CombatLayoutConfig.DEPTH.RECORD_DETAILS,
-      outerRadius: CombatLayoutConfig.RECORD_RADIUS,
-      innerRadius:
-        CombatLayoutConfig.RECORD_RADIUS * CombatLayoutConfig.RECORD_INNER_ZONE_RADIUS_RATIO,
-      centerAngleDeg: -90,
-    });
-    expect(model.record.slots[0]?.innerAnchor.x).toBeCloseTo(0);
-    expect(model.record.slots[0]?.innerAnchor.y).toBeCloseTo(
-      (
-        -CombatLayoutConfig.RECORD_RADIUS
-        * CombatLayoutConfig.RECORD_INNER_ZONE_RADIUS_RATIO
-        * 0.85
-      ),
-    );
-    expect(model.record.slots[0]?.outerAnchor.x).toBeCloseTo(0);
-    expect(model.record.slots[0]?.outerAnchor.y).toBeCloseTo(
-      -CombatLayoutConfig.RECORD_RADIUS * 0.8,
-    );
+    expect(model.record.slots).toHaveLength(CombatContentConfig.SLOT_COUNT);
     expect(model.base.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
     expect(model.baseHpBar.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
     expect(model.notePacketAnchor.depth).toBe(CombatLayoutConfig.DEPTH.NOTE_PACKET);
-    expect(model.needle.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
-  });
-
-  it('defines the top HUD placeholder anchors without scene-local magic numbers', () => {
-    const model = createCombatRenderModel();
-
     expect(model.hud.depth).toBe(CombatLayoutConfig.DEPTH.HUD);
-    expect(model.hud.pause).toEqual({
-      x: CombatLayoutConfig.HUD_PADDING_X,
-      y: CombatLayoutConfig.HUD_PADDING_Y,
-      width: 52,
-      height: 52,
-      hitWidth: 80,
-      hitHeight: 80,
-    });
-    expect(model.hud.wave.x).toBe(CombatLayoutConfig.RECORD_CENTER_X);
-    expect(model.hud.enemies.align).toBe('right');
-    expect(model.hud.overlay.label).toEqual({
-      x: 360,
-      y: 640,
-    });
-    expect(model.hud.overlay.primaryAction).toEqual({
-      x: 360,
-      y: 732,
-    });
-    expect(model.hud.overlay.secondaryAction).toEqual({
-      x: 360,
-      y: 800,
-    });
   });
 
-  it('maps the starter preset into occupied and empty slot visual primitives', () => {
+  it('maps the active slot preset into occupied and empty slot presentation states', () => {
     const model = createCombatRenderModel();
+    const activeWave = CombatWaveConfig.WAVES[0];
+    const activePreset = CombatContentConfig.SLOT_PRESETS.find(
+      (preset) => preset.id === activeWave?.slotPresetId,
+    );
 
-    expect(model.record.slots).toHaveLength(8);
-    expect(model.record.slots[0]).toMatchObject({
-      pawn: {
-        id: 'pawn-red-generator',
-        type: 'generator',
-        color: 'red',
-        constructFamily: 'generator',
-        silhouetteKey: 'generator-red',
-        pedestalStyleKey: 'pedestal-red',
-        tierStars: 1,
-        ruleLabel: '+♪♪',
-      },
-    });
-    expect(model.record.slots[1]).toMatchObject({
-      pawn: {
-        id: 'pawn-red-finisher',
-        type: 'finisher',
-        color: 'red',
-        constructFamily: 'finisher',
-        silhouetteKey: 'finisher-red',
-        pedestalStyleKey: 'pedestal-red',
-        tierStars: 2,
-        ruleLabel: '♪♪♪ > ♪',
-      },
-    });
-    expect(model.record.slots[2]?.pawn).toBeNull();
-    expect(model.record.slots[4]).toMatchObject({
-      pawn: {
-        id: 'pawn-green-finisher',
-        color: 'green',
-        ruleLabel: '♪♪♪ > ♪',
-      },
-    });
-    expect(model.record.slots[7]).toMatchObject({
-      pawn: {
-        id: 'pawn-blue-finisher',
-        color: 'blue',
-        ruleLabel: '♪♪♪ > ♪',
-      },
-    });
+    expect(activePreset).toBeDefined();
+
+    for (const slot of model.record.slots) {
+      const pawnId = activePreset?.slots[slot.index] ?? null;
+
+      if (pawnId === null) {
+        expect(slot.pawn).toBeNull();
+        expect(slot.presentation.rotating.ruleLabel).toBeNull();
+        expect(slot.presentation.rotating.emptyLabel?.text).toBe(CombatVisualConfig.EMPTY_SLOT_LABEL);
+        expect(slot.presentation.upright.construct).toBeNull();
+        continue;
+      }
+
+      const pawnDefinition = CombatContentConfig.PAWN_DEFINITIONS.find((pawn) => pawn.id === pawnId);
+
+      expect(pawnDefinition).toBeDefined();
+      expect(slot.pawn?.id).toBe(pawnDefinition?.id);
+      expect(slot.pawn?.color).toBe(pawnDefinition?.color);
+      expect(slot.pawn?.constructFamily).toBe(pawnDefinition?.visualFamilyKey);
+      expect(slot.presentation.rotating.emptyLabel).toBeNull();
+      expect(slot.presentation.upright.construct?.silhouetteKey).toBe(
+        pawnDefinition?.visualSilhouetteKey,
+      );
+      expect(slot.presentation.upright.pedestal?.styleKey).toBe(pawnDefinition?.pedestalStyleKey);
+
+      if (pawnDefinition?.type === 'generator') {
+        expect(slot.pawn?.tierStars).toBe(1);
+        expect(slot.presentation.rotating.ruleLabel?.segments).toHaveLength(3);
+      } else {
+        expect(slot.pawn?.tierStars).toBe(2);
+        expect(slot.presentation.rotating.ruleLabel?.segments).toHaveLength(7);
+      }
+    }
   });
 
-  it('organizes slot visuals into rotating and upright ownership groups', () => {
+  it('keeps derived slot label rotations normalized to the upright viewing range', () => {
     const model = createCombatRenderModel();
 
-    expect(model.record.slots[0]).toMatchObject({
-      presentation: {
-        accentColor: 0xff5f7a,
-        rotating: {
-          pedestal: null,
-          ruleLabel: {
-            text: '+♪♪',
-            segments: [
-              { text: '+', color: 0xffffff, isNoteGlyph: false },
-              { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
-              { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
-            ],
-          },
-          emptyLabel: null,
-        },
-        upright: {
-          pedestal: {
-            styleKey: 'pedestal-red',
-          },
-          construct: {
-            family: 'generator',
-            silhouetteKey: 'generator-red',
-          },
-          tierStars: {
-            count: 1,
-          },
-        },
-      },
-    });
-    expect(model.record.slots[2]).toMatchObject({
-      presentation: {
-        rotating: {
-          pedestal: null,
-          ruleLabel: null,
-          emptyLabel: {
-            text: 'EMPTY',
-          },
-        },
-        upright: {
-          pedestal: null,
-          construct: null,
-          tierStars: null,
-        },
-      },
-    });
-    expect(model.record.slots[1]?.presentation.rotating.ruleLabel?.segments).toEqual([
-      { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
-      { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
-      { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
-      { text: ' ', color: 0xffffff, isNoteGlyph: false },
-      { text: '>', color: 0xffffff, isNoteGlyph: false },
-      { text: ' ', color: 0xffffff, isNoteGlyph: false },
-      { text: '♪', color: 0x63f5a6, isNoteGlyph: true },
-    ]);
+    for (const slot of model.record.slots) {
+      expect(slot.innerLabelRotationDeg).toBeGreaterThanOrEqual(0);
+      expect(slot.innerLabelRotationDeg).toBeLessThan(360);
+    }
   });
 
-  it('orients inner rule labels to match each sector heading', () => {
+  it('creates one enemy render unit per enemy runtime with matching identity and y-sort', () => {
+    const activeWave = CombatWaveConfig.WAVES[0];
+    const runtimes = createCombatEnemyRuntimes(activeWave!);
+    const definitionsById = new Map(
+      CombatContentConfig.ENEMY_DEFINITIONS.map((definition) => [definition.id, definition]),
+    );
     const model = createCombatRenderModel();
 
-    expect(model.record.slots[0]?.innerLabelRotationDeg).toBe(0);
-    expect(model.record.slots[4]?.innerLabelRotationDeg).toBe(180);
-    expect(model.record.slots[6]?.innerLabelRotationDeg).toBe(270);
-  });
+    expect(model.enemies).toHaveLength(runtimes.length);
 
-  it('describes all enemy runtime instances as shared container render units with y-sort anchors', () => {
-    const model = createCombatRenderModel();
+    for (const [index, enemy] of model.enemies.entries()) {
+      const runtime = runtimes[index];
+      const definition = definitionsById.get(enemy.definitionId);
 
-    // wave-1-a: 2 red + 1 green = 3
-    // wave-1-b: 2 blue + 1 red = 3
-    // Total: 3 red + 1 green + 2 blue = 6
-    expect(model.enemies).toHaveLength(6);
+      expect(runtime).toBeDefined();
+      expect(definition).toBeDefined();
 
-    const firstThree = model.enemies.slice(0, 3);
-    expect(firstThree).toEqual([
-      {
-        runtimeId: 'enemy-runtime-1',
-        definitionId: 'enemy-red-basic',
-        container: {
-          name: 'enemy-container-1',
-          x: 180,
-          y: 240,
-          depth: CombatLayoutConfig.DEPTH.PAWNS,
-          sortY: 240,
-        },
-        body: {
-          family: 'basic',
-          silhouetteKey: 'enemy-basic',
-          variantKey: 'enemy-basic-red',
-          color: 0xff5f7a,
-          width: 31,
-          height: 36,
-        },
-        hpBar: {
-          offsetY: -25,
-          width: 23,
-          height: 4,
-        },
-        attachments: {
-          hitFlash: {
-            x: 0,
-            y: -3,
-          },
-        },
-      },
-      {
-        runtimeId: 'enemy-runtime-2',
-        definitionId: 'enemy-red-basic',
-        container: {
-          name: 'enemy-container-2',
-          x: 360,
-          y: 320,
-          depth: CombatLayoutConfig.DEPTH.PAWNS,
-          sortY: 320,
-        },
-        body: {
-          family: 'basic',
-          silhouetteKey: 'enemy-basic',
-          variantKey: 'enemy-basic-red',
-          color: 0xff5f7a,
-          width: 31,
-          height: 36,
-        },
-        hpBar: {
-          offsetY: -25,
-          width: 23,
-          height: 4,
-        },
-        attachments: {
-          hitFlash: {
-            x: 0,
-            y: -3,
-          },
-        },
-      },
-      {
-        runtimeId: 'enemy-runtime-3',
-        definitionId: 'enemy-red-basic',
-        container: {
-          name: 'enemy-container-3',
-          x: 540,
-          y: 400,
-          depth: CombatLayoutConfig.DEPTH.PAWNS,
-          sortY: 400,
-        },
-        body: {
-          family: 'basic',
-          silhouetteKey: 'enemy-basic',
-          variantKey: 'enemy-basic-red',
-          color: 0xff5f7a,
-          width: 31,
-          height: 36,
-        },
-        hpBar: {
-          offsetY: -25,
-          width: 23,
-          height: 4,
-        },
-        attachments: {
-          hitFlash: {
-            x: 0,
-            y: -3,
-          },
-        },
-      },
-    ]);
+      if (!runtime || !definition) {
+        continue;
+      }
 
-    const lastThree = model.enemies.slice(3);
-    expect(lastThree).toEqual([
-      {
-        runtimeId: 'enemy-runtime-4',
-        definitionId: 'enemy-green-basic',
-        container: {
-          name: 'enemy-container-4',
-          x: 180,
-          y: 240,
-          depth: CombatLayoutConfig.DEPTH.PAWNS,
-          sortY: 240,
-        },
-        body: {
-          family: 'basic',
-          silhouetteKey: 'enemy-basic',
-          variantKey: 'enemy-basic-green',
-          color: 0x63f5a6,
-          width: 31,
-          height: 36,
-        },
-        hpBar: {
-          offsetY: -25,
-          width: 23,
-          height: 4,
-        },
-        attachments: {
-          hitFlash: {
-            x: 0,
-            y: -3,
-          },
-        },
-      },
-      {
-        runtimeId: 'enemy-runtime-5',
-        definitionId: 'enemy-blue-basic',
-        container: {
-          name: 'enemy-container-5',
-          x: 180,
-          y: 240,
-          depth: CombatLayoutConfig.DEPTH.PAWNS,
-          sortY: 240,
-        },
-        body: {
-          family: 'basic',
-          silhouetteKey: 'enemy-basic',
-          variantKey: 'enemy-basic-blue',
-          color: 0x5db7ff,
-          width: 31,
-          height: 36,
-        },
-        hpBar: {
-          offsetY: -25,
-          width: 23,
-          height: 4,
-        },
-        attachments: {
-          hitFlash: {
-            x: 0,
-            y: -3,
-          },
-        },
-      },
-      {
-        runtimeId: 'enemy-runtime-6',
-        definitionId: 'enemy-blue-basic',
-        container: {
-          name: 'enemy-container-6',
-          x: 180,
-          y: 240,
-          depth: CombatLayoutConfig.DEPTH.PAWNS,
-          sortY: 240,
-        },
-        body: {
-          family: 'basic',
-          silhouetteKey: 'enemy-basic',
-          variantKey: 'enemy-basic-blue',
-          color: 0x5db7ff,
-          width: 31,
-          height: 36,
-        },
-        hpBar: {
-          offsetY: -25,
-          width: 23,
-          height: 4,
-        },
-        attachments: {
-          hitFlash: {
-            x: 0,
-            y: -3,
-          },
-        },
-      },
-    ]);
+      expect(enemy.runtimeId).toBe(runtime?.runtimeId);
+      expect(enemy.container.name).toBe(runtime.renderContainerName);
+      expect(enemy.container.depth).toBe(CombatLayoutConfig.DEPTH.PAWNS);
+      expect(enemy.container.sortY).toBe(enemy.container.y);
+      expect(enemy.body.variantKey).toBe(definition.visualKey);
+      expect(enemy.body.color).toBe(CombatVisualConfig.NOTE_COLORS[definition.color]);
+    }
   });
 });

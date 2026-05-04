@@ -3,50 +3,20 @@ import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatWaveConfig, validateCombatWaveConfig } from '@config/CombatWaveConfig';
 
 describe('CombatWaveConfig', () => {
-  it('defines a starter eight-slot preset and a first wave that references it', () => {
-    expect(CombatContentConfig.SLOT_PRESETS).toEqual([
-      {
-        id: 'preset-starter-1',
-        slots: [
-          'pawn-red-generator',
-          'pawn-red-finisher',
-          null,
-          'pawn-green-generator',
-          'pawn-green-finisher',
-          null,
-          'pawn-blue-generator',
-          'pawn-blue-finisher',
-        ],
-      },
-    ]);
+  it('keeps wave references bound to known slot presets and enemies', () => {
+    const slotPresetIds = new Set(CombatContentConfig.SLOT_PRESETS.map((preset) => preset.id));
+    const enemyIds = new Set(CombatContentConfig.ENEMY_DEFINITIONS.map((enemy) => enemy.id));
 
-    expect(CombatWaveConfig.WAVES).toEqual([
-      {
-        id: 'wave-1',
-        slotPresetId: 'preset-starter-1',
-        startAngleDeg: 0,
-        subWaves: [
-          {
-            id: 'wave-1-a',
-            startTimeMs: 0,
-            spawnIntervalMs: 900,
-            enemies: {
-              'enemy-red-basic': 2,
-              'enemy-green-basic': 1,
-            },
-          },
-          {
-            id: 'wave-1-b',
-            startTimeMs: 2500,
-            spawnIntervalMs: 800,
-            enemies: {
-              'enemy-blue-basic': 2,
-              'enemy-red-basic': 1,
-            },
-          },
-        ],
-      },
-    ]);
+    for (const wave of CombatWaveConfig.WAVES) {
+      expect(slotPresetIds.has(wave.slotPresetId)).toBe(true);
+      expect(wave.subWaves.length).toBeGreaterThan(0);
+
+      for (const subWave of wave.subWaves) {
+        for (const enemyId of Object.keys(subWave.enemies)) {
+          expect(enemyIds.has(enemyId)).toBe(true);
+        }
+      }
+    }
   });
 
   it('rejects waves that reference an unknown slot preset', () => {
@@ -64,5 +34,32 @@ describe('CombatWaveConfig', () => {
         CombatContentConfig,
       ),
     ).toThrow(/slot preset/i);
+  });
+
+  it('rejects sub-waves that reference unknown enemy definitions', () => {
+    const firstWave = CombatWaveConfig.WAVES[0];
+
+    expect(firstWave).toBeDefined();
+    expect(() =>
+      validateCombatWaveConfig(
+        [
+          {
+            ...firstWave!,
+            subWaves: firstWave!.subWaves.map((subWave, index) =>
+              index === 0
+                ? {
+                    ...subWave,
+                    enemies: {
+                      ...subWave.enemies,
+                      'missing-enemy': 1,
+                    },
+                  }
+                : subWave,
+            ),
+          },
+        ],
+        CombatContentConfig,
+      ),
+    ).toThrow(/unknown enemy/i);
   });
 });

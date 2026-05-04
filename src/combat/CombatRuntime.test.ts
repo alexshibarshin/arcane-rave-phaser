@@ -14,40 +14,44 @@ import {
 describe('createCombatRuntime', () => {
   it('creates the initial combat source of truth from combat config', () => {
     const runtime = createCombatRuntime();
+    const totalSpawnCount = CombatWaveConfig.WAVES.reduce(
+      (waveTotal, wave) =>
+        waveTotal
+        + wave.subWaves.reduce(
+          (subWaveTotal, subWave) =>
+            subWaveTotal + Object.values(subWave.enemies).reduce((sum, count) => sum + count, 0),
+          0,
+        ),
+      0,
+    );
 
     expect(runtime.state).toBe('preview');
     expect(runtime.combatElapsedMs).toBe(0);
     expect(runtime.waveElapsedMs).toBe(0);
     expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP);
-    expect(runtime.record).toEqual({
-      currentAngle: CombatBalanceConfig.RECORD_START_ANGLE_DEG,
-      previousAngle: CombatBalanceConfig.RECORD_START_ANGLE_DEG,
-      rotationSpeedDegPerSecond: CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND,
-      startAngle: CombatBalanceConfig.RECORD_START_ANGLE_DEG,
-    });
-    expect(runtime.notePacket).toEqual({
-      color: null,
-      count: 0,
-      visuals: [],
-    });
+    expect(runtime.record.currentAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
+    expect(runtime.record.previousAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
+    expect(runtime.record.rotationSpeedDegPerSecond).toBe(
+      CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND,
+    );
+    expect(runtime.record.startAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
+    expect(runtime.notePacket.color).toBeNull();
+    expect(runtime.notePacket.count).toBe(0);
+    expect(runtime.notePacket.visuals).toEqual([]);
     expect(runtime.wave.currentWaveIndex).toBe(0);
     expect(runtime.wave.totalWaves).toBe(CombatWaveConfig.WAVES.length);
     expect(runtime.wave.pendingSubWaves).toEqual(
       CombatWaveConfig.WAVES[0]?.subWaves.filter((sw) => sw.startTimeMs > 0) ?? [],
     );
-    expect(runtime.slots).toHaveLength(8);
-    expect(runtime.enemies).toHaveLength(6);
+    expect(runtime.slots).toHaveLength(CombatContentConfig.SLOT_COUNT);
+    expect(runtime.enemies).toHaveLength(totalSpawnCount);
     expect(runtime.wave.activeSubWaves).toHaveLength(1);
-    expect(runtime.wave.activeSubWaves[0]?.id).toBe('wave-1-a');
-    expect(runtime.wave.enemiesRemaining).toBe(6);
-    expect(runtime.outcome).toEqual({
-      victory: false,
-      defeat: false,
-    });
-    expect(runtime.effects).toEqual({
-      transientIds: [],
-      pendingEvents: [],
-    });
+    expect(runtime.wave.activeSubWaves[0]?.startTimeMs).toBe(0);
+    expect(runtime.wave.enemiesRemaining).toBe(totalSpawnCount);
+    expect(runtime.outcome.victory).toBe(false);
+    expect(runtime.outcome.defeat).toBe(false);
+    expect(runtime.effects.transientIds).toEqual([]);
+    expect(runtime.effects.pendingEvents).toEqual([]);
   });
 
   it('stores preview timing in runtime from combat balance config', () => {
@@ -92,26 +96,27 @@ describe('createCombatRuntime', () => {
 
   it('creates runtime enemies for all spawns across all sub-waves', () => {
     const runtime = createCombatRuntime();
+    const expectedCounts = new Map<string, number>();
 
-    // wave-1-a: 2 red + 1 green = 3
-    // wave-1-b: 2 blue + 1 red = 3
-    // Total: 3 red + 1 green + 2 blue = 6
-    expect(runtime.enemies).toHaveLength(6);
+    for (const wave of CombatWaveConfig.WAVES) {
+      for (const subWave of wave.subWaves) {
+        for (const [enemyId, count] of Object.entries(subWave.enemies)) {
+          expectedCounts.set(enemyId, (expectedCounts.get(enemyId) ?? 0) + count);
+        }
+      }
+    }
 
-    const redEnemies = runtime.enemies.filter((e) => e.definitionId === 'enemy-red-basic');
-    const greenEnemies = runtime.enemies.filter((e) => e.definitionId === 'enemy-green-basic');
-    const blueEnemies = runtime.enemies.filter((e) => e.definitionId === 'enemy-blue-basic');
+    expect(runtime.enemies).toHaveLength(
+      Array.from(expectedCounts.values()).reduce((sum, count) => sum + count, 0),
+    );
 
-    expect(redEnemies).toHaveLength(3);
-    expect(greenEnemies).toHaveLength(1);
-    expect(blueEnemies).toHaveLength(2);
+    for (const [enemyId, count] of expectedCounts) {
+      expect(runtime.enemies.filter((enemy) => enemy.definitionId === enemyId)).toHaveLength(count);
+    }
 
-    expect(runtime.enemies[0]!.runtimeId).toBe('enemy-runtime-1');
-    expect(runtime.enemies[0]!.definitionId).toBe('enemy-red-basic');
-    expect(runtime.enemies[3]!.runtimeId).toBe('enemy-runtime-4');
-    expect(runtime.enemies[3]!.definitionId).toBe('enemy-green-basic');
-    expect(runtime.enemies[5]!.runtimeId).toBe('enemy-runtime-6');
-    expect(runtime.enemies[5]!.definitionId).toBe('enemy-blue-basic');
+    expect(runtime.enemies.map((enemy) => enemy.runtimeId)).toEqual(
+      runtime.enemies.map((_, index) => `enemy-runtime-${index + 1}`),
+    );
 
     for (const enemy of runtime.enemies) {
       expect(enemy.spawned).toBe(false);
@@ -122,21 +127,15 @@ describe('createCombatRuntime', () => {
   it('creates stable runtime slots from the combat layout geometry', () => {
     const runtime = createCombatRuntime();
     const layout = createCombatLayoutPlan();
+    const activeWave = CombatWaveConfig.WAVES[0];
+    const activePreset = CombatContentConfig.SLOT_PRESETS.find(
+      (preset) => preset.id === activeWave?.slotPresetId,
+    );
 
     expect(runtime.slots).toEqual(
       layout.record.slots.map((slot) => ({
         slotIndex: slot.index,
-        pawnId:
-          [
-            'pawn-red-generator',
-            'pawn-red-finisher',
-            null,
-            'pawn-green-generator',
-            'pawn-green-finisher',
-            null,
-            'pawn-blue-generator',
-            'pawn-blue-finisher',
-          ][slot.index] ?? null,
+        pawnId: activePreset?.slots[slot.index] ?? null,
         worldPosition: {
           x:
             layout.record.centerX

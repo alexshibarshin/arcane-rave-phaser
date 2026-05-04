@@ -1,109 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import {
   CombatContentConfig,
   validateCombatContentConfig,
+  type NoteColor,
 } from '@config/CombatContentConfig';
 
 describe('CombatContentConfig', () => {
-  it('defines the six starter pawn definitions with finisher output color rotation', () => {
-    expect(CombatContentConfig.PAWN_DEFINITIONS).toEqual([
-      {
-        id: 'pawn-red-generator',
-        type: 'generator',
-        color: 'red',
-        baseDamage: CombatBalanceConfig.GENERATOR_BASE_DAMAGE,
-        visualFamilyKey: 'generator',
-        visualSilhouetteKey: 'generator-red',
-        pedestalStyleKey: 'pedestal-red',
-      },
-      {
-        id: 'pawn-green-generator',
-        type: 'generator',
-        color: 'green',
-        baseDamage: CombatBalanceConfig.GENERATOR_BASE_DAMAGE,
-        visualFamilyKey: 'generator',
-        visualSilhouetteKey: 'generator-green',
-        pedestalStyleKey: 'pedestal-green',
-      },
-      {
-        id: 'pawn-blue-generator',
-        type: 'generator',
-        color: 'blue',
-        baseDamage: CombatBalanceConfig.GENERATOR_BASE_DAMAGE,
-        visualFamilyKey: 'generator',
-        visualSilhouetteKey: 'generator-blue',
-        pedestalStyleKey: 'pedestal-blue',
-      },
-      {
-        id: 'pawn-red-finisher',
-        type: 'finisher',
-        color: 'red',
-        baseDamage: CombatBalanceConfig.FINISHER_BASE_DAMAGE,
-        outputNoteColor: 'green',
-        visualFamilyKey: 'finisher',
-        visualSilhouetteKey: 'finisher-red',
-        pedestalStyleKey: 'pedestal-red',
-      },
-      {
-        id: 'pawn-green-finisher',
-        type: 'finisher',
-        color: 'green',
-        baseDamage: CombatBalanceConfig.FINISHER_BASE_DAMAGE,
-        outputNoteColor: 'blue',
-        visualFamilyKey: 'finisher',
-        visualSilhouetteKey: 'finisher-green',
-        pedestalStyleKey: 'pedestal-green',
-      },
-      {
-        id: 'pawn-blue-finisher',
-        type: 'finisher',
-        color: 'blue',
-        baseDamage: CombatBalanceConfig.FINISHER_BASE_DAMAGE,
-        outputNoteColor: 'red',
-        visualFamilyKey: 'finisher',
-        visualSilhouetteKey: 'finisher-blue',
-        pedestalStyleKey: 'pedestal-blue',
-      },
-    ]);
+  it('defines a complete non-self weakness cycle across all note colors', () => {
+    const noteColors = new Set(CombatContentConfig.NOTE_COLORS);
+    const weaknessTargets = Object.values(CombatContentConfig.WEAKNESS_ADVANTAGE);
+
+    expect(weaknessTargets).toHaveLength(CombatContentConfig.NOTE_COLORS.length);
+    expect(new Set(weaknessTargets)).toEqual(noteColors);
+
+    for (const color of CombatContentConfig.NOTE_COLORS) {
+      expect(CombatContentConfig.WEAKNESS_ADVANTAGE[color]).not.toBe(color);
+      expect(noteColors.has(CombatContentConfig.WEAKNESS_ADVANTAGE[color])).toBe(true);
+    }
   });
 
-  it('defines the three starter enemy color variants from one placeholder stat block', () => {
-    expect(CombatContentConfig.ENEMY_DEFINITIONS).toEqual([
-      {
-        id: 'enemy-red-basic',
-        archetype: 'basic',
-        color: 'red',
-        maxHp: CombatBalanceConfig.ENEMY_MAX_HP,
-        moveSpeedPxPerSec: CombatBalanceConfig.ENEMY_MOVE_SPEED_PX_PER_SEC,
-        attackRangePx: CombatBalanceConfig.ENEMY_ATTACK_RANGE_PX,
-        attackCooldownMs: CombatBalanceConfig.ENEMY_ATTACK_COOLDOWN_MS,
-        attackDamage: CombatBalanceConfig.ENEMY_ATTACK_DAMAGE,
-        visualKey: 'enemy-basic-red',
-      },
-      {
-        id: 'enemy-green-basic',
-        archetype: 'basic',
-        color: 'green',
-        maxHp: CombatBalanceConfig.ENEMY_MAX_HP,
-        moveSpeedPxPerSec: CombatBalanceConfig.ENEMY_MOVE_SPEED_PX_PER_SEC,
-        attackRangePx: CombatBalanceConfig.ENEMY_ATTACK_RANGE_PX,
-        attackCooldownMs: CombatBalanceConfig.ENEMY_ATTACK_COOLDOWN_MS,
-        attackDamage: CombatBalanceConfig.ENEMY_ATTACK_DAMAGE,
-        visualKey: 'enemy-basic-green',
-      },
-      {
-        id: 'enemy-blue-basic',
-        archetype: 'basic',
-        color: 'blue',
-        maxHp: CombatBalanceConfig.ENEMY_MAX_HP,
-        moveSpeedPxPerSec: CombatBalanceConfig.ENEMY_MOVE_SPEED_PX_PER_SEC,
-        attackRangePx: CombatBalanceConfig.ENEMY_ATTACK_RANGE_PX,
-        attackCooldownMs: CombatBalanceConfig.ENEMY_ATTACK_COOLDOWN_MS,
-        attackDamage: CombatBalanceConfig.ENEMY_ATTACK_DAMAGE,
-        visualKey: 'enemy-basic-blue',
-      },
-    ]);
+  it('keeps every slot preset aligned with slot count and known pawn definitions', () => {
+    const pawnIds = new Set(CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => pawn.id));
+
+    for (const preset of CombatContentConfig.SLOT_PRESETS) {
+      expect(preset.slots).toHaveLength(CombatContentConfig.SLOT_COUNT);
+
+      for (const pawnId of preset.slots) {
+        expect(pawnId === null || pawnIds.has(pawnId)).toBe(true);
+      }
+    }
   });
 
   it('rejects finishers whose output note color matches their own color', () => {
@@ -119,16 +44,37 @@ describe('CombatContentConfig', () => {
     ).toThrow(/output note color/i);
   });
 
-  it('orders the starter preset into same-color generator to finisher pairs for visible packet intake', () => {
-    expect(CombatContentConfig.SLOT_PRESETS[0]?.slots).toEqual([
-      'pawn-red-generator',
-      'pawn-red-finisher',
-      null,
-      'pawn-green-generator',
-      'pawn-green-finisher',
-      null,
-      'pawn-blue-generator',
-      'pawn-blue-finisher',
-    ]);
+  it('rejects slot presets that reference unknown pawns', () => {
+    expect(() =>
+      validateCombatContentConfig({
+        ...CombatContentConfig,
+        SLOT_PRESETS: CombatContentConfig.SLOT_PRESETS.map((preset, index) =>
+          index === 0
+            ? {
+                ...preset,
+                slots: preset.slots.map((slot, slotIndex) =>
+                  slotIndex === 0 ? 'missing-pawn' : slot,
+                ),
+              }
+            : preset,
+        ),
+      }),
+    ).toThrow(/unknown pawn/i);
+  });
+
+  it('rejects enemies with colors outside the declared note-color set', () => {
+    expect(() =>
+      validateCombatContentConfig({
+        ...CombatContentConfig,
+        ENEMY_DEFINITIONS: CombatContentConfig.ENEMY_DEFINITIONS.map((enemy, index) =>
+          index === 0
+            ? {
+                ...enemy,
+                color: 'purple' as NoteColor,
+              }
+            : enemy,
+        ),
+      }),
+    ).toThrow(/unknown note color/i);
   });
 });

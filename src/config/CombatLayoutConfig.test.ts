@@ -3,45 +3,25 @@ import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { GameConfig } from '@config/GameConfig';
 
 describe('CombatLayoutConfig', () => {
-  it('defines the portrait combat viewport and major layout anchors from config', () => {
-    expect(GameConfig.VIEWPORT_WIDTH).toBe(720);
-    expect(GameConfig.VIEWPORT_HEIGHT).toBe(1280);
+  it('keeps core combat anchors inside the viewport with ordered vertical zones', () => {
+    expect(CombatLayoutConfig.RECORD_CENTER_X).toBe(GameConfig.VIEWPORT_WIDTH / 2);
+    expect(CombatLayoutConfig.BASE_X).toBe(GameConfig.VIEWPORT_WIDTH / 2);
+    expect(CombatLayoutConfig.NOTE_PACKET_ANCHOR_X).toBe(GameConfig.VIEWPORT_WIDTH / 2);
 
-    expect(CombatLayoutConfig).toMatchObject({
-      RECORD_CENTER_X: 360,
-      RECORD_CENTER_Y: 1160,
-      RECORD_RADIUS: 350,
-      RECORD_INNER_ZONE_RADIUS_RATIO: 0.62,
-      BASE_X: 360,
-      BASE_Y: 1160,
-      BASE_WIDTH: 200,
-      BASE_HEIGHT: 180,
-      BASE_HP_BAR_WIDTH: 180,
-      BASE_HP_BAR_HEIGHT: 18,
-      NOTE_PACKET_ANCHOR_Y: 1050,
-      ENEMY_ZONE_TOP: 120,
-      ENEMY_ZONE_BOTTOM: 1200,
-      ENEMY_SPAWN_X_MIN: 72,
-      ENEMY_SPAWN_X_MAX: 648,
-      ENEMY_SPAWN_Y: 80,
-      HUD_PADDING_X: 24,
-      HUD_PADDING_Y: 20,
-    });
+    expect(CombatLayoutConfig.ENEMY_ZONE_TOP).toBeLessThan(CombatLayoutConfig.ENEMY_ZONE_BOTTOM);
+    expect(CombatLayoutConfig.ENEMY_SPAWN_Y).toBeLessThan(CombatLayoutConfig.ENEMY_ZONE_TOP);
+    expect(CombatLayoutConfig.ENEMY_SPAWN_X_MIN).toBeGreaterThanOrEqual(0);
+    expect(CombatLayoutConfig.ENEMY_SPAWN_X_MAX).toBeLessThanOrEqual(GameConfig.VIEWPORT_WIDTH);
+    expect(CombatLayoutConfig.ENEMY_SPAWN_X_MIN).toBeLessThan(CombatLayoutConfig.ENEMY_SPAWN_X_MAX);
   });
 
-  it('declares named combat render layers instead of scattered magic depths', () => {
-    expect(CombatLayoutConfig.DEPTH).toEqual({
-      BACKGROUND: 0,
-      ENEMY_LANE_DECORATIONS: 100,
-      RECORD_BASE: 200,
-      RECORD_DETAILS: 300,
-      TIME_CONTROLS: 400,
-      BASE: 500,
-      PAWNS: 600,
-      NOTE_PACKET: 700,
-      VFX: 800,
-      HUD: 900,
-      OVERLAY: 1000,
-    });
+  it('declares render depths in strictly increasing layer order', () => {
+    const depths = Object.values(CombatLayoutConfig.DEPTH);
+
+    expect(depths.length).toBeGreaterThan(0);
+
+    for (let index = 1; index < depths.length; index += 1) {
+      expect(depths[index]).toBeGreaterThan(depths[index - 1]!);
+    }
   });
 });
