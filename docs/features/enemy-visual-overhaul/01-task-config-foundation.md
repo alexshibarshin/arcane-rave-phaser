@@ -126,7 +126,7 @@ Where `{archetype}` is one of `'tank' | 'fast' | 'ranged' | 'swarm' | 'boss'` an
 - [ ] `validateCombatContentConfig()` passes at module load
 - [ ] `validateCombatWaveConfig()` passes at module load
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes (existing tests still pass — no visual code changed)
+- [ ] `npm run test:run` passes (existing tests still pass — no visual code changed)
 
 ## Technical Notes
 
@@ -141,7 +141,7 @@ Where `{archetype}` is one of `'tank' | 'fast' | 'ranged' | 'swarm' | 'boss'` an
 1. Read `src/config/CombatVisualConfig.ts` and add the new config sections
 2. Read `src/config/CombatContentConfig.ts` and add the 15 new enemy definitions
 3. Run `npx tsc --noEmit` to check for type errors
-4. Run `npm test` to confirm all existing tests still pass
+4. Run `npm run test:run` to confirm all existing tests still pass
 
 ## Additional Notes
 

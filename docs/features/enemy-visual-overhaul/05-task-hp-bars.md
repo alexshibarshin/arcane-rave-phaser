@@ -62,7 +62,7 @@ However, for dead enemies, the container is hidden but the death animation shoul
 - [ ] HP bars are visible for all living enemies
 - [ ] HP bars fade out with enemy death animation
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes
+- [ ] `npm run test:run` passes
 
 ## Technical Notes
 

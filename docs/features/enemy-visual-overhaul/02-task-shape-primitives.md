@@ -104,7 +104,7 @@ Create `src/combat/EnemyShapePrimitives.ts` with the following functions:
 - [ ] Functions do NOT set fill/stroke styles (caller-controlled)
 - [ ] No circular imports — the module is self-contained
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes (no existing tests affected)
+- [ ] `npm run test:run` passes (no existing tests affected)
 
 ## Technical Notes
 
@@ -122,7 +122,7 @@ Create `src/combat/EnemyShapePrimitives.ts` with the following functions:
 4. For elliptical shapes (oval, capsule head), use `fillEllipse()`/`strokeEllipse()`
 5. For simple rectangles, use `fillRoundedRect()`/`strokeRoundedRect()`
 6. Run `npx tsc --noEmit` to check for type errors
-7. Run `npm test` to confirm existing tests still pass
+7. Run `npm run test:run` to confirm existing tests still pass
 
 ## Additional Notes
 

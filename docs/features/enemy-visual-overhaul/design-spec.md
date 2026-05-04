@@ -616,7 +616,7 @@ Splitting by color (6 enemies per sub-wave) keeps each sub-wave manageable in de
 
 ### Test Suite Checks
 
-- [ ] `npm test` passes with no failures
+- [ ] `npm run test:run` passes with no failures
 - [ ] `CombatContentConfig.test.ts` passes (generic validation)
 - [ ] `CombatWaveConfig.test.ts` passes (generic validation)
 - [ ] `CombatRenderModel.test.ts` passes (enemy count matches runtimes)

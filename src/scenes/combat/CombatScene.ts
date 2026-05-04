@@ -51,6 +51,12 @@ interface CombatSlotView {
 interface CombatEnemyView {
   container: Phaser.GameObjects.Container;
   sortY: number;
+  hpBar: Phaser.GameObjects.Graphics;
+  hpBarX: number;
+  hpBarY: number;
+  hpBarWidth: number;
+  hpBarHeight: number;
+  maxHp: number;
 }
 
 interface CombatBaseHpBarView {
@@ -147,6 +153,7 @@ export class CombatScene extends GameScene {
     on('combat:pause-requested', this.handlePauseRequested);
     on('combat:restart-requested', this.handleRestartRequested);
     on('combat:resume-requested', this.handleResumeRequested);
+    on('combat:enemy-hit', this.handleEnemyHit);
     this.combatVfx = new CombatVfxSystem({
       getSlotAnchor: (slotIndex) => this.getSlotVfxAnchor(slotIndex),
       getEnemyAnchor: (enemyId) => this.getEnemyVfxAnchor(enemyId),
@@ -158,6 +165,7 @@ export class CombatScene extends GameScene {
       off('combat:pause-requested', this.handlePauseRequested);
       off('combat:restart-requested', this.handleRestartRequested);
       off('combat:resume-requested', this.handleResumeRequested);
+      off('combat:enemy-hit', this.handleEnemyHit);
       this.detachCombatVfxEvents?.();
       this.detachCombatVfxEvents = undefined;
       this.combatVfx = undefined;
@@ -289,7 +297,7 @@ export class CombatScene extends GameScene {
 
       hpBar.fillStyle(0x201927, 1);
       hpBar.fillRoundedRect(hpBarX, hpBarY, enemy.hpBar.width, enemy.hpBar.height, 6);
-      hpBar.fillStyle(0x58f29b, 1);
+      hpBar.fillStyle(0xff0000, 1);
       hpBar.fillRoundedRect(
         hpBarX + 2,
         hpBarY + 2,
@@ -301,11 +309,19 @@ export class CombatScene extends GameScene {
       hitFlashAnchor.name = `${enemy.container.name}-hit-flash-anchor`;
       hitFlashAnchor.setVisible(false);
 
-      container.add([hpBar, body, hitFlashAnchor]);
+      container.add([body, hitFlashAnchor, hpBar]);
       container.setVisible(false);
+      const runtimeEnemy = this.runtime!.enemies.find((e) => e.runtimeId === enemy.runtimeId);
+      const maxHp = runtimeEnemy?.maxHp ?? 1;
       this.enemyViews.set(enemy.runtimeId, {
         container,
         sortY: enemy.container.sortY,
+        hpBar,
+        hpBarX: -enemy.hpBar.width / 2,
+        hpBarY: enemy.hpBar.offsetY - enemy.hpBar.height / 2,
+        hpBarWidth: enemy.hpBar.width,
+        hpBarHeight: enemy.hpBar.height,
+        maxHp,
       });
     }
   }
@@ -677,6 +693,44 @@ export class CombatScene extends GameScene {
       enemyView.container.setDepth(this.getEnemyContainerDepth(enemyView.sortY));
     }
   }
+
+  private handleEnemyHit = (payload: {
+    enemyId: string;
+    currentHp: number;
+    maxHp: number;
+  }): void => {
+    const view = this.enemyViews.get(payload.enemyId);
+    if (!view) {
+      return;
+    }
+
+    const innerPadding = 2;
+    const innerWidth = view.hpBarWidth - innerPadding * 2;
+    const innerHeight = view.hpBarHeight - innerPadding * 2;
+    const metrics = getCombatBaseHpBarFillMetrics(
+      payload.currentHp,
+      payload.maxHp,
+      innerWidth,
+    );
+
+    view.hpBar.clear();
+    view.hpBar.fillStyle(0x201927, 1);
+    view.hpBar.fillRoundedRect(
+      view.hpBarX,
+      view.hpBarY,
+      view.hpBarWidth,
+      view.hpBarHeight,
+      6,
+    );
+    view.hpBar.fillStyle(0xff0000, 1);
+    view.hpBar.fillRoundedRect(
+      view.hpBarX + innerPadding,
+      view.hpBarY + innerPadding,
+      metrics.width,
+      innerHeight,
+      4,
+    );
+  };
 
   private syncBaseHpBarPresentation(): void {
     if (!this.runtime || !this.baseHpBarView) {

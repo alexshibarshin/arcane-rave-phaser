@@ -123,7 +123,7 @@ switch (archetype) {
 - [ ] All 18 enemy variants (6 archetypes × 3 colors) render with correct element colors
 - [ ] Red enemies have reddish bodies, green have greenish, blue have blueish
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes (no visual tests exist yet, but no type errors)
+- [ ] `npm run test:run` passes (no visual tests exist yet, but no type errors)
 
 ## Technical Notes
 
@@ -140,7 +140,7 @@ switch (archetype) {
 3. Keep head/eye colors as white/grey
 4. Update the call site in `renderEnemyUnits()` to pass `enemy.body.color`
 5. Run `npx tsc --noEmit` to check for type errors
-6. Run `npm test` to confirm no regressions
+6. Run `npm run test:run` to confirm no regressions
 7. Open the game in browser to visually verify all 18 enemy variants render with correct colors
 
 ## Additional Notes

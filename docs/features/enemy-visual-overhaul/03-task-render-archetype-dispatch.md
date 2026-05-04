@@ -174,7 +174,7 @@ Use the following proportions relative to `bodyWidth` and `bodyHeight`:
 - [ ] HP bar and hit flash anchor remain in `renderEnemyUnits()`
 - [ | Container setup (position, depth, name) remains in `renderEnemyUnits()`
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes (existing tests still pass — visual output unchanged for basic enemies)
+- [ ] `npm run test:run` passes (existing tests still pass — visual output unchanged for basic enemies)
 
 ## Technical Notes
 
@@ -192,7 +192,7 @@ Use the following proportions relative to `bodyWidth` and `bodyHeight`:
 4. Refactor `renderEnemyUnits()` to dispatch based on `enemy.body.family`
 5. Verify the basic enemy visual is identical (compare the function calls)
 6. Run `npx tsc --noEmit` to check for type errors
-7. Run `npm test` to confirm existing tests still pass
+7. Run `npm run test:run` to confirm existing tests still pass
 
 ## Additional Notes
 

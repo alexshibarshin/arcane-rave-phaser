@@ -758,7 +758,7 @@ CombatOutcome.ts
 ### Step 10: Run tests
 
 **What to do:**
-1. Run `npm test` (or whatever test command the project uses)
+1. Run `npm run test:run` (or whatever test command the project uses)
 2. Fix any failing tests
 3. The existing tests should still pass — the refactoring is purely internal
 
@@ -939,7 +939,7 @@ After completing all steps, verify:
 
 - [ ] `npx tsc --noEmit` passes with zero errors
 - [ ] `npm run build` succeeds
-- [ ] `npm test` passes all existing tests
+- [ ] `npm run test:run` passes all existing tests
 - [ ] No circular dependencies (check with `madge --circular src/` if available)
 - [ ] `CombatRuntime.ts` is ~150-200 lines (down from ~570)
 - [ ] `CombatRuntimeAdvance.ts` is ~40 lines (thin pipeline)
