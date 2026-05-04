@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createCombatHudBridgeEvents,
   createCombatStateTransitionEvents,
+  getCombatOverlayActions,
   getCombatOverlayText,
 } from './CombatHudBridge';
 import { createCombatRuntime } from './CombatRuntime';
@@ -86,5 +87,13 @@ describe('CombatHudBridge', () => {
     expect(getCombatOverlayText('paused')).toBe('Paused');
     expect(getCombatOverlayText('victory')).toBe('Victory');
     expect(getCombatOverlayText('defeat')).toBe('Defeat');
+  });
+
+  it('shows a restart overlay action only for victory and defeat', () => {
+    expect(getCombatOverlayActions('preview')).toEqual([]);
+    expect(getCombatOverlayActions('running')).toEqual([]);
+    expect(getCombatOverlayActions('paused')).toEqual([]);
+    expect(getCombatOverlayActions('victory')).toEqual(['Restart']);
+    expect(getCombatOverlayActions('defeat')).toEqual(['Restart']);
   });
 });

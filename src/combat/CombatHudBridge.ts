@@ -112,3 +112,13 @@ export function getCombatOverlayText(state: CombatState): string | null {
       return null;
   }
 }
+
+export function getCombatOverlayActions(state: CombatState): string[] {
+  switch (state) {
+    case 'victory':
+    case 'defeat':
+      return ['Restart'];
+    default:
+      return [];
+  }
+}

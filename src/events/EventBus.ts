@@ -16,6 +16,7 @@ export interface EventMap {
   'combat:scene-ready': { key: string; state: CombatState };
   'combat:hud-ready': { key: string };
   'combat:restarted': void;
+  'combat:restart-requested': void;
   'combat:state-changed': { state: CombatState };
   'combat:pause-opened': void;
   'combat:pause-closed': void;

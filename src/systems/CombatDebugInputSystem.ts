@@ -1,10 +1,15 @@
 import Phaser from 'phaser';
+import { SceneKeys } from '@config/GameConfig';
+import { resolveCombatControlIntent } from '@combat/CombatControlIntent';
+import { restartCombatScenes } from '@combat/CombatSceneLifecycle';
 import { publishCombatStateTransition } from '@combat/CombatHudEvents';
+import { emit } from '@events/EventBus';
 import { setCombatState, type CombatRuntime } from '@combat/CombatRuntime';
 import { InputSystem } from './InputSystem';
 
 export class CombatDebugInputSystem extends InputSystem {
   private pauseKey?: Phaser.Input.Keyboard.Key;
+  private restartKey?: Phaser.Input.Keyboard.Key;
   private victoryKey?: Phaser.Input.Keyboard.Key;
   private defeatKey?: Phaser.Input.Keyboard.Key;
 
@@ -23,12 +28,23 @@ export class CombatDebugInputSystem extends InputSystem {
     }
 
     this.pauseKey ??= keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.restartKey ??= keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     this.victoryKey ??= keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     this.defeatKey ??= keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
 
     const runtime = this.getRuntime();
 
     if (!runtime) {
+      return;
+    }
+
+    if (
+      this.restartKey
+      && Phaser.Input.Keyboard.JustDown(this.restartKey)
+      && resolveCombatControlIntent(runtime.state, { restartPressed: true }) === 'restart'
+    ) {
+      restartCombatScenes(this.scene.scene, SceneKeys.HUD);
+      emit('combat:restarted');
       return;
     }
 

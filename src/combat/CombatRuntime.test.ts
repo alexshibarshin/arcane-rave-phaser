@@ -189,6 +189,41 @@ describe('createCombatRuntime', () => {
     );
   });
 
+  it('resumes enemy attack cadence from the same paused state without catch-up bursts', () => {
+    const runtime = createCombatRuntime();
+    const attacker = runtime.enemies[0];
+
+    expect(attacker).toBeDefined();
+
+    if (!attacker) {
+      return;
+    }
+
+    runtime.wave.activeSubWaves = [];
+    runtime.wave.spawnBags.clear();
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+    }
+    setCombatState(runtime, 'running');
+    attacker.spawned = true;
+    attacker.state = 'attacking';
+    attacker.nextAttackAtMs = 1000;
+
+    advanceCombatRuntime(runtime, 900);
+    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP);
+
+    setCombatState(runtime, 'paused');
+    advanceCombatRuntime(runtime, 5000);
+    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP);
+
+    setCombatState(runtime, 'running');
+    advanceCombatRuntime(runtime, 99);
+    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP);
+
+    advanceCombatRuntime(runtime, 1);
+    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP - CombatBalanceConfig.ENEMY_ATTACK_DAMAGE);
+  });
+
   it('activates every crossed empty slot in temporal order during multi-crossing frames', () => {
     const runtime = createCombatRuntime();
     setCombatState(runtime, 'running');

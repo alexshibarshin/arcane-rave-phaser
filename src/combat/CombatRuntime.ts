@@ -376,9 +376,8 @@ export function advanceCombatRuntime(
   deltaMs: number,
   options: CombatRuntimeAdvanceOptions = {},
 ): void {
-  runtime.combatElapsedMs += deltaMs;
-
   if (runtime.state === 'running') {
+    runtime.combatElapsedMs += deltaMs;
     runtime.waveElapsedMs += deltaMs;
     activatePendingSubWaves(runtime, options.random ?? Math.random);
     resetSlotActivationEffects(runtime);
@@ -398,6 +397,7 @@ export function advanceCombatRuntime(
     return;
   }
 
+  runtime.combatElapsedMs += deltaMs;
   runtime.preview.elapsedMs = Math.min(
     runtime.preview.elapsedMs + deltaMs,
     runtime.preview.durationMs,

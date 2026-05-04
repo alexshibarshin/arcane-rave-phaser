@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { emit } from '@events/EventBus';
+import { emit, off, on } from '@events/EventBus';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatVfxConfig } from '@config/CombatVfxConfig';
@@ -12,8 +12,10 @@ import {
 import { createCombatNotePacketViewModel } from '@combat/CombatNotePacketView';
 import { bindCombatVfxEvents } from '@combat/CombatVfxEventBridge';
 import { GameScene } from '@scenes/GameScene';
+import { restartCombatScenes } from '@combat/CombatSceneLifecycle';
 import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
 import { createCombatRenderModel } from '@combat/CombatRenderModel';
+import { getCombatPresentationDelta } from '@combat/CombatSceneLifecycle';
 import { getCombatBaseHpBarFillMetrics } from '@combat/CombatBaseHpBar';
 import { CombatVfxSystem, type CombatVfxAnchor, type CombatVfxSnapshot } from '@combat/CombatVfxSystem';
 import {
@@ -79,6 +81,10 @@ export class CombatScene extends GameScene {
   private readonly packetBreakPool: Phaser.GameObjects.Image[] = [];
   private readonly baseHitViews = new Map<string, Phaser.GameObjects.Image>();
   private readonly baseHitPool: Phaser.GameObjects.Image[] = [];
+  private readonly handleRestartRequested = (): void => {
+    restartCombatScenes(this.scene, SceneKeys.HUD);
+    emit('combat:restarted');
+  };
 
   constructor() {
     super(SceneKeys.COMBAT);
@@ -100,6 +106,7 @@ export class CombatScene extends GameScene {
   protected createSceneContent(): void {
     this.runtime = createCombatRuntime();
     this.renderStaticCombatLayout();
+    on('combat:restart-requested', this.handleRestartRequested);
     this.combatVfx = new CombatVfxSystem({
       getSlotAnchor: (slotIndex) => this.getSlotVfxAnchor(slotIndex),
       getEnemyAnchor: (enemyId) => this.getEnemyVfxAnchor(enemyId),
@@ -108,6 +115,7 @@ export class CombatScene extends GameScene {
     });
     this.detachCombatVfxEvents = bindCombatVfxEvents(this.combatVfx);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      off('combat:restart-requested', this.handleRestartRequested);
       this.detachCombatVfxEvents?.();
       this.detachCombatVfxEvents = undefined;
       this.combatVfx = undefined;
@@ -561,8 +569,10 @@ export class CombatScene extends GameScene {
       return;
     }
 
-    this.notePacketElapsedMs += delta;
-    this.combatVfx.update(delta);
+    const presentationDelta = getCombatPresentationDelta(this.runtime.state, delta);
+
+    this.notePacketElapsedMs += presentationDelta;
+    this.combatVfx.update(presentationDelta);
     const vfxSnapshot = this.combatVfx.getSnapshot();
     const recordRotation = Phaser.Math.DegToRad(this.runtime.record.currentAngle);
 
