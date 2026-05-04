@@ -5,9 +5,11 @@ import {
   COMBAT_NEEDLE_ANGLE_DEGREES,
   createCombatLayoutPlan,
 } from './CombatLayout';
+import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 
 export type CombatState = 'preview' | 'running' | 'paused' | 'victory' | 'defeat';
 export type NoteColor = (typeof CombatContentConfig.NOTE_COLORS)[number];
+export type CombatEnemyState = 'moving' | 'attacking' | 'dead';
 
 export interface CombatSlotRuntime {
   slotIndex: number;
@@ -24,8 +26,17 @@ export interface CombatNotePacketRuntime {
 }
 
 export interface CombatEnemyRuntime {
-  id: string;
-  enemyType: string;
+  runtimeId: string;
+  definitionId: string;
+  archetype: string;
+  color: NoteColor;
+  currentHp: number;
+  maxHp: number;
+  x: number;
+  y: number;
+  state: CombatEnemyState;
+  nextAttackAtMs: number;
+  renderContainerName: string;
 }
 
 export interface CombatWaveRuntime {
@@ -110,7 +121,7 @@ export function createCombatRuntime(): CombatRuntime {
       count: 0,
       visuals: [],
     },
-    enemies: [],
+    enemies: createCombatEnemyRuntimes(),
     wave: {
       currentWaveIndex: 0,
       totalWaves: CombatWaveConfig.WAVES.length,

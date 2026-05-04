@@ -9,17 +9,17 @@ describe('CombatLayoutConfig', () => {
 
     expect(CombatLayoutConfig).toMatchObject({
       RECORD_CENTER_X: 360,
-      RECORD_CENTER_Y: 1140,
-      RECORD_RADIUS: 420,
+      RECORD_CENTER_Y: 1160,
+      RECORD_RADIUS: 350,
       BASE_X: 360,
-      BASE_Y: 1140,
-      BASE_WIDTH: 220,
+      BASE_Y: 1160,
+      BASE_WIDTH: 200,
       BASE_HEIGHT: 180,
       BASE_HP_BAR_WIDTH: 180,
       BASE_HP_BAR_HEIGHT: 18,
-      NOTE_PACKET_ANCHOR_Y: 1060,
+      NOTE_PACKET_ANCHOR_Y: 1050,
       ENEMY_ZONE_TOP: 120,
-      ENEMY_ZONE_BOTTOM: 600,
+      ENEMY_ZONE_BOTTOM: 1200,
       HUD_PADDING_X: 24,
       HUD_PADDING_Y: 20,
     });

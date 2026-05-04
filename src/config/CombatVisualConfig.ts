@@ -16,4 +16,12 @@ export const CombatVisualConfig = {
     INNER_ZONE_OFFSET_RATIO: 0.85,
     OUTER_ZONE_OFFSET_RATIO: 0.8,
   },
+  ENEMY: {
+    BODY_WIDTH: 31,
+    BODY_HEIGHT: 36,
+    HP_BAR_OFFSET_Y: -25,
+    HP_BAR_WIDTH: 23,
+    HP_BAR_HEIGHT: 4,
+    HIT_FLASH_OFFSET_Y: -3,
+  },
 } as const;

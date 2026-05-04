@@ -1,6 +1,7 @@
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import {
   CombatContentConfig,
+  type CombatEnemyDefinition,
   type CombatPawnDefinition,
   type NoteColor,
   type PawnType,
@@ -8,6 +9,7 @@ import {
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig } from '@config/CombatWaveConfig';
 import { GameConfig } from '@config/GameConfig';
+import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 import { createCombatLayoutPlan } from './CombatLayout';
 
 interface CombatRenderPawnModel {
@@ -48,6 +50,37 @@ interface CombatSlotPresentationModel {
       count: number;
       color: number;
     } | null;
+  };
+}
+
+interface CombatEnemyRenderModel {
+  runtimeId: string;
+  definitionId: string;
+  container: {
+    name: string;
+    x: number;
+    y: number;
+    depth: number;
+    sortY: number;
+  };
+  body: {
+    family: string;
+    silhouetteKey: string;
+    variantKey: string;
+    color: number;
+    width: number;
+    height: number;
+  };
+  hpBar: {
+    offsetY: number;
+    width: number;
+    height: number;
+  };
+  attachments: {
+    hitFlash: {
+      x: number;
+      y: number;
+    };
   };
 }
 
@@ -143,6 +176,7 @@ export interface CombatRenderModel {
       align: 'right';
     };
   };
+  enemies: CombatEnemyRenderModel[];
 }
 
 export function createCombatRenderModel(): CombatRenderModel {
@@ -151,6 +185,9 @@ export function createCombatRenderModel(): CombatRenderModel {
   const timeControlsY = layout.record.centerY - layout.record.radius - 72;
   const pawnDefinitionsById = new Map(
     CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => [pawn.id, pawn]),
+  );
+  const enemyDefinitionsById = new Map(
+    CombatContentConfig.ENEMY_DEFINITIONS.map((enemy) => [enemy.id, enemy]),
   );
   const activeWave = CombatWaveConfig.WAVES[0];
   const activePreset = CombatContentConfig.SLOT_PRESETS.find(
@@ -255,6 +292,47 @@ export function createCombatRenderModel(): CombatRenderModel {
         x: GameConfig.VIEWPORT_WIDTH - CombatLayoutConfig.HUD_PADDING_X,
         y: CombatLayoutConfig.HUD_PADDING_Y,
         align: 'right',
+      },
+    },
+    enemies: createCombatEnemyRuntimes().flatMap((enemyRuntime) => {
+      const definition = enemyDefinitionsById.get(enemyRuntime.definitionId);
+
+      return definition ? [createEnemyRenderModel(enemyRuntime, definition)] : [];
+    }),
+  };
+}
+
+function createEnemyRenderModel(
+  enemyRuntime: ReturnType<typeof createCombatEnemyRuntimes>[number],
+  definition: CombatEnemyDefinition,
+): CombatEnemyRenderModel {
+  return {
+    runtimeId: enemyRuntime.runtimeId,
+    definitionId: definition.id,
+    container: {
+      name: enemyRuntime.renderContainerName,
+      x: enemyRuntime.x,
+      y: enemyRuntime.y,
+      depth: CombatLayoutConfig.DEPTH.PAWNS,
+      sortY: enemyRuntime.y,
+    },
+    body: {
+      family: definition.archetype,
+      silhouetteKey: `enemy-${definition.archetype}`,
+      variantKey: definition.visualKey,
+      color: CombatVisualConfig.NOTE_COLORS[definition.color],
+      width: CombatVisualConfig.ENEMY.BODY_WIDTH,
+      height: CombatVisualConfig.ENEMY.BODY_HEIGHT,
+    },
+    hpBar: {
+      offsetY: CombatVisualConfig.ENEMY.HP_BAR_OFFSET_Y,
+      width: CombatVisualConfig.ENEMY.HP_BAR_WIDTH,
+      height: CombatVisualConfig.ENEMY.HP_BAR_HEIGHT,
+    },
+    attachments: {
+      hitFlash: {
+        x: 0,
+        y: CombatVisualConfig.ENEMY.HIT_FLASH_OFFSET_Y,
       },
     },
   };

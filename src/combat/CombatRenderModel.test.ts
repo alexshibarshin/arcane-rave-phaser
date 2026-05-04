@@ -22,9 +22,13 @@ describe('CombatRenderModel', () => {
       centerAngleDeg: -90,
     });
     expect(model.record.slots[0]?.innerAnchor.x).toBeCloseTo(0);
-    expect(model.record.slots[0]?.innerAnchor.y).toBeCloseTo(-130.2);
+    expect(model.record.slots[0]?.innerAnchor.y).toBeCloseTo(
+      (-CombatLayoutConfig.RECORD_RADIUS / 2) * 0.85,
+    );
     expect(model.record.slots[0]?.outerAnchor.x).toBeCloseTo(0);
-    expect(model.record.slots[0]?.outerAnchor.y).toBeCloseTo(-310.8);
+    expect(model.record.slots[0]?.outerAnchor.y).toBeCloseTo(
+      -CombatLayoutConfig.RECORD_RADIUS * 0.8,
+    );
     expect(model.base.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
     expect(model.baseHpBar.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
     expect(model.notePacketAnchor.depth).toBe(CombatLayoutConfig.DEPTH.NOTE_PACKET);
@@ -133,5 +137,103 @@ describe('CombatRenderModel', () => {
     expect(model.record.slots[0]?.innerLabelRotationDeg).toBe(0);
     expect(model.record.slots[4]?.innerLabelRotationDeg).toBe(180);
     expect(model.record.slots[6]?.innerLabelRotationDeg).toBe(270);
+  });
+
+  it('describes three enemy color variants as shared container render units with y-sort anchors', () => {
+    const model = createCombatRenderModel();
+
+    expect(model.enemies).toHaveLength(3);
+    expect(model.enemies).toEqual([
+      {
+        runtimeId: 'enemy-runtime-1',
+        definitionId: 'enemy-red-basic',
+        container: {
+          name: 'enemy-container-1',
+          x: 180,
+          y: 240,
+          depth: CombatLayoutConfig.DEPTH.PAWNS,
+          sortY: 240,
+        },
+        body: {
+          family: 'basic',
+          silhouetteKey: 'enemy-basic',
+          variantKey: 'enemy-basic-red',
+          color: 0xff5f7a,
+          width: 31,
+          height: 36,
+        },
+        hpBar: {
+          offsetY: -25,
+          width: 23,
+          height: 4,
+        },
+        attachments: {
+          hitFlash: {
+            x: 0,
+            y: -3,
+          },
+        },
+      },
+      {
+        runtimeId: 'enemy-runtime-2',
+        definitionId: 'enemy-green-basic',
+        container: {
+          name: 'enemy-container-2',
+          x: 360,
+          y: 320,
+          depth: CombatLayoutConfig.DEPTH.PAWNS,
+          sortY: 320,
+        },
+        body: {
+          family: 'basic',
+          silhouetteKey: 'enemy-basic',
+          variantKey: 'enemy-basic-green',
+          color: 0x63f5a6,
+          width: 31,
+          height: 36,
+        },
+        hpBar: {
+          offsetY: -25,
+          width: 23,
+          height: 4,
+        },
+        attachments: {
+          hitFlash: {
+            x: 0,
+            y: -3,
+          },
+        },
+      },
+      {
+        runtimeId: 'enemy-runtime-3',
+        definitionId: 'enemy-blue-basic',
+        container: {
+          name: 'enemy-container-3',
+          x: 540,
+          y: 400,
+          depth: CombatLayoutConfig.DEPTH.PAWNS,
+          sortY: 400,
+        },
+        body: {
+          family: 'basic',
+          silhouetteKey: 'enemy-basic',
+          variantKey: 'enemy-basic-blue',
+          color: 0x5db7ff,
+          width: 31,
+          height: 36,
+        },
+        hpBar: {
+          offsetY: -25,
+          width: 23,
+          height: 4,
+        },
+        attachments: {
+          hitFlash: {
+            x: 0,
+            y: -3,
+          },
+        },
+      },
+    ]);
   });
 });

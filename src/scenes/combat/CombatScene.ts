@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { emit } from '@events/EventBus';
 import { off, on } from '@events/EventBus';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
+import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { GameScene } from '@scenes/GameScene';
@@ -21,10 +22,16 @@ interface CombatSlotView {
   rotatingContent: Phaser.GameObjects.Container;
 }
 
+interface CombatEnemyView {
+  container: Phaser.GameObjects.Container;
+  sortY: number;
+}
+
 export class CombatScene extends GameScene {
   private runtime?: CombatRuntime;
   private recordContainer?: Phaser.GameObjects.Container;
   private readonly slotViews = new Map<number, CombatSlotView>();
+  private readonly enemyViews = new Map<string, CombatEnemyView>();
 
   private readonly handleSlotActivated = ({ slotIndex }: { slotIndex: number }): void => {
     const slotView = this.slotViews.get(slotIndex);
@@ -61,6 +68,7 @@ export class CombatScene extends GameScene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       off('combat:slot-activated', this.handleSlotActivated);
       this.slotViews.clear();
+      this.enemyViews.clear();
       this.recordContainer = undefined;
     });
   }
@@ -82,6 +90,7 @@ export class CombatScene extends GameScene {
 
     this.renderBackground(model);
     this.renderEnemyLane(model);
+    this.renderEnemyUnits(model);
     this.renderRecord(model);
     this.renderTimeControlBackplates(model);
     this.renderBase(model);
@@ -125,6 +134,73 @@ export class CombatScene extends GameScene {
 
     label.setOrigin(0.5, 0.5);
     label.setDepth(model.enemyLane.depth);
+  }
+
+  private renderEnemyUnits(model: ReturnType<typeof createCombatRenderModel>): void {
+    for (const enemy of model.enemies) {
+      const container = this.add.container(enemy.container.x, enemy.container.y);
+      const body = this.add.graphics();
+      const hpBar = this.add.graphics();
+      const hitFlashAnchor = this.add.container(
+        enemy.attachments.hitFlash.x,
+        enemy.attachments.hitFlash.y,
+      );
+      const bodyHalfWidth = enemy.body.width / 2;
+      const bodyHalfHeight = enemy.body.height / 2;
+      const hpBarX = -enemy.hpBar.width / 2;
+      const hpBarY = enemy.hpBar.offsetY - enemy.hpBar.height / 2;
+
+      container.name = enemy.container.name;
+      container.setDepth(this.getEnemyContainerDepth(enemy.container.sortY));
+
+      body.fillStyle(enemy.body.color, 0.16);
+      body.lineStyle(3, enemy.body.color, 0.95);
+      body.fillRoundedRect(
+        -bodyHalfWidth,
+        -bodyHalfHeight + 12,
+        enemy.body.width,
+        enemy.body.height - 20,
+        22,
+      );
+      body.strokeRoundedRect(
+        -bodyHalfWidth,
+        -bodyHalfHeight + 12,
+        enemy.body.width,
+        enemy.body.height - 20,
+        22,
+      );
+      body.fillStyle(enemy.body.color, 0.2);
+      body.fillCircle(0, -bodyHalfHeight + 10, 26);
+      body.lineStyle(3, 0xe8fbff, 0.8);
+      body.strokeCircle(0, -bodyHalfHeight + 10, 26);
+      body.strokeLineShape(new Phaser.Geom.Line(-18, 8, -34, 28));
+      body.strokeLineShape(new Phaser.Geom.Line(18, 8, 34, 28));
+      body.strokeLineShape(new Phaser.Geom.Line(-14, 28, -24, 54));
+      body.strokeLineShape(new Phaser.Geom.Line(14, 28, 24, 54));
+      body.fillStyle(0xe8fbff, 0.95);
+      body.fillCircle(-10, -bodyHalfHeight + 8, 4);
+      body.fillCircle(10, -bodyHalfHeight + 8, 4);
+
+      hpBar.fillStyle(0x201927, 1);
+      hpBar.fillRoundedRect(hpBarX, hpBarY, enemy.hpBar.width, enemy.hpBar.height, 6);
+      hpBar.fillStyle(0x58f29b, 1);
+      hpBar.fillRoundedRect(
+        hpBarX + 2,
+        hpBarY + 2,
+        enemy.hpBar.width - 4,
+        enemy.hpBar.height - 4,
+        4,
+      );
+
+      hitFlashAnchor.name = `${enemy.container.name}-hit-flash-anchor`;
+      hitFlashAnchor.setVisible(false);
+
+      container.add([hpBar, body, hitFlashAnchor]);
+      this.enemyViews.set(enemy.runtimeId, {
+        container,
+        sortY: enemy.container.sortY,
+      });
+    }
   }
 
   private renderRecord(model: ReturnType<typeof createCombatRenderModel>): void {
@@ -410,6 +486,7 @@ export class CombatScene extends GameScene {
     const recordRotation = Phaser.Math.DegToRad(this.runtime.record.currentAngle);
 
     this.recordContainer.setRotation(recordRotation);
+    this.syncEnemyPresentation();
 
     for (const slotView of this.slotViews.values()) {
       slotView.uprightContainer.setRotation(-recordRotation);
@@ -433,6 +510,16 @@ export class CombatScene extends GameScene {
       slotView.uprightContainer.setScale(1 + progress * 0.08);
       slotView.rotatingContent.setScale(1 + progress * 0.05);
     }
+  }
+
+  private syncEnemyPresentation(): void {
+    for (const enemyView of this.enemyViews.values()) {
+      enemyView.container.setDepth(this.getEnemyContainerDepth(enemyView.sortY));
+    }
+  }
+
+  private getEnemyContainerDepth(sortY: number): number {
+    return CombatLayoutConfig.DEPTH.PAWNS + sortY / 1000;
   }
 
   private renderSlotInnerRotatingPresentation(

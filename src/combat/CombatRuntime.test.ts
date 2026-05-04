@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
+import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatWaveConfig } from '@config/CombatWaveConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { advanceCombatRuntime, createCombatRuntime, setCombatState } from './CombatRuntime';
@@ -29,7 +30,7 @@ describe('createCombatRuntime', () => {
       CombatWaveConfig.WAVES[0]?.subWaves ?? [],
     );
     expect(runtime.slots).toHaveLength(8);
-    expect(runtime.enemies).toEqual([]);
+    expect(runtime.enemies).toHaveLength(CombatContentConfig.ENEMY_DEFINITIONS.length);
     expect(runtime.wave.activeSubWaves).toEqual([]);
     expect(runtime.wave.enemiesRemaining).toBe(0);
     expect(runtime.outcome).toEqual({
@@ -49,6 +50,26 @@ describe('createCombatRuntime', () => {
       elapsedMs: 0,
       durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
     });
+  });
+
+  it('creates one placeholder runtime enemy per content definition with future combat fields', () => {
+    const runtime = createCombatRuntime();
+
+    expect(runtime.enemies).toEqual(
+      CombatContentConfig.ENEMY_DEFINITIONS.map((enemy, index) => ({
+        runtimeId: `enemy-runtime-${index + 1}`,
+        definitionId: enemy.id,
+        archetype: enemy.archetype,
+        color: enemy.color,
+        currentHp: enemy.maxHp,
+        maxHp: enemy.maxHp,
+        x: [180, 360, 540][index],
+        y: [240, 320, 400][index],
+        state: 'moving',
+        nextAttackAtMs: 0,
+        renderContainerName: `enemy-container-${index + 1}`,
+      })),
+    );
   });
 
   it('creates stable runtime slots from the combat layout geometry', () => {
