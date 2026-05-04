@@ -11,6 +11,7 @@ describe('CombatLayoutConfig', () => {
       RECORD_CENTER_X: 360,
       RECORD_CENTER_Y: 1160,
       RECORD_RADIUS: 350,
+      RECORD_INNER_ZONE_RADIUS_RATIO: 0.62,
       BASE_X: 360,
       BASE_Y: 1160,
       BASE_WIDTH: 200,

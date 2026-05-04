@@ -18,12 +18,17 @@ describe('CombatRenderModel', () => {
       index: 0,
       depth: CombatLayoutConfig.DEPTH.RECORD_DETAILS,
       outerRadius: CombatLayoutConfig.RECORD_RADIUS,
-      innerRadius: CombatLayoutConfig.RECORD_RADIUS / 2,
+      innerRadius:
+        CombatLayoutConfig.RECORD_RADIUS * CombatLayoutConfig.RECORD_INNER_ZONE_RADIUS_RATIO,
       centerAngleDeg: -90,
     });
     expect(model.record.slots[0]?.innerAnchor.x).toBeCloseTo(0);
     expect(model.record.slots[0]?.innerAnchor.y).toBeCloseTo(
-      (-CombatLayoutConfig.RECORD_RADIUS / 2) * 0.85,
+      (
+        -CombatLayoutConfig.RECORD_RADIUS
+        * CombatLayoutConfig.RECORD_INNER_ZONE_RADIUS_RATIO
+        * 0.85
+      ),
     );
     expect(model.record.slots[0]?.outerAnchor.x).toBeCloseTo(0);
     expect(model.record.slots[0]?.outerAnchor.y).toBeCloseTo(
@@ -103,6 +108,11 @@ describe('CombatRenderModel', () => {
           pedestal: null,
           ruleLabel: {
             text: '+♪♪',
+            segments: [
+              { text: '+', color: 0xffffff, isNoteGlyph: false },
+              { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
+              { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
+            ],
           },
           emptyLabel: null,
         },
@@ -136,6 +146,15 @@ describe('CombatRenderModel', () => {
         },
       },
     });
+    expect(model.record.slots[1]?.presentation.rotating.ruleLabel?.segments).toEqual([
+      { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
+      { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
+      { text: '♪', color: 0xff5f7a, isNoteGlyph: true },
+      { text: ' ', color: 0xffffff, isNoteGlyph: false },
+      { text: '>', color: 0xffffff, isNoteGlyph: false },
+      { text: ' ', color: 0xffffff, isNoteGlyph: false },
+      { text: '♪', color: 0x63f5a6, isNoteGlyph: true },
+    ]);
   });
 
   it('orients inner rule labels to match each sector heading', () => {

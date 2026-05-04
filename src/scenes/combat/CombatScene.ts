@@ -962,18 +962,39 @@ export class CombatScene extends GameScene {
     slot: ReturnType<typeof createCombatRenderModel>['record']['slots'][number],
     container: Phaser.GameObjects.Container,
   ): void {
-    const accentColor = slot.presentation.accentColor;
-
     const ruleLabel = slot.presentation.rotating.ruleLabel;
     const emptyLabel = slot.presentation.rotating.emptyLabel;
-    const labelText = ruleLabel?.text ?? emptyLabel?.text ?? '';
-    const labelColor = ruleLabel?.color ?? emptyLabel?.color ?? accentColor;
     const fontSizePx =
       ruleLabel === null
         ? CombatVisualConfig.EMPTY_LABEL_FONT_SIZE_PX
         : CombatVisualConfig.RULE_LABEL_FONT_SIZE_PX;
-    const text = this.add.text(0, 0, labelText, {
-      color: `#${labelColor.toString(16).padStart(6, '0')}`,
+
+    if (ruleLabel) {
+      const glyphs = ruleLabel.segments.map((segment) => {
+        const glyph = this.add.text(0, 0, segment.text, {
+          color: `#${segment.color.toString(16).padStart(6, '0')}`,
+          fontFamily: 'monospace',
+          fontSize: `${fontSizePx}px`,
+          fontStyle: segment.isNoteGlyph ? 'bold' : 'normal',
+        });
+
+        glyph.setOrigin(0, 0.5);
+        return glyph;
+      });
+      const totalWidth = glyphs.reduce((width, glyph) => width + glyph.width, 0);
+      let offsetX = -totalWidth / 2;
+
+      for (const glyph of glyphs) {
+        glyph.setPosition(offsetX, 0);
+        offsetX += glyph.width;
+        container.add(glyph);
+      }
+
+      return;
+    }
+
+    const text = this.add.text(0, 0, emptyLabel?.text ?? '', {
+      color: `#${(emptyLabel?.color ?? 0xffffff).toString(16).padStart(6, '0')}`,
       fontFamily: 'monospace',
       fontSize: `${fontSizePx}px`,
       align: 'center',

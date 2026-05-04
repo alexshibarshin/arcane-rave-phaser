@@ -23,13 +23,19 @@ interface CombatRenderPawnModel {
   ruleLabel: string;
 }
 
+interface CombatRuleLabelSegment {
+  text: string;
+  color: number;
+  isNoteGlyph: boolean;
+}
+
 interface CombatSlotPresentationModel {
   accentColor: number;
   rotating: {
     pedestal: null;
     ruleLabel: {
       text: string;
-      color: number;
+      segments: CombatRuleLabelSegment[];
     } | null;
     emptyLabel: {
       text: string;
@@ -181,6 +187,7 @@ export interface CombatRenderModel {
 
 export function createCombatRenderModel(): CombatRenderModel {
   const layout = createCombatLayoutPlan();
+  const innerZoneRadius = layout.record.radius * CombatLayoutConfig.RECORD_INNER_ZONE_RADIUS_RATIO;
   const hpBarY = layout.base.y + layout.base.height / 2 + 24;
   const timeControlsY = layout.record.centerY - layout.record.radius - 72;
   const pawnDefinitionsById = new Map(
@@ -217,14 +224,14 @@ export function createCombatRenderModel(): CombatRenderModel {
       slots: layout.record.slots.map((slot) => ({
         index: slot.index,
         depth: CombatLayoutConfig.DEPTH.RECORD_DETAILS,
-        innerRadius: layout.record.radius / 2,
+        innerRadius: innerZoneRadius,
         outerRadius: layout.record.radius,
         startAngleDeg: slot.startAngleDeg,
         centerAngleDeg: slot.centerAngleDeg,
         endAngleDeg: slot.endAngleDeg,
         innerAnchor: getPolarOffset(
           slot.centerAngleDeg,
-          (layout.record.radius / 2) * CombatVisualConfig.SLOT.INNER_ZONE_OFFSET_RATIO,
+          innerZoneRadius * CombatVisualConfig.SLOT.INNER_ZONE_OFFSET_RATIO,
         ),
         innerLabelRotationDeg: getInnerLabelRotationDeg(slot.centerAngleDeg),
         outerAnchor: getPolarOffset(
@@ -390,14 +397,15 @@ function createSlotPresentationModel(
   }
 
   const accentColor = getNoteColorValue(pawnDefinition.color);
+  const ruleLabel = createRuleLabelText(pawnDefinition);
 
   return {
     accentColor,
     rotating: {
       pedestal: null,
       ruleLabel: {
-        text: pawnDefinition.type === 'generator' ? '+♪♪' : '♪♪♪ > ♪',
-        color: accentColor,
+        text: ruleLabel,
+        segments: createRuleLabelSegments(pawnDefinition),
       },
       emptyLabel: null,
     },
@@ -421,6 +429,37 @@ function createSlotPresentationModel(
 
 function getNoteColorValue(color: NoteColor): number {
   return CombatVisualConfig.NOTE_COLORS[color];
+}
+
+function createRuleLabelText(pawnDefinition: CombatPawnDefinition): string {
+  return pawnDefinition.type === 'generator' ? '+♪♪' : '♪♪♪ > ♪';
+}
+
+function createRuleLabelSegments(
+  pawnDefinition: CombatPawnDefinition,
+): CombatRuleLabelSegment[] {
+  const white = 0xffffff;
+  const absorbedColor = getNoteColorValue(pawnDefinition.color);
+
+  if (pawnDefinition.type === 'generator') {
+    return [
+      { text: '+', color: white, isNoteGlyph: false },
+      { text: '♪', color: absorbedColor, isNoteGlyph: true },
+      { text: '♪', color: absorbedColor, isNoteGlyph: true },
+    ];
+  }
+
+  const emittedColor = getNoteColorValue(pawnDefinition.outputNoteColor);
+
+  return [
+    { text: '♪', color: absorbedColor, isNoteGlyph: true },
+    { text: '♪', color: absorbedColor, isNoteGlyph: true },
+    { text: '♪', color: absorbedColor, isNoteGlyph: true },
+    { text: ' ', color: white, isNoteGlyph: false },
+    { text: '>', color: white, isNoteGlyph: false },
+    { text: ' ', color: white, isNoteGlyph: false },
+    { text: '♪', color: emittedColor, isNoteGlyph: true },
+  ];
 }
 
 function getPolarOffset(angleDeg: number, radius: number): { x: number; y: number } {
