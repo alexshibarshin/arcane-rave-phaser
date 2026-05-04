@@ -25,6 +25,14 @@ import {
   ensureCombatVfxTextures,
 } from '@combat/CombatVfxTextures';
 import { publishCombatStateTransition } from '@combat/CombatHudEvents';
+import {
+  renderBasicEnemy,
+  renderTankEnemy,
+  renderFastEnemy,
+  renderRangedEnemy,
+  renderSwarmEnemy,
+  renderBossEnemy,
+} from '@combat/EnemyRenderer';
 import { setCombatState } from '@combat/CombatRuntime';
 
 import { CombatStateSystem } from '@systems/CombatStateSystem';
@@ -246,41 +254,38 @@ export class CombatScene extends GameScene {
         enemy.attachments.hitFlash.x,
         enemy.attachments.hitFlash.y,
       );
-      const bodyHalfWidth = enemy.body.width / 2;
-      const bodyHalfHeight = enemy.body.height / 2;
       const hpBarX = -enemy.hpBar.width / 2;
       const hpBarY = enemy.hpBar.offsetY - enemy.hpBar.height / 2;
 
       container.name = enemy.container.name;
       container.setDepth(this.getEnemyContainerDepth(enemy.container.sortY));
 
-      body.fillStyle(enemy.body.color, 0.16);
-      body.lineStyle(3, enemy.body.color, 0.95);
-      body.fillRoundedRect(
-        -bodyHalfWidth,
-        -bodyHalfHeight + 12,
-        enemy.body.width,
-        enemy.body.height - 20,
-        22,
-      );
-      body.strokeRoundedRect(
-        -bodyHalfWidth,
-        -bodyHalfHeight + 12,
-        enemy.body.width,
-        enemy.body.height - 20,
-        22,
-      );
-      body.fillStyle(enemy.body.color, 0.2);
-      body.fillCircle(0, -bodyHalfHeight + 10, 26);
-      body.lineStyle(3, 0xe8fbff, 0.8);
-      body.strokeCircle(0, -bodyHalfHeight + 10, 26);
-      body.strokeLineShape(new Phaser.Geom.Line(-18, 8, -34, 28));
-      body.strokeLineShape(new Phaser.Geom.Line(18, 8, 34, 28));
-      body.strokeLineShape(new Phaser.Geom.Line(-14, 28, -24, 54));
-      body.strokeLineShape(new Phaser.Geom.Line(14, 28, 24, 54));
-      body.fillStyle(0xe8fbff, 0.95);
-      body.fillCircle(-10, -bodyHalfHeight + 8, 4);
-      body.fillCircle(10, -bodyHalfHeight + 8, 4);
+      // Dispatch to archetype-specific renderer
+      const archetype = enemy.body.family;
+
+      switch (archetype) {
+        case 'basic':
+          renderBasicEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
+          break;
+        case 'tank':
+          renderTankEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
+          break;
+        case 'fast':
+          renderFastEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
+          break;
+        case 'ranged':
+          renderRangedEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
+          break;
+        case 'swarm':
+          renderSwarmEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
+          break;
+        case 'boss':
+          renderBossEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
+          break;
+        default:
+          renderBasicEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
+          break;
+      }
 
       hpBar.fillStyle(0x201927, 1);
       hpBar.fillRoundedRect(hpBarX, hpBarY, enemy.hpBar.width, enemy.hpBar.height, 6);
