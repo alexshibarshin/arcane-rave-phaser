@@ -51,6 +51,7 @@ export interface CombatContentConfigShape {
   SLOT_COUNT: number;
   NOTE_COLORS: readonly NoteColor[];
   PAWN_TYPES: readonly PawnType[];
+  WEAKNESS_ADVANTAGE: Record<NoteColor, NoteColor>;
   PAWN_DEFINITIONS: readonly CombatPawnDefinition[];
   ENEMY_DEFINITIONS: readonly CombatEnemyDefinition[];
   SLOT_PRESETS: readonly CombatSlotPresetDefinition[];
@@ -61,6 +62,11 @@ const combatContentConfig = {
   SLOT_COUNT: 8,
   NOTE_COLORS,
   PAWN_TYPES,
+  WEAKNESS_ADVANTAGE: {
+    red: 'green',
+    green: 'blue',
+    blue: 'red',
+  } as const,
   PAWN_DEFINITIONS: [
     {
       id: 'pawn-red-generator',

@@ -647,6 +647,202 @@ describe('createCombatRuntime', () => {
     expect(runtime.state).toBe('defeat');
   });
 
+  it('applies a 1.5x weakness multiplier when a red generator attacks a green enemy', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const generatorSlot = runtime.slots[0];
+    const targetEnemy = runtime.enemies[0];
+    const otherEnemy = runtime.enemies[1];
+
+    expect(generatorSlot).toBeDefined();
+    expect(targetEnemy).toBeDefined();
+    expect(otherEnemy).toBeDefined();
+
+    if (!generatorSlot || !targetEnemy || !otherEnemy) {
+      return;
+    }
+
+    generatorSlot.pawnId = 'pawn-red-generator';
+    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    // enemy[0] is green (weak to red) — should take weakness damage
+    targetEnemy.color = 'green';
+    targetEnemy.spawned = true;
+    targetEnemy.state = 'moving';
+    targetEnemy.currentHp = targetEnemy.maxHp;
+    targetEnemy.x = 120;
+    targetEnemy.y = 100;
+
+    // enemy[1] is red (no weakness advantage) — should take normal damage
+    otherEnemy.color = 'red';
+    otherEnemy.spawned = true;
+    otherEnemy.state = 'moving';
+    otherEnemy.currentHp = otherEnemy.maxHp;
+    otherEnemy.x = 320;
+    otherEnemy.y = 260;
+
+    for (const enemy of runtime.enemies.slice(2)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    // red > green => weakness multiplier 1.5x applied
+    expect(targetEnemy.currentHp).toBe(
+      targetEnemy.maxHp - Math.round(CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 1.5),
+    );
+    // no weakness for same-color matchup
+    expect(otherEnemy.currentHp).toBe(otherEnemy.maxHp);
+    // event payload must include the weakness flag
+    const hitPayload = runtime.effects.pendingEvents.find(
+      (e) => e.event === 'combat:enemy-hit' && e.payload.enemyId === targetEnemy.runtimeId,
+    )?.payload as { damage: number; wasWeaknessHit: boolean };
+    expect(hitPayload.damage).toBe(Math.round(CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 1.5));
+    expect(hitPayload.wasWeaknessHit).toBe(true);
+  });
+
+  it('applies a 1.5x weakness multiplier to finisher damage when attacker color has advantage', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+    setCombatNotePacket(runtime, 'red', 3);
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const finisherSlot = runtime.slots[0];
+    const targetEnemy = runtime.enemies[0];
+    const otherEnemy = runtime.enemies[1];
+
+    expect(finisherSlot).toBeDefined();
+    expect(targetEnemy).toBeDefined();
+    expect(otherEnemy).toBeDefined();
+
+    if (!finisherSlot || !targetEnemy || !otherEnemy) {
+      return;
+    }
+
+    finisherSlot.pawnId = 'pawn-red-finisher';
+    finisherSlot.worldPosition = { x: 100, y: 100 };
+    finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    // enemy[0] is green (weak to red) — should take weakness damage
+    targetEnemy.color = 'green';
+    targetEnemy.spawned = true;
+    targetEnemy.state = 'moving';
+    targetEnemy.currentHp = targetEnemy.maxHp;
+    targetEnemy.x = 120;
+    targetEnemy.y = 100;
+
+    // enemy[1] is red (no weakness) — should take normal finisher damage
+    otherEnemy.color = 'red';
+    otherEnemy.spawned = true;
+    otherEnemy.state = 'moving';
+    otherEnemy.currentHp = otherEnemy.maxHp;
+    otherEnemy.x = 320;
+    otherEnemy.y = 260;
+
+    for (const enemy of runtime.enemies.slice(2)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    // finisher base: 20 * 1.4 (3 notes) = 28, then weakness 28 * 1.5 = 42
+    const finisherBaseDamage = Math.round(
+      CombatBalanceConfig.FINISHER_BASE_DAMAGE
+        * CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[3],
+    );
+    const finisherWeakDamage = Math.round(finisherBaseDamage * 1.5);
+
+    expect(targetEnemy.currentHp).toBe(Math.max(0, targetEnemy.maxHp - finisherWeakDamage));
+    // other enemy was not targeted (only nearest is hit)
+    expect(otherEnemy.currentHp).toBe(otherEnemy.maxHp);
+
+    const hitPayload = runtime.effects.pendingEvents.find(
+      (e) => e.event === 'combat:enemy-hit' && e.payload.enemyId === targetEnemy.runtimeId,
+    )?.payload as { damage: number; wasWeaknessHit: boolean };
+    expect(hitPayload.damage).toBe(finisherWeakDamage);
+    expect(hitPayload.wasWeaknessHit).toBe(true);
+  });
+
+  it('applies no multiplier for disadvantaged and same-color matchups', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const generatorSlot = runtime.slots[0];
+    const targetEnemy = runtime.enemies[0];
+
+    expect(generatorSlot).toBeDefined();
+    expect(targetEnemy).toBeDefined();
+
+    if (!generatorSlot || !targetEnemy) {
+      return;
+    }
+
+    generatorSlot.pawnId = 'pawn-green-generator';
+    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    // green vs red = disadvantaged (red > green, not green > red)
+    targetEnemy.color = 'red';
+    targetEnemy.spawned = true;
+    targetEnemy.state = 'moving';
+    targetEnemy.currentHp = targetEnemy.maxHp;
+    targetEnemy.x = 120;
+    targetEnemy.y = 100;
+
+    for (const enemy of runtime.enemies.slice(1)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    // disadvantaged: no weakness multiplier, plain baseDamage
+    expect(targetEnemy.currentHp).toBe(targetEnemy.maxHp - CombatBalanceConfig.GENERATOR_BASE_DAMAGE);
+
+    const hitPayload = runtime.effects.pendingEvents.find(
+      (e) => e.event === 'combat:enemy-hit' && e.payload.enemyId === targetEnemy.runtimeId,
+    )?.payload as { damage: number; wasWeaknessHit: boolean };
+    expect(hitPayload.damage).toBe(CombatBalanceConfig.GENERATOR_BASE_DAMAGE);
+    expect(hitPayload.wasWeaknessHit).toBe(false);
+  });
+
   it('bootstraps enemy spawns into the top lane with config-driven x range and anti-clumping', () => {
     const runtime = createCombatRuntime();
     const randomValues = [0.1, 0.12, 0.9];

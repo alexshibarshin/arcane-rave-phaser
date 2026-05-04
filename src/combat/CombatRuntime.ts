@@ -109,6 +109,7 @@ export interface CombatRuntime {
           damage: number;
           currentHp: number;
           maxHp: number;
+          wasWeaknessHit: boolean;
         };
       }
       | {
@@ -379,15 +380,18 @@ function resolveGeneratorSlotActivation(
   const target = selectNearestLivingEnemy(runtime, slot.worldPosition);
 
   if (target) {
-    target.currentHp = Math.max(0, target.currentHp - baseDamage);
+    const weaknessMultiplier = resolveWeakness(color, target.color);
+    const damage = Math.round(baseDamage * weaknessMultiplier);
+    target.currentHp = Math.max(0, target.currentHp - damage);
     runtime.effects.pendingEvents.push({
       event: 'combat:enemy-hit',
       payload: {
         enemyId: target.runtimeId,
         slotIndex: slot.slotIndex,
-        damage: baseDamage,
+        damage,
         currentHp: target.currentHp,
         maxHp: target.maxHp,
+        wasWeaknessHit: weaknessMultiplier > 1,
       },
     });
 
@@ -413,9 +417,11 @@ function resolveFinisherSlotActivation(
   pawn: CombatFinisherPawnDefinition,
 ): void {
   const consumedNotes = getFinisherConsumedNotes(runtime, pawn.color);
-  const multiplier = getFinisherConsumedNotesMultiplier(consumedNotes);
-  const damage = Math.round(pawn.baseDamage * multiplier);
+  const consumedMultiplier = getFinisherConsumedNotesMultiplier(consumedNotes);
+  const baseDamage = Math.round(pawn.baseDamage * consumedMultiplier);
   const target = selectNearestLivingEnemy(runtime, slot.worldPosition);
+  const weaknessMultiplier = target ? resolveWeakness(pawn.color, target.color) : 1;
+  const damage = Math.round(baseDamage * weaknessMultiplier);
 
   runtime.effects.pendingEvents.push({
     event: 'combat:finisher-consumed-notes',
@@ -423,7 +429,7 @@ function resolveFinisherSlotActivation(
       slotIndex: slot.slotIndex,
       pawnId: pawn.id,
       consumedNotes,
-      multiplier,
+      multiplier: consumedMultiplier,
     },
   });
 
@@ -437,6 +443,7 @@ function resolveFinisherSlotActivation(
         damage,
         currentHp: target.currentHp,
         maxHp: target.maxHp,
+        wasWeaknessHit: weaknessMultiplier > 1,
       },
     });
 
@@ -743,4 +750,10 @@ function collectCrossingsForSlot(
   }
 
   return crossings;
+}
+
+function resolveWeakness(attackerColor: NoteColor, targetColor: NoteColor): number {
+  const weakTarget = CombatContentConfig.WEAKNESS_ADVANTAGE[attackerColor];
+
+  return weakTarget === targetColor ? CombatBalanceConfig.WEAKNESS_MULTIPLIER : 1;
 }
