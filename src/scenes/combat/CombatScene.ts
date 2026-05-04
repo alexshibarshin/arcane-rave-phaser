@@ -13,7 +13,11 @@ import { createCombatNotePacketViewModel } from '@combat/CombatNotePacketView';
 import { bindCombatVfxEvents } from '@combat/CombatVfxEventBridge';
 import { GameScene } from '@scenes/GameScene';
 import { restartCombatScenes } from '@combat/CombatSceneLifecycle';
-import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
+import {
+  createCombatRuntime,
+  type CombatEnemyState,
+  type CombatRuntime,
+} from '@combat/CombatRuntime';
 import { createCombatRenderModel } from '@combat/CombatRenderModel';
 import { getCombatPresentationDelta } from '@combat/CombatSceneLifecycle';
 import { getCombatBaseHpBarFillMetrics } from '@combat/CombatBaseHpBar';
@@ -34,6 +38,12 @@ import {
   renderBossEnemy,
 } from '@combat/EnemyRenderer';
 import { setCombatState } from '@combat/CombatRuntime';
+import {
+  advanceAnimationState,
+  expireAnimationTimers,
+  computeAnimationTransform,
+  type CombatAnimationState,
+} from '@scenes/combat/CombatAnimationTransforms';
 
 import { CombatStateSystem } from '@systems/CombatStateSystem';
 import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
@@ -50,6 +60,7 @@ interface CombatSlotView {
 
 interface CombatEnemyView {
   container: Phaser.GameObjects.Container;
+  flashOverlay: Phaser.GameObjects.Graphics;
   sortY: number;
   hpBar: Phaser.GameObjects.Graphics;
   hpBarX: number;
@@ -57,18 +68,7 @@ interface CombatEnemyView {
   hpBarWidth: number;
   hpBarHeight: number;
   maxHp: number;
-  animation: {
-    idlePulsePhase: number;
-    moveHopPhase: number;
-    attackFlashAt: number;
-    hitFlashAt: number;
-    deathProgress: number;
-    deathStartX: number;
-    deathStartY: number;
-    deathKnockbackX: number;
-    deathKnockbackY: number;
-    deathDurationMs: number;
-  };
+  animation: CombatAnimationState;
 }
 
 interface CombatBaseHpBarView {
@@ -269,6 +269,7 @@ export class CombatScene extends GameScene {
     for (const enemy of model.enemies) {
       const container = this.add.container(enemy.container.x, enemy.container.y);
       const body = this.add.graphics();
+      const flashOverlay = this.add.graphics();
       const hpBar = this.add.graphics();
       const hitFlashAnchor = this.add.container(
         enemy.attachments.hitFlash.x,
@@ -280,32 +281,10 @@ export class CombatScene extends GameScene {
       container.name = enemy.container.name;
       container.setDepth(this.getEnemyContainerDepth(enemy.container.sortY));
 
-      // Dispatch to archetype-specific renderer
       const archetype = enemy.body.family;
-
-      switch (archetype) {
-        case 'basic':
-          renderBasicEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
-          break;
-        case 'tank':
-          renderTankEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
-          break;
-        case 'fast':
-          renderFastEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
-          break;
-        case 'ranged':
-          renderRangedEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
-          break;
-        case 'swarm':
-          renderSwarmEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
-          break;
-        case 'boss':
-          renderBossEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
-          break;
-        default:
-          renderBasicEnemy(body, enemy.body.width, enemy.body.height, enemy.body.color);
-          break;
-      }
+      this.renderEnemyBody(body, archetype, enemy.body.width, enemy.body.height, enemy.body.color);
+      this.renderEnemyBody(flashOverlay, archetype, enemy.body.width, enemy.body.height, 0xffffff);
+      flashOverlay.setAlpha(0);
 
       hpBar.fillStyle(0x201927, 1);
       hpBar.fillRoundedRect(hpBarX, hpBarY, enemy.hpBar.width, enemy.hpBar.height, 6);
@@ -321,12 +300,13 @@ export class CombatScene extends GameScene {
       hitFlashAnchor.name = `${enemy.container.name}-hit-flash-anchor`;
       hitFlashAnchor.setVisible(false);
 
-      container.add([body, hitFlashAnchor, hpBar]);
+      container.add([body, flashOverlay, hitFlashAnchor, hpBar]);
       container.setVisible(false);
       const runtimeEnemy = this.runtime!.enemies.find((e) => e.runtimeId === enemy.runtimeId);
       const maxHp = runtimeEnemy?.maxHp ?? 1;
       this.enemyViews.set(enemy.runtimeId, {
         container,
+        flashOverlay,
         sortY: enemy.container.sortY,
         hpBar,
         hpBarX: -enemy.hpBar.width / 2,
@@ -345,8 +325,41 @@ export class CombatScene extends GameScene {
           deathKnockbackX: 0,
           deathKnockbackY: 0,
           deathDurationMs: CombatVisualConfig.ANIMATION.DEATH_DURATION_MS,
+          lastState: null,
         },
       });
+    }
+  }
+
+  private renderEnemyBody(
+    graphics: Phaser.GameObjects.Graphics,
+    archetype: string,
+    bodyWidth: number,
+    bodyHeight: number,
+    color: number,
+  ): void {
+    switch (archetype) {
+      case 'basic':
+        renderBasicEnemy(graphics, bodyWidth, bodyHeight, color);
+        break;
+      case 'tank':
+        renderTankEnemy(graphics, bodyWidth, bodyHeight, color);
+        break;
+      case 'fast':
+        renderFastEnemy(graphics, bodyWidth, bodyHeight, color);
+        break;
+      case 'ranged':
+        renderRangedEnemy(graphics, bodyWidth, bodyHeight, color);
+        break;
+      case 'swarm':
+        renderSwarmEnemy(graphics, bodyWidth, bodyHeight, color);
+        break;
+      case 'boss':
+        renderBossEnemy(graphics, bodyWidth, bodyHeight, color);
+        break;
+      default:
+        renderBasicEnemy(graphics, bodyWidth, bodyHeight, color);
+        break;
     }
   }
 
@@ -704,7 +717,6 @@ export class CombatScene extends GameScene {
       return;
     }
 
-    const deltaRad = (Math.PI * 2 * deltaMs) / 1000;
     const elapsed = this.runtime.combatElapsedMs;
 
     for (const enemy of this.runtime.enemies) {
@@ -714,57 +726,59 @@ export class CombatScene extends GameScene {
         continue;
       }
 
+      const anim = enemyView.animation;
       enemyView.sortY = enemy.y;
-      enemyView.container.setVisible(enemy.spawned && enemy.state !== 'dead');
       enemyView.container.setPosition(enemy.x, enemy.y);
       enemyView.container.setDepth(this.getEnemyContainerDepth(enemyView.sortY));
+      enemyView.container.setScale(1);
+      enemyView.container.setAlpha(1);
+      enemyView.flashOverlay.setAlpha(0);
 
-      const anim = enemyView.animation;
-
-      switch (enemy.state) {
-        case 'moving':
-          anim.idlePulsePhase += deltaRad;
-          anim.moveHopPhase += deltaRad;
-          anim.attackFlashAt = 0;
-          anim.hitFlashAt = 0;
-          anim.deathProgress = 0;
-          break;
-
-        case 'attacking':
-          anim.idlePulsePhase += deltaRad;
-          anim.moveHopPhase = 0;
-          anim.attackFlashAt = anim.attackFlashAt || elapsed;
-          anim.hitFlashAt = 0;
-          anim.deathProgress = 0;
-          break;
-
-        case 'dead':
-          anim.idlePulsePhase = 0;
-          anim.moveHopPhase = 0;
-          anim.attackFlashAt = 0;
-          anim.hitFlashAt = 0;
-          if (anim.deathProgress === 0) {
-            anim.deathStartX = enemy.x;
-            anim.deathStartY = enemy.y;
-            anim.deathDurationMs = enemy.archetype === 'boss'
-              ? CombatVisualConfig.ANIMATION.DEATH_BOSS_DURATION_MS
-              : CombatVisualConfig.ANIMATION.DEATH_DURATION_MS;
-          }
-          anim.deathProgress = Math.min(
-            1,
-            anim.deathProgress + deltaMs / anim.deathDurationMs,
-          );
-          break;
+      if (!enemy.spawned) {
+        enemyView.container.setVisible(false);
+        continue;
       }
 
-      // Expire flash timers
-      if (anim.attackFlashAt !== 0
-        && (elapsed - anim.attackFlashAt) >= CombatVisualConfig.ANIMATION.ATTACK_FLASH_DURATION_MS) {
-        anim.attackFlashAt = 0;
+      const runtimeState = enemy.state as CombatEnemyState;
+
+      if (runtimeState === 'attacking' && anim.lastState !== 'attacking' && anim.attackFlashAt === 0) {
+        anim.attackFlashAt = elapsed;
       }
-      if (anim.hitFlashAt !== 0
-        && (elapsed - anim.hitFlashAt) >= CombatVisualConfig.ANIMATION.HIT_FLASH_DURATION_MS) {
-        anim.hitFlashAt = 0;
+
+      if (runtimeState === 'dead' && anim.lastState !== 'dead') {
+        anim.deathStartX = enemy.x;
+        anim.deathStartY = enemy.y;
+        anim.deathDurationMs = enemy.archetype === 'boss'
+          ? CombatVisualConfig.ANIMATION.DEATH_BOSS_DURATION_MS
+          : CombatVisualConfig.ANIMATION.DEATH_DURATION_MS;
+      }
+
+      const updatedAnim = expireAnimationTimers(
+        advanceAnimationState(anim, runtimeState, deltaMs),
+        elapsed,
+      );
+      Object.assign(anim, updatedAnim);
+
+      enemyView.container.setVisible(runtimeState !== 'dead' || anim.deathProgress < 1);
+
+      const scaleMultiplier = enemy.archetype === 'boss'
+        ? CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS.boss
+        : CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS[enemy.archetype as keyof typeof CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS] ?? 1;
+
+      const transform = computeAnimationTransform({
+        anim,
+        enemyState: enemy.state,
+        elapsed,
+        deltaMs,
+        scaleMultiplier,
+      });
+
+      const container = enemyView.container;
+      container.setPosition(enemy.x + transform.xShift, enemy.y + transform.yShift);
+      container.setScale(transform.scale);
+      container.setAlpha(transform.alpha);
+      if (transform.tint !== null) {
+        enemyView.flashOverlay.setAlpha(0.95);
       }
     }
   }
