@@ -22,7 +22,6 @@ import {
 
 /**
  * Draw a basic enemy: rounded-rect torso, circle head, line limbs, dot eyes.
- * This must produce IDENTICAL output to the original hardcoded rendering.
  */
 export function renderBasicEnemy(
   g: Phaser.GameObjects.Graphics,
@@ -33,9 +32,9 @@ export function renderBasicEnemy(
   const bodyHalfWidth = bodyWidth / 2;
   const bodyHalfHeight = bodyHeight / 2;
 
-  // Torso — rounded rectangle (fill + stroke)
-  g.fillStyle(color, 0.16);
-  g.lineStyle(3, color, 0.95);
+  // Torso — rounded rectangle (first primitive: fill + outline in accent color)
+  g.fillStyle(color, 1.0);
+  g.lineStyle(3, color, 0.35);
   g.fillRoundedRect(
     -bodyHalfWidth,
     -bodyHalfHeight + 12,
@@ -51,17 +50,16 @@ export function renderBasicEnemy(
     22,
   );
 
-  // Head — circle (fill + stroke)
-  g.fillStyle(color, 0.2);
-  g.fillCircle(0, -bodyHalfHeight + 10, 26);
+  // Head — circle (white/grey outline, no fill)
   g.lineStyle(3, 0xe8fbff, 0.8);
   g.strokeCircle(0, -bodyHalfHeight + 10, 26);
 
-  // Arms — diagonal lines
+  // Arms — diagonal lines (white/grey)
+  g.lineStyle(3, 0xe8fbff, 0.6);
   g.strokeLineShape(new Phaser.Geom.Line(-18, 8, -34, 28));
   g.strokeLineShape(new Phaser.Geom.Line(18, 8, 34, 28));
 
-  // Legs — diagonal lines
+  // Legs — diagonal lines (white/grey)
   g.strokeLineShape(new Phaser.Geom.Line(-14, 28, -24, 54));
   g.strokeLineShape(new Phaser.Geom.Line(14, 28, 24, 54));
 
@@ -84,28 +82,25 @@ export function renderTankEnemy(
   const bodyHalfWidth = bodyWidth / 2;
   const bodyHalfHeight = bodyHeight / 2;
 
-  // Armor — wide rectangle (top 60%)
-  g.fillStyle(color, 0.16);
-  g.lineStyle(3, color, 0.95);
+  // Armor — wide rectangle (first primitive: fill + outline in accent color)
+  g.fillStyle(color, 1.0);
+  g.lineStyle(3, color, 0.35);
   drawWideRectangle(g, bodyWidth, bodyHeight * 0.6, 4);
 
-  // Legs — two short rectangles at bottom, spaced apart
+  // Legs — two short rectangles at bottom, spaced apart (outline only in accent color)
   const legWidth = bodyWidth * 0.15;
   const legHeight = bodyHeight * 0.35;
   const legSpacing = bodyWidth * 0.25;
   const legY = bodyHalfHeight - legHeight / 2;
 
-  g.fillRoundedRect(-legSpacing - legWidth / 2, legY, legWidth, legHeight, 2);
+  g.lineStyle(3, color, 0.35);
   g.strokeRoundedRect(-legSpacing - legWidth / 2, legY, legWidth, legHeight, 2);
-  g.fillRoundedRect(legSpacing - legWidth / 2, legY, legWidth, legHeight, 2);
   g.strokeRoundedRect(legSpacing - legWidth / 2, legY, legWidth, legHeight, 2);
 
-  // Head — square
+  // Head — square (white/grey outline, no fill)
   const headSize = bodyWidth * 0.45;
   const headY = -bodyHalfHeight + bodyHeight * 0.3 + headSize / 2;
-  g.fillStyle(color, 0.2);
   g.lineStyle(3, 0xe8fbff, 0.8);
-  g.fillRect(-headSize / 2, headY - headSize / 2, headSize, headSize);
   g.strokeRect(-headSize / 2, headY - headSize / 2, headSize, headSize);
 
   // Eyes — white dots
@@ -127,26 +122,24 @@ export function renderFastEnemy(
   const bodyHalfWidth = bodyWidth / 2;
   const bodyHalfHeight = bodyHeight / 2;
 
-  // Body — oval in center
-  g.fillStyle(color, 0.16);
-  g.lineStyle(3, color, 0.95);
+  // Body — oval in center (first primitive: fill + outline in accent color)
+  g.fillStyle(color, 1.0);
+  g.lineStyle(3, color, 0.35);
   drawOval(g, bodyWidth, bodyHeight * 0.7);
 
-  // Stabilizers — V-shape at bottom
+  // Stabilizers — V-shape at bottom (outline only in accent color)
   const vWidth = bodyWidth * 0.4;
   const vDepth = bodyHeight * 0.2;
-  g.lineStyle(3, color, 0.95);
+  g.lineStyle(3, color, 0.35);
   const stabilizerY = bodyHeight * 0.15;
   g.strokeLineShape(new Phaser.Geom.Line(-vWidth / 2, stabilizerY - vDepth, 0, stabilizerY + vDepth));
   g.strokeLineShape(new Phaser.Geom.Line(0, stabilizerY + vDepth, vWidth / 2, stabilizerY - vDepth));
 
-  // Head — elongated oval
+  // Head — elongated oval (white/grey outline, no fill)
   const headWidth = bodyWidth * 0.5;
   const headHeight = bodyHeight * 0.35;
   const headY = -bodyHalfHeight + bodyHeight * 0.25;
-  g.fillStyle(color, 0.2);
   g.lineStyle(3, 0xe8fbff, 0.8);
-  g.fillEllipse(0, headY, headWidth, headHeight);
   g.strokeEllipse(0, headY, headWidth, headHeight);
 
   // Eyes — white dots
@@ -168,30 +161,28 @@ export function renderRangedEnemy(
   const bodyHalfWidth = bodyWidth / 2;
   const bodyHalfHeight = bodyHeight / 2;
 
-  // Body — hexagon centered
+  // Body — hexagon centered (first primitive: fill + outline in accent color)
   const hexRadius = bodyWidth * 0.45;
-  g.fillStyle(color, 0.16);
-  g.lineStyle(3, color, 0.95);
+  g.fillStyle(color, 1.0);
+  g.lineStyle(3, color, 0.35);
   drawHexagon(g, hexRadius);
 
-  // Antenna — thin rectangle on top
+  // Antenna — thin rectangle on top (outline only in accent color)
   const antennaWidth = bodyWidth * 0.1;
   const antennaHeight = bodyHeight * 0.25;
   const antennaY = -bodyHalfHeight + bodyHeight * 0.15 - antennaHeight / 2;
-  g.fillRoundedRect(-antennaWidth / 2, antennaY, antennaWidth, antennaHeight, 2);
+  g.lineStyle(3, color, 0.35);
   g.strokeRoundedRect(-antennaWidth / 2, antennaY, antennaWidth, antennaHeight, 2);
 
-  // Head — semicircle
+  // Head — semicircle (white/grey outline, no fill)
   const headRadius = bodyWidth * 0.25;
   const headY = -bodyHalfHeight + bodyHeight * 0.4;
-  g.fillStyle(color, 0.2);
   g.lineStyle(3, 0xe8fbff, 0.8);
   g.beginPath();
   g.moveTo(-headRadius, headY);
   g.lineTo(headRadius, headY);
   g.arc(0, headY, headRadius, 0, Math.PI, false);
   g.closePath();
-  g.fillPath();
   g.strokePath();
 
   // Eyes — white dots
@@ -213,26 +204,24 @@ export function renderSwarmEnemy(
   const bodyHalfWidth = bodyWidth / 2;
   const bodyHalfHeight = bodyHeight / 2;
 
-  // Body — capsule centered
-  g.fillStyle(color, 0.16);
-  g.lineStyle(3, color, 0.95);
+  // Body — capsule centered (first primitive: fill + outline in accent color)
+  g.fillStyle(color, 1.0);
+  g.lineStyle(3, color, 0.35);
   drawCapsule(g, bodyWidth * 0.8, bodyHeight * 0.7);
 
-  // Legs — two short rounded rectangles at bottom
+  // Legs — two short rounded rectangles at bottom (outline only in accent color)
   const legWidth = bodyWidth * 0.12;
   const legHeight = bodyHeight * 0.25;
   const legSpacing = bodyWidth * 0.2;
   const legY = bodyHalfHeight - legHeight / 2;
 
-  g.fillRoundedRect(-legSpacing - legWidth / 2, legY, legWidth, legHeight, 2);
+  g.lineStyle(3, color, 0.35);
   g.strokeRoundedRect(-legSpacing - legWidth / 2, legY, legWidth, legHeight, 2);
-  g.fillRoundedRect(legSpacing - legWidth / 2, legY, legWidth, legHeight, 2);
   g.strokeRoundedRect(legSpacing - legWidth / 2, legY, legWidth, legHeight, 2);
 
-  // Head — diamond
+  // Head — diamond (white/grey outline, no fill)
   const headSize = bodyWidth * 0.35;
   const headY = -bodyHalfHeight + bodyHeight * 0.3;
-  g.fillStyle(color, 0.2);
   g.lineStyle(3, 0xe8fbff, 0.8);
   g.beginPath();
   g.moveTo(0, headY - headSize / 2);
@@ -240,7 +229,6 @@ export function renderSwarmEnemy(
   g.lineTo(0, headY + headSize / 2);
   g.lineTo(-headSize / 2, headY);
   g.closePath();
-  g.fillPath();
   g.strokePath();
 
   // Eyes — white dots
@@ -261,12 +249,11 @@ export function renderBossEnemy(
 ): void {
   renderBasicEnemy(g, bodyWidth, bodyHeight, color);
 
-  // Crown — on top of the head
+  // Crown — on top of the head (outline only in accent color)
   const crownWidth = bodyWidth * 0.5;
   const crownHeight = bodyHeight * 0.15;
   const crownY = -bodyHeight / 2 + 12 - crownHeight / 2 - 8;
 
-  g.fillStyle(color, 0.25);
-  g.lineStyle(3, 0xffd166, 0.95);
+  g.lineStyle(3, color, 0.35);
   drawCrown(g, crownWidth, crownHeight, 5);
 }
