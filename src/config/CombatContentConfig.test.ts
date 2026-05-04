@@ -118,4 +118,17 @@ describe('CombatContentConfig', () => {
       }),
     ).toThrow(/output note color/i);
   });
+
+  it('orders the starter preset into same-color generator to finisher pairs for visible packet intake', () => {
+    expect(CombatContentConfig.SLOT_PRESETS[0]?.slots).toEqual([
+      'pawn-red-generator',
+      'pawn-red-finisher',
+      null,
+      'pawn-green-generator',
+      'pawn-green-finisher',
+      null,
+      'pawn-blue-generator',
+      'pawn-blue-finisher',
+    ]);
+  });
 });

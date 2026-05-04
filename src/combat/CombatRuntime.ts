@@ -114,6 +114,7 @@ export interface CombatRuntime {
         payload: {
           enemyId: string;
           slotIndex: number;
+          attackerColor: NoteColor;
           damage: number;
           currentHp: number;
           maxHp: number;
@@ -137,8 +138,18 @@ export interface CombatRuntime {
         payload: {
           slotIndex: number;
           pawnId: string;
+          color: NoteColor;
           consumedNotes: number;
           multiplier: number;
+        };
+      }
+      | {
+        event: 'combat:generator-notes-emitted';
+        payload: {
+          slotIndex: number;
+          pawnId: string;
+          color: NoteColor;
+          count: number;
         };
       }
       | {
@@ -494,7 +505,7 @@ function processCrossedSlots(runtime: CombatRuntime): void {
     });
 
     if (pawn.type === 'generator') {
-      resolveGeneratorSlotActivation(runtime, slot, pawn.color, pawn.baseDamage);
+      resolveGeneratorSlotActivation(runtime, slot, pawn.id, pawn.color, pawn.baseDamage);
       continue;
     }
 
@@ -505,6 +516,7 @@ function processCrossedSlots(runtime: CombatRuntime): void {
 function resolveGeneratorSlotActivation(
   runtime: CombatRuntime,
   slot: CombatSlotRuntime,
+  pawnId: string,
   color: NoteColor,
   baseDamage: number,
 ): void {
@@ -519,6 +531,7 @@ function resolveGeneratorSlotActivation(
       payload: {
         enemyId: target.runtimeId,
         slotIndex: slot.slotIndex,
+        attackerColor: color,
         damage,
         currentHp: target.currentHp,
         maxHp: target.maxHp,
@@ -539,7 +552,7 @@ function resolveGeneratorSlotActivation(
     }
   }
 
-  applyGeneratorPacketMutation(runtime, color);
+  applyGeneratorPacketMutation(runtime, slot, pawnId, color);
 }
 
 function resolveFinisherSlotActivation(
@@ -559,6 +572,7 @@ function resolveFinisherSlotActivation(
     payload: {
       slotIndex: slot.slotIndex,
       pawnId: pawn.id,
+      color: pawn.color,
       consumedNotes,
       multiplier: consumedMultiplier,
     },
@@ -571,6 +585,7 @@ function resolveFinisherSlotActivation(
       payload: {
         enemyId: target.runtimeId,
         slotIndex: slot.slotIndex,
+        attackerColor: pawn.color,
         damage,
         currentHp: target.currentHp,
         maxHp: target.maxHp,
@@ -621,12 +636,19 @@ function selectNearestLivingEnemy(
   return nearestEnemy;
 }
 
-function applyGeneratorPacketMutation(runtime: CombatRuntime, color: NoteColor): void {
+function applyGeneratorPacketMutation(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawnId: string,
+  color: NoteColor,
+): void {
   const previousColor = runtime.notePacket.color;
   const previousCount = runtime.notePacket.count;
+  let emittedNotes = 2;
 
   if (previousColor === null || previousCount <= 0) {
     setCombatNotePacket(runtime, color, 2);
+    pushGeneratorNotesEmittedEvent(runtime, slot, pawnId, color, emittedNotes);
     pushNotePacketChangedEvent(runtime);
     return;
   }
@@ -636,8 +658,10 @@ function applyGeneratorPacketMutation(runtime: CombatRuntime, color: NoteColor):
       previousCount + 2,
       CombatBalanceConfig.NOTE_PACKET_CAPACITY,
     );
+    emittedNotes = Math.max(0, nextCount - previousCount);
 
     setCombatNotePacket(runtime, color, nextCount);
+    pushGeneratorNotesEmittedEvent(runtime, slot, pawnId, color, emittedNotes);
     pushNotePacketChangedEvent(runtime);
     return;
   }
@@ -650,6 +674,7 @@ function applyGeneratorPacketMutation(runtime: CombatRuntime, color: NoteColor):
     },
   });
   setCombatNotePacket(runtime, color, 2);
+  pushGeneratorNotesEmittedEvent(runtime, slot, pawnId, color, emittedNotes);
   pushNotePacketChangedEvent(runtime);
 }
 
@@ -704,6 +729,24 @@ function pushNotePacketChangedEvent(runtime: CombatRuntime): void {
     payload: {
       color: runtime.notePacket.color,
       count: runtime.notePacket.count,
+    },
+  });
+}
+
+function pushGeneratorNotesEmittedEvent(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawnId: string,
+  color: NoteColor,
+  count: number,
+): void {
+  runtime.effects.pendingEvents.push({
+    event: 'combat:generator-notes-emitted',
+    payload: {
+      slotIndex: slot.slotIndex,
+      pawnId,
+      color,
+      count,
     },
   });
 }

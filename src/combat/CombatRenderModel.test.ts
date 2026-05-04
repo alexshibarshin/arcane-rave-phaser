@@ -66,17 +66,24 @@ describe('CombatRenderModel', () => {
     });
     expect(model.record.slots[1]).toMatchObject({
       pawn: {
-        id: 'pawn-green-finisher',
+        id: 'pawn-red-finisher',
         type: 'finisher',
-        color: 'green',
+        color: 'red',
         constructFamily: 'finisher',
-        silhouetteKey: 'finisher-green',
-        pedestalStyleKey: 'pedestal-green',
+        silhouetteKey: 'finisher-red',
+        pedestalStyleKey: 'pedestal-red',
         tierStars: 2,
         ruleLabel: '♪♪♪ > ♪',
       },
     });
     expect(model.record.slots[2]?.pawn).toBeNull();
+    expect(model.record.slots[4]).toMatchObject({
+      pawn: {
+        id: 'pawn-green-finisher',
+        color: 'green',
+        ruleLabel: '♪♪♪ > ♪',
+      },
+    });
     expect(model.record.slots[7]).toMatchObject({
       pawn: {
         id: 'pawn-blue-finisher',

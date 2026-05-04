@@ -28,15 +28,24 @@ export interface EventMap {
   'combat:enemy-hit': {
     enemyId: string;
     slotIndex: number;
+    attackerColor: NoteColor;
     damage: number;
     currentHp: number;
     maxHp: number;
+    wasWeaknessHit: boolean;
   };
   'combat:finisher-consumed-notes': {
     slotIndex: number;
     pawnId: string;
+    color: NoteColor;
     consumedNotes: number;
     multiplier: number;
+  };
+  'combat:generator-notes-emitted': {
+    slotIndex: number;
+    pawnId: string;
+    color: NoteColor;
+    count: number;
   };
   'combat:finisher-output-note-emitted': {
     slotIndex: number;

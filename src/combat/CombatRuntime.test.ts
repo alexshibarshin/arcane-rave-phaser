@@ -129,12 +129,12 @@ describe('createCombatRuntime', () => {
         pawnId:
           [
             'pawn-red-generator',
-            'pawn-green-finisher',
-            null,
-            'pawn-blue-generator',
             'pawn-red-finisher',
             null,
             'pawn-green-generator',
+            'pawn-green-finisher',
+            null,
+            'pawn-blue-generator',
             'pawn-blue-finisher',
           ][slot.index] ?? null,
         worldPosition: {
@@ -280,6 +280,27 @@ describe('createCombatRuntime', () => {
       count: 2,
       visuals: ['note-packet:red:0', 'note-packet:red:1'],
     });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:enemy-hit',
+      payload: {
+        enemyId: nearestEnemy.runtimeId,
+        slotIndex: 0,
+        attackerColor: 'red',
+        damage: CombatBalanceConfig.GENERATOR_BASE_DAMAGE,
+        currentHp: nearestEnemy.currentHp,
+        maxHp: nearestEnemy.maxHp,
+        wasWeaknessHit: false,
+      },
+    });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:generator-notes-emitted',
+      payload: {
+        slotIndex: 0,
+        pawnId: 'pawn-red-generator',
+        color: 'red',
+        count: 2,
+      },
+    });
   });
 
   it('adds two notes to a same-color packet and clamps the count at the packet cap', () => {
@@ -329,6 +350,15 @@ describe('createCombatRuntime', () => {
         count: CombatBalanceConfig.NOTE_PACKET_CAPACITY,
       },
     });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:generator-notes-emitted',
+      payload: {
+        slotIndex: 0,
+        pawnId: 'pawn-green-generator',
+        color: 'green',
+        count: 1,
+      },
+    });
   });
 
   it('breaks a foreign-color packet, replaces it with a two-note generator packet, and emits a color-break signal', () => {
@@ -370,6 +400,15 @@ describe('createCombatRuntime', () => {
       payload: {
         previousColor: 'blue',
         nextColor: 'red',
+      },
+    });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:generator-notes-emitted',
+      payload: {
+        slotIndex: 0,
+        pawnId: 'pawn-red-generator',
+        color: 'red',
+        count: 2,
       },
     });
   });
@@ -572,6 +611,7 @@ describe('createCombatRuntime', () => {
       payload: {
         slotIndex: 0,
         pawnId: 'pawn-green-finisher',
+        color: 'green',
         consumedNotes: 0,
         multiplier: CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[0],
       },

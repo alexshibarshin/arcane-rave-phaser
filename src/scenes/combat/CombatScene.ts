@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { emit } from '@events/EventBus';
-import { off, on } from '@events/EventBus';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
+import { CombatVfxConfig } from '@config/CombatVfxConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { SceneKeys } from '@config/GameConfig';
 import {
@@ -10,10 +10,18 @@ import {
   COMBAT_NOTE_GLYPH_TEXTURE_KEY,
 } from '@combat/CombatNoteGlyph';
 import { createCombatNotePacketViewModel } from '@combat/CombatNotePacketView';
+import { bindCombatVfxEvents } from '@combat/CombatVfxEventBridge';
 import { GameScene } from '@scenes/GameScene';
 import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
 import { createCombatRenderModel } from '@combat/CombatRenderModel';
 import { getCombatBaseHpBarFillMetrics } from '@combat/CombatBaseHpBar';
+import { CombatVfxSystem, type CombatVfxAnchor, type CombatVfxSnapshot } from '@combat/CombatVfxSystem';
+import {
+  COMBAT_VFX_BEAM_TEXTURE_KEY,
+  COMBAT_VFX_GLOW_TEXTURE_KEY,
+  COMBAT_VFX_RING_TEXTURE_KEY,
+  ensureCombatVfxTextures,
+} from '@combat/CombatVfxTextures';
 
 import { CombatStateSystem } from '@systems/CombatStateSystem';
 import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
@@ -21,9 +29,9 @@ import type { InputSystem } from '@systems/InputSystem';
 import type { SimulationSystem } from '@systems/SimulationSystem';
 
 interface CombatSlotView {
-  pulseRemainingMs: number;
   sectorPulse: Phaser.GameObjects.Graphics;
   zonePulse: Phaser.GameObjects.Graphics;
+  pawnGlow: Phaser.GameObjects.Image;
   uprightContainer: Phaser.GameObjects.Container;
   rotatingContent: Phaser.GameObjects.Container;
 }
@@ -51,22 +59,26 @@ interface CombatNotePacketView {
 
 export class CombatScene extends GameScene {
   private runtime?: CombatRuntime;
+  private combatVfx?: CombatVfxSystem;
+  private detachCombatVfxEvents?: () => void;
   private recordContainer?: Phaser.GameObjects.Container;
   private baseHpBarView?: CombatBaseHpBarView;
   private notePacketView?: CombatNotePacketView;
+  private baseVfxAnchor?: CombatVfxAnchor;
+  private resultEmphasisWash?: Phaser.GameObjects.Rectangle;
   private notePacketElapsedMs = 0;
   private readonly slotViews = new Map<number, CombatSlotView>();
   private readonly enemyViews = new Map<string, CombatEnemyView>();
-
-  private readonly handleSlotActivated = ({ slotIndex }: { slotIndex: number }): void => {
-    const slotView = this.slotViews.get(slotIndex);
-
-    if (!slotView) {
-      return;
-    }
-
-    slotView.pulseRemainingMs = CombatBalanceConfig.SLOT_ACTIVATION_PULSE_DURATION_MS;
-  };
+  private readonly beamViews = new Map<string, Phaser.GameObjects.Image>();
+  private readonly beamPool: Phaser.GameObjects.Image[] = [];
+  private readonly noteFlightViews = new Map<string, Phaser.GameObjects.Image>();
+  private readonly noteFlightPool: Phaser.GameObjects.Image[] = [];
+  private readonly enemyHitViews = new Map<string, Phaser.GameObjects.Image>();
+  private readonly enemyHitPool: Phaser.GameObjects.Image[] = [];
+  private readonly packetBreakViews = new Map<string, Phaser.GameObjects.Image>();
+  private readonly packetBreakPool: Phaser.GameObjects.Image[] = [];
+  private readonly baseHitViews = new Map<string, Phaser.GameObjects.Image>();
+  private readonly baseHitPool: Phaser.GameObjects.Image[] = [];
 
   constructor() {
     super(SceneKeys.COMBAT);
@@ -88,15 +100,32 @@ export class CombatScene extends GameScene {
   protected createSceneContent(): void {
     this.runtime = createCombatRuntime();
     this.renderStaticCombatLayout();
-    on('combat:slot-activated', this.handleSlotActivated);
+    this.combatVfx = new CombatVfxSystem({
+      getSlotAnchor: (slotIndex) => this.getSlotVfxAnchor(slotIndex),
+      getEnemyAnchor: (enemyId) => this.getEnemyVfxAnchor(enemyId),
+      getNotePacketAnchor: () => this.getNotePacketVfxAnchor(),
+      getBaseAnchor: () => this.getBaseVfxAnchor(),
+    });
+    this.detachCombatVfxEvents = bindCombatVfxEvents(this.combatVfx);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      off('combat:slot-activated', this.handleSlotActivated);
+      this.detachCombatVfxEvents?.();
+      this.detachCombatVfxEvents = undefined;
+      this.combatVfx = undefined;
       this.slotViews.clear();
       this.enemyViews.clear();
+      this.clearPooledImageMaps(this.noteFlightViews, this.noteFlightPool);
+      this.clearPooledImageMaps(this.beamViews, this.beamPool);
+      this.clearPooledImageMaps(this.enemyHitViews, this.enemyHitPool);
+      this.clearPooledImageMaps(this.packetBreakViews, this.packetBreakPool);
+      this.clearPooledImageMaps(this.baseHitViews, this.baseHitPool);
+      this.notePacketView?.glyphs.forEach((glyph) => glyph.destroy());
       this.notePacketView?.glyphs.clear();
+      this.resultEmphasisWash?.destroy();
+      this.resultEmphasisWash = undefined;
       this.notePacketView = undefined;
       this.notePacketElapsedMs = 0;
       this.baseHpBarView = undefined;
+      this.baseVfxAnchor = undefined;
       this.recordContainer = undefined;
     });
   }
@@ -117,6 +146,7 @@ export class CombatScene extends GameScene {
     const model = createCombatRenderModel();
 
     ensureCombatNoteGlyphTexture(this);
+    ensureCombatVfxTextures(this);
     this.renderBackground(model);
     this.renderEnemyLane(model);
     this.renderEnemyUnits(model);
@@ -255,10 +285,20 @@ export class CombatScene extends GameScene {
       const zonePulse = this.add.graphics();
       const rotatingInnerAnchor = this.add.container(slot.innerAnchor.x, slot.innerAnchor.y);
       const uprightContainer = this.add.container(slot.outerAnchor.x, slot.outerAnchor.y);
+      const pawnGlow = this.add.image(0, 0, COMBAT_VFX_GLOW_TEXTURE_KEY);
 
       rotatingInnerAnchor.setRotation(
         Phaser.Math.DegToRad(slot.innerLabelRotationDeg),
       );
+      pawnGlow.setTint(slot.presentation.accentColor);
+      pawnGlow.setBlendMode(Phaser.BlendModes.ADD);
+      pawnGlow.setAlpha(0);
+      pawnGlow.setScale(
+        slot.pawn === null
+          ? CombatVfxConfig.SLOT.EMPTY_GLOW_SCALE
+          : CombatVfxConfig.SLOT.PAWN_GLOW_SCALE,
+      );
+      uprightContainer.add(pawnGlow);
 
       graphics.fillStyle(slot.index === 0 ? 0x2f365f : 0x22263a, 0.3);
       this.fillSector(
@@ -332,9 +372,9 @@ export class CombatScene extends GameScene {
         uprightContainer,
       ]);
       this.slotViews.set(slot.index, {
-        pulseRemainingMs: 0,
         sectorPulse,
         zonePulse,
+        pawnGlow,
         uprightContainer,
         rotatingContent: rotatingInnerAnchor,
       });
@@ -389,6 +429,11 @@ export class CombatScene extends GameScene {
     });
     label.setOrigin(0.5, 0.5);
     label.setDepth(model.base.depth);
+
+    this.baseVfxAnchor = {
+      x: model.base.x,
+      y: model.base.y - 24,
+    };
   }
 
   private renderNeedle(model: ReturnType<typeof createCombatRenderModel>): void {
@@ -512,39 +557,56 @@ export class CombatScene extends GameScene {
   }
 
   private syncCombatPresentation(delta: number): void {
-    if (!this.runtime || !this.recordContainer) {
+    if (!this.runtime || !this.recordContainer || !this.combatVfx) {
       return;
     }
 
     this.notePacketElapsedMs += delta;
+    this.combatVfx.update(delta);
+    const vfxSnapshot = this.combatVfx.getSnapshot();
     const recordRotation = Phaser.Math.DegToRad(this.runtime.record.currentAngle);
 
     this.recordContainer.setRotation(recordRotation);
     this.syncEnemyPresentation();
     this.syncBaseHpBarPresentation();
-    this.syncNotePacketPresentation();
+    this.syncNotePacketPresentation(vfxSnapshot);
+    this.syncSlotVfxPresentation(recordRotation, vfxSnapshot);
+    this.syncBeamPresentation(vfxSnapshot);
+    this.syncNoteFlightPresentation(vfxSnapshot);
+    this.syncEnemyHitPresentation(vfxSnapshot);
+    this.syncPacketBreakPresentation(vfxSnapshot);
+    this.syncBaseHitPresentation(vfxSnapshot);
+    this.syncResultEmphasisPresentation(vfxSnapshot);
+  }
 
-    for (const slotView of this.slotViews.values()) {
+  private syncSlotVfxPresentation(recordRotation: number, vfxSnapshot: CombatVfxSnapshot): void {
+    const slotActivations = new Map(
+      vfxSnapshot.slotActivations.map((activation) => [activation.slotIndex, activation]),
+    );
+
+    for (const [slotIndex, slotView] of this.slotViews.entries()) {
       slotView.uprightContainer.setRotation(-recordRotation);
+      const activation = slotActivations.get(slotIndex);
 
-      if (slotView.pulseRemainingMs <= 0) {
+      if (!activation) {
         slotView.sectorPulse.setAlpha(0);
         slotView.zonePulse.setAlpha(0);
+        slotView.pawnGlow.setAlpha(0);
         slotView.uprightContainer.setScale(1);
         slotView.rotatingContent.setScale(1);
         continue;
       }
 
-      slotView.pulseRemainingMs = Math.max(0, slotView.pulseRemainingMs - delta);
-
-      const progress =
-        slotView.pulseRemainingMs / CombatBalanceConfig.SLOT_ACTIVATION_PULSE_DURATION_MS;
-      const alpha = CombatBalanceConfig.SLOT_ACTIVATION_MAX_ALPHA * (0.35 + progress * 0.65);
+      const alpha =
+        CombatBalanceConfig.SLOT_ACTIVATION_MAX_ALPHA * (0.35 + activation.sectorAlpha * 0.65);
 
       slotView.sectorPulse.setAlpha(alpha);
-      slotView.zonePulse.setAlpha(alpha * 0.85);
-      slotView.uprightContainer.setScale(1 + progress * 0.08);
-      slotView.rotatingContent.setScale(1 + progress * 0.05);
+      slotView.zonePulse.setAlpha(alpha * 0.85 * activation.ruleZoneAlpha);
+      slotView.pawnGlow.setAlpha(activation.pawnGlowAlpha * 0.85);
+      slotView.uprightContainer.setScale(activation.scale);
+      slotView.rotatingContent.setScale(
+        1 + activation.sectorAlpha * CombatVfxConfig.SLOT.ROTATING_SCALE_BOOST,
+      );
     }
   }
 
@@ -595,7 +657,7 @@ export class CombatScene extends GameScene {
     );
   }
 
-  private syncNotePacketPresentation(): void {
+  private syncNotePacketPresentation(vfxSnapshot: CombatVfxSnapshot): void {
     if (!this.runtime || !this.notePacketView) {
       return;
     }
@@ -609,6 +671,9 @@ export class CombatScene extends GameScene {
       this.notePacketElapsedMs,
     );
     const activeIds = new Set(instances.map((instance) => instance.id));
+    const packetIntakeActive = vfxSnapshot.noteFlights.some(
+      (flight) => flight.direction === 'packet-to-slot',
+    );
 
     for (const [id, glyph] of this.notePacketView.glyphs.entries()) {
       if (activeIds.has(id)) {
@@ -632,8 +697,251 @@ export class CombatScene extends GameScene {
       glyph.setDepth(this.notePacketView.depth + index * 0.01);
       glyph.setPosition(instance.x, instance.y);
       glyph.setTint(instance.tint);
+      glyph.setAlpha(packetIntakeActive ? 0.15 : 1);
       glyph.setScale(instance.scale);
     }
+  }
+
+  private syncBeamPresentation(vfxSnapshot: CombatVfxSnapshot): void {
+    const activeIds = new Set(vfxSnapshot.beamHits.map((beam) => beam.id));
+
+    this.reclaimImageViews(this.beamViews, this.beamPool, activeIds);
+
+    for (const beam of vfxSnapshot.beamHits) {
+      let beamView = this.beamViews.get(beam.id);
+
+      if (!beamView) {
+        beamView = this.acquirePooledImage(this.beamPool, COMBAT_VFX_BEAM_TEXTURE_KEY);
+        beamView.setBlendMode(Phaser.BlendModes.ADD);
+        this.beamViews.set(beam.id, beamView);
+      }
+
+      const deltaX = beam.to.x - beam.from.x;
+      const deltaY = beam.to.y - beam.from.y;
+      const length = Math.hypot(deltaX, deltaY);
+
+      beamView.setDepth(CombatLayoutConfig.DEPTH.VFX);
+      beamView.setTint(CombatVisualConfig.NOTE_COLORS[beam.color]);
+      beamView.setAlpha(beam.alpha);
+      beamView.setPosition((beam.from.x + beam.to.x) / 2, (beam.from.y + beam.to.y) / 2);
+      beamView.setRotation(Math.atan2(deltaY, deltaX));
+      beamView.setScale(
+        length / CombatVfxConfig.TEXTURES.BEAM_WIDTH_PX,
+        beam.thickness / CombatVfxConfig.TEXTURES.BEAM_HEIGHT_PX,
+      );
+      beamView.setVisible(true);
+    }
+  }
+
+  private syncNoteFlightPresentation(vfxSnapshot: CombatVfxSnapshot): void {
+    const activeIds = new Set(vfxSnapshot.noteFlights.map((flight) => flight.id));
+
+    this.reclaimImageViews(this.noteFlightViews, this.noteFlightPool, activeIds);
+
+    for (const flight of vfxSnapshot.noteFlights) {
+      let flightView = this.noteFlightViews.get(flight.id);
+
+      if (!flightView) {
+        flightView = this.acquirePooledImage(this.noteFlightPool, COMBAT_NOTE_GLYPH_TEXTURE_KEY);
+        flightView.setBlendMode(Phaser.BlendModes.ADD);
+        this.noteFlightViews.set(flight.id, flightView);
+      }
+
+      flightView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.1);
+      flightView.setPosition(flight.x, flight.y);
+      flightView.setTint(CombatVisualConfig.NOTE_COLORS[flight.color]);
+      flightView.setAlpha(flight.alpha);
+      flightView.setScale(flight.scale);
+      flightView.setVisible(true);
+    }
+  }
+
+  private syncEnemyHitPresentation(vfxSnapshot: CombatVfxSnapshot): void {
+    const activeIds = new Set(vfxSnapshot.enemyHitFlashes.map((flash) => flash.id));
+
+    this.reclaimImageViews(this.enemyHitViews, this.enemyHitPool, activeIds);
+
+    for (const flash of vfxSnapshot.enemyHitFlashes) {
+      let flashView = this.enemyHitViews.get(flash.id);
+
+      if (!flashView) {
+        flashView = this.acquirePooledImage(this.enemyHitPool, COMBAT_VFX_RING_TEXTURE_KEY);
+        flashView.setBlendMode(Phaser.BlendModes.ADD);
+        this.enemyHitViews.set(flash.id, flashView);
+      }
+
+      flashView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.2);
+      flashView.setPosition(flash.x, flash.y);
+      flashView.setTint(CombatVisualConfig.NOTE_COLORS[flash.color]);
+      flashView.setAlpha(flash.alpha);
+      flashView.setScale(flash.scale);
+      flashView.setVisible(true);
+    }
+  }
+
+  private syncPacketBreakPresentation(vfxSnapshot: CombatVfxSnapshot): void {
+    const activeIds = new Set(vfxSnapshot.packetBreakBursts.map((burst) => burst.id));
+
+    this.reclaimImageViews(this.packetBreakViews, this.packetBreakPool, activeIds);
+
+    for (const burst of vfxSnapshot.packetBreakBursts) {
+      let burstView = this.packetBreakViews.get(burst.id);
+
+      if (!burstView) {
+        burstView = this.acquirePooledImage(this.packetBreakPool, COMBAT_VFX_RING_TEXTURE_KEY);
+        burstView.setBlendMode(Phaser.BlendModes.ADD);
+        this.packetBreakViews.set(burst.id, burstView);
+      }
+
+      burstView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.3);
+      burstView.setPosition(burst.x, burst.y);
+      burstView.setTint(CombatVisualConfig.NOTE_COLORS[burst.nextColor]);
+      burstView.setAlpha(burst.alpha);
+      burstView.setScale(burst.scale);
+      burstView.setVisible(true);
+    }
+  }
+
+  private syncBaseHitPresentation(vfxSnapshot: CombatVfxSnapshot): void {
+    const activeIds = new Set(vfxSnapshot.baseHitFlashes.map((flash) => flash.id));
+
+    this.reclaimImageViews(this.baseHitViews, this.baseHitPool, activeIds);
+
+    for (const flash of vfxSnapshot.baseHitFlashes) {
+      let flashView = this.baseHitViews.get(flash.id);
+
+      if (!flashView) {
+        flashView = this.acquirePooledImage(this.baseHitPool, COMBAT_VFX_GLOW_TEXTURE_KEY);
+        flashView.setBlendMode(Phaser.BlendModes.ADD);
+        this.baseHitViews.set(flash.id, flashView);
+      }
+
+      flashView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.4);
+      flashView.setPosition(flash.x, flash.y);
+      flashView.setTint(0xff8f7a);
+      flashView.setAlpha(flash.alpha * 0.8);
+      flashView.setScale(flash.scale * 1.3);
+      flashView.setVisible(true);
+    }
+  }
+
+  private syncResultEmphasisPresentation(vfxSnapshot: CombatVfxSnapshot): void {
+    const emphasis = vfxSnapshot.resultEmphasis;
+
+    if (!emphasis) {
+      this.resultEmphasisWash?.setVisible(false);
+      return;
+    }
+
+    if (!this.resultEmphasisWash) {
+      this.resultEmphasisWash = this.add.rectangle(
+        this.scale.width / 2,
+        this.scale.height / 2,
+        this.scale.width,
+        this.scale.height,
+        0xffffff,
+        0,
+      );
+      this.resultEmphasisWash.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.5);
+    }
+
+    this.resultEmphasisWash.setVisible(true);
+    this.resultEmphasisWash.setFillStyle(
+      emphasis.outcome === 'victory'
+        ? CombatVfxConfig.RESULT.VICTORY_TINT
+        : CombatVfxConfig.RESULT.DEFEAT_TINT,
+      emphasis.alpha * 0.16,
+    );
+    this.resultEmphasisWash.setScale(emphasis.scale);
+  }
+
+  private getSlotVfxAnchor(slotIndex: number): { x: number; y: number; hasPawn: boolean } | null {
+    const slotView = this.slotViews.get(slotIndex);
+    const slotRuntime = this.runtime?.slots[slotIndex];
+
+    if (!slotView || !slotRuntime) {
+      return null;
+    }
+
+    const matrix = slotView.uprightContainer.getWorldTransformMatrix();
+    const point = matrix.transformPoint(0, 0);
+
+    return {
+      x: point.x,
+      y: point.y,
+      hasPawn: slotRuntime.pawnId !== null,
+    };
+  }
+
+  private getEnemyVfxAnchor(enemyId: string): CombatVfxAnchor | null {
+    const enemyView = this.enemyViews.get(enemyId);
+
+    if (!enemyView) {
+      return null;
+    }
+
+    return {
+      x: enemyView.container.x,
+      y: enemyView.container.y - 4,
+    };
+  }
+
+  private getNotePacketVfxAnchor(): CombatVfxAnchor {
+    return {
+      x: this.notePacketView?.anchorX ?? CombatLayoutConfig.NOTE_PACKET_ANCHOR_X,
+      y: this.notePacketView?.anchorY ?? CombatLayoutConfig.NOTE_PACKET_ANCHOR_Y,
+    };
+  }
+
+  private getBaseVfxAnchor(): CombatVfxAnchor {
+    return this.baseVfxAnchor ?? {
+      x: CombatLayoutConfig.BASE_X,
+      y: CombatLayoutConfig.BASE_Y,
+    };
+  }
+
+  private acquirePooledImage(
+    pool: Phaser.GameObjects.Image[],
+    textureKey: string,
+  ): Phaser.GameObjects.Image {
+    const image = pool.pop() ?? this.add.image(0, 0, textureKey);
+
+    image.setTexture(textureKey);
+    image.setOrigin(0.5, 0.5);
+    image.setVisible(true);
+    return image;
+  }
+
+  private reclaimImageViews(
+    activeViews: Map<string, Phaser.GameObjects.Image>,
+    pool: Phaser.GameObjects.Image[],
+    activeIds: Set<string>,
+  ): void {
+    for (const [id, view] of activeViews.entries()) {
+      if (activeIds.has(id)) {
+        continue;
+      }
+
+      view.setVisible(false);
+      activeViews.delete(id);
+      pool.push(view);
+    }
+  }
+
+  private clearPooledImageMaps(
+    activeViews: Map<string, Phaser.GameObjects.Image>,
+    pool: Phaser.GameObjects.Image[],
+  ): void {
+    for (const view of activeViews.values()) {
+      view.destroy();
+    }
+
+    for (const view of pool) {
+      view.destroy();
+    }
+
+    activeViews.clear();
+    pool.length = 0;
   }
 
   private getEnemyContainerDepth(sortY: number): number {
