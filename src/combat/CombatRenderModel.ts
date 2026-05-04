@@ -294,7 +294,7 @@ export function createCombatRenderModel(): CombatRenderModel {
         align: 'right',
       },
     },
-    enemies: createCombatEnemyRuntimes().flatMap((enemyRuntime) => {
+    enemies: createCombatEnemyRuntimes(activeWave!).flatMap((enemyRuntime) => {
       const definition = enemyDefinitionsById.get(enemyRuntime.definitionId);
 
       return definition ? [createEnemyRenderModel(enemyRuntime, definition)] : [];

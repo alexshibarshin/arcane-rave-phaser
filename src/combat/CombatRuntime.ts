@@ -10,6 +10,7 @@ import {
   createCombatLayoutPlan,
 } from './CombatLayout';
 import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
+import type { CombatWaveDefinition } from '@config/CombatWaveConfig';
 
 export type CombatState = 'preview' | 'running' | 'paused' | 'victory' | 'defeat';
 export type NoteColor = (typeof CombatContentConfig.NOTE_COLORS)[number];
@@ -44,12 +45,19 @@ export interface CombatEnemyRuntime {
   renderContainerName: string;
 }
 
+export interface CombatSubWaveSpawnBag {
+  enemyRuntimeIds: string[];
+  nextSpawnAtMs: number;
+  intervalMs: number;
+}
+
 export interface CombatWaveRuntime {
   currentWaveIndex: number;
   totalWaves: number;
   currentWaveId: string | null;
   activeSubWaves: CombatSubWaveConfig[];
   pendingSubWaves: CombatSubWaveConfig[];
+  spawnBags: Map<string, CombatSubWaveSpawnBag>;
   enemiesRemaining: number;
 }
 
@@ -150,7 +158,9 @@ interface CombatRuntimeAdvanceOptions {
   random?: () => number;
 }
 
-export function createCombatRuntime(): CombatRuntime {
+export function createCombatRuntime(
+  random: () => number = Math.random,
+): CombatRuntime {
   const initialWave = CombatWaveConfig.WAVES[0];
   const startAngle = initialWave?.startAngleDeg ?? CombatBalanceConfig.RECORD_START_ANGLE_DEG;
   const layout = createCombatLayoutPlan();
@@ -158,17 +168,17 @@ export function createCombatRuntime(): CombatRuntime {
   const slotPreset =
     CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
     ?? null;
-  const enemies = createCombatEnemyRuntimes();
+  const enemies = createCombatEnemyRuntimes(initialWave as CombatWaveDefinition);
 
-  return {
+  const runtime: CombatRuntime = {
     state: 'preview',
     combatElapsedMs: 0,
     waveElapsedMs: 0,
     spawn: {
-      pendingEnemyRuntimeIds: enemies.map((enemy) => enemy.runtimeId),
-      nextSpawnAtMs: initialWave?.subWaves[0]?.startTimeMs ?? 0,
+      pendingEnemyRuntimeIds: [],
+      nextSpawnAtMs: 0,
       lastSpawnX: null,
-      intervalMs: initialWave?.subWaves[0]?.spawnIntervalMs ?? 900,
+      intervalMs: 900,
     },
     preview: {
       elapsedMs: 0,
@@ -205,7 +215,12 @@ export function createCombatRuntime(): CombatRuntime {
       currentWaveId: initialWave?.id ?? null,
       activeSubWaves: [],
       pendingSubWaves: [...(initialWave?.subWaves ?? [])],
-      enemiesRemaining: enemies.length,
+      spawnBags: new Map(),
+      enemiesRemaining: (initialWave?.subWaves ?? []).reduce(
+        (sum, subWave) =>
+          sum + Object.values(subWave.enemies).reduce((a, b) => a + b, 0),
+        0,
+      ),
     },
     outcome: {
       victory: false,
@@ -216,6 +231,10 @@ export function createCombatRuntime(): CombatRuntime {
       pendingEvents: [],
     },
   };
+
+  activatePendingSubWaves(runtime, random);
+
+  return runtime;
 }
 
 function getSlotWorldPosition(
@@ -232,6 +251,115 @@ function getSlotWorldPosition(
   };
 }
 
+function shuffleArray<T>(array: readonly T[], random: () => number): T[] {
+  const shuffled = [...array];
+
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    const temp = shuffled[i] as T;
+    shuffled[i] = shuffled[j] as T;
+    shuffled[j] = temp;
+  }
+
+  return shuffled;
+}
+
+function activateSubWave(
+  runtime: CombatRuntime,
+  subWave: CombatSubWaveConfig,
+  random: () => number,
+): void {
+  const { activeSubWaves, pendingSubWaves, spawnBags } = runtime.wave;
+  const index = pendingSubWaves.indexOf(subWave);
+
+  if (index === -1) {
+    return;
+  }
+
+  pendingSubWaves.splice(index, 1);
+  activeSubWaves.push(subWave);
+
+  const alreadyAllocatedIds = new Set(
+    Array.from(spawnBags.values()).flatMap((bag) => bag.enemyRuntimeIds),
+  );
+
+  const enemyRuntimeIds: string[] = Object.entries(subWave.enemies).flatMap(
+    ([definitionId, count]) => {
+      const matchingEnemies = runtime.enemies.filter(
+        (enemy) =>
+          enemy.definitionId === definitionId && !enemy.spawned && !alreadyAllocatedIds.has(enemy.runtimeId),
+      );
+
+      for (const enemy of matchingEnemies.slice(0, count)) {
+        alreadyAllocatedIds.add(enemy.runtimeId);
+      }
+
+      return matchingEnemies.slice(0, count).map((enemy) => enemy.runtimeId);
+    },
+  );
+
+  spawnBags.set(subWave.id, {
+    enemyRuntimeIds: shuffleArray(enemyRuntimeIds, random),
+    nextSpawnAtMs: 0,
+    intervalMs: subWave.spawnIntervalMs,
+  });
+}
+
+function activatePendingSubWaves(runtime: CombatRuntime, random: () => number): void {
+  const { pendingSubWaves } = runtime.wave;
+  const toActivate: CombatSubWaveConfig[] = [];
+
+  for (const subWave of pendingSubWaves) {
+    if (runtime.waveElapsedMs >= subWave.startTimeMs) {
+      toActivate.push(subWave);
+    }
+  }
+
+  for (const subWave of toActivate) {
+    activateSubWave(runtime, subWave, random);
+  }
+}
+
+function calculateEnemiesRemaining(runtime: CombatRuntime): number {
+  const livingEnemies = runtime.enemies.filter(
+    (enemy) => enemy.spawned && enemy.state !== 'dead',
+  ).length;
+
+  const pendingInBags = Array.from(runtime.wave.spawnBags.values()).reduce(
+    (sum, bag) => sum + bag.enemyRuntimeIds.length,
+    0,
+  );
+
+  const pendingInSubWaves = runtime.wave.pendingSubWaves.reduce(
+    (sum, subWave) =>
+      sum + Object.values(subWave.enemies).reduce((a, b) => a + b, 0),
+    0,
+  );
+
+  return livingEnemies + pendingInBags + pendingInSubWaves;
+}
+
+function evaluateVictory(runtime: CombatRuntime): void {
+  if (runtime.state !== 'running') {
+    return;
+  }
+
+  // Victory requires: all sub-waves activated, all bags empty, no living enemies
+  const allSubWavesActivated = runtime.wave.pendingSubWaves.length === 0;
+
+  const allBagsEmpty = Array.from(runtime.wave.spawnBags.values()).every(
+    (bag) => bag.enemyRuntimeIds.length === 0,
+  );
+
+  const noLivingEnemies = runtime.enemies.every(
+    (enemy) => !enemy.spawned || enemy.state === 'dead',
+  );
+
+  if (allSubWavesActivated && allBagsEmpty && noLivingEnemies) {
+    setCombatState(runtime, 'victory');
+  }
+}
+
 export function advanceCombatRuntime(
   runtime: CombatRuntime,
   deltaMs: number,
@@ -241,6 +369,7 @@ export function advanceCombatRuntime(
 
   if (runtime.state === 'running') {
     runtime.waveElapsedMs += deltaMs;
+    activatePendingSubWaves(runtime, options.random ?? Math.random);
     resetSlotActivationEffects(runtime);
     runtime.record.previousAngle = runtime.record.currentAngle;
     runtime.record.currentAngle -=
@@ -248,6 +377,8 @@ export function advanceCombatRuntime(
     processCrossedSlots(runtime);
     updateEnemyPressure(runtime, deltaMs);
     bootstrapEnemySpawns(runtime, options.random ?? Math.random);
+    runtime.wave.enemiesRemaining = calculateEnemiesRemaining(runtime);
+    evaluateVictory(runtime);
 
     return;
   }
@@ -627,27 +758,29 @@ function updateEnemyPressure(runtime: CombatRuntime, deltaMs: number): void {
 }
 
 function bootstrapEnemySpawns(runtime: CombatRuntime, random: () => number): void {
-  while (runtime.waveElapsedMs >= runtime.spawn.nextSpawnAtMs) {
-    const nextEnemyRuntimeId = runtime.spawn.pendingEnemyRuntimeIds.shift();
+  for (const subWave of runtime.wave.activeSubWaves) {
+    const bag = runtime.wave.spawnBags.get(subWave.id);
 
-    if (!nextEnemyRuntimeId) {
-      return;
-    }
-
-    const enemy = runtime.enemies.find((entry) => entry.runtimeId === nextEnemyRuntimeId);
-
-    if (!enemy) {
-      runtime.spawn.nextSpawnAtMs += runtime.spawn.intervalMs;
+    if (!bag) {
       continue;
     }
 
-    enemy.spawned = true;
-    enemy.state = 'moving';
-    enemy.nextAttackAtMs = 0;
-    enemy.x = selectEnemySpawnX(random, runtime.spawn.lastSpawnX);
-    enemy.y = CombatLayoutConfig.ENEMY_SPAWN_Y;
-    runtime.spawn.lastSpawnX = enemy.x;
-    runtime.spawn.nextSpawnAtMs += runtime.spawn.intervalMs;
+    while (bag.enemyRuntimeIds.length > 0 && runtime.waveElapsedMs >= bag.nextSpawnAtMs) {
+      const enemyRuntimeId = bag.enemyRuntimeIds.shift()!;
+      const enemy = runtime.enemies.find((entry) => entry.runtimeId === enemyRuntimeId);
+
+      if (!enemy) {
+        continue;
+      }
+
+      enemy.spawned = true;
+      enemy.state = 'moving';
+      enemy.nextAttackAtMs = 0;
+      enemy.x = selectEnemySpawnX(random, runtime.spawn.lastSpawnX);
+      enemy.y = CombatLayoutConfig.ENEMY_SPAWN_Y;
+      runtime.spawn.lastSpawnX = enemy.x;
+      bag.nextSpawnAtMs += bag.intervalMs;
+    }
   }
 }
 

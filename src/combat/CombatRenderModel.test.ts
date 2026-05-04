@@ -139,11 +139,16 @@ describe('CombatRenderModel', () => {
     expect(model.record.slots[6]?.innerLabelRotationDeg).toBe(270);
   });
 
-  it('describes three enemy color variants as shared container render units with y-sort anchors', () => {
+  it('describes all enemy runtime instances as shared container render units with y-sort anchors', () => {
     const model = createCombatRenderModel();
 
-    expect(model.enemies).toHaveLength(3);
-    expect(model.enemies).toEqual([
+    // wave-1-a: 2 red + 1 green = 3
+    // wave-1-b: 2 blue + 1 red = 3
+    // Total: 3 red + 1 green + 2 blue = 6
+    expect(model.enemies).toHaveLength(6);
+
+    const firstThree = model.enemies.slice(0, 3);
+    expect(firstThree).toEqual([
       {
         runtimeId: 'enemy-runtime-1',
         definitionId: 'enemy-red-basic',
@@ -176,13 +181,77 @@ describe('CombatRenderModel', () => {
       },
       {
         runtimeId: 'enemy-runtime-2',
-        definitionId: 'enemy-green-basic',
+        definitionId: 'enemy-red-basic',
         container: {
           name: 'enemy-container-2',
           x: 360,
           y: 320,
           depth: CombatLayoutConfig.DEPTH.PAWNS,
           sortY: 320,
+        },
+        body: {
+          family: 'basic',
+          silhouetteKey: 'enemy-basic',
+          variantKey: 'enemy-basic-red',
+          color: 0xff5f7a,
+          width: 31,
+          height: 36,
+        },
+        hpBar: {
+          offsetY: -25,
+          width: 23,
+          height: 4,
+        },
+        attachments: {
+          hitFlash: {
+            x: 0,
+            y: -3,
+          },
+        },
+      },
+      {
+        runtimeId: 'enemy-runtime-3',
+        definitionId: 'enemy-red-basic',
+        container: {
+          name: 'enemy-container-3',
+          x: 540,
+          y: 400,
+          depth: CombatLayoutConfig.DEPTH.PAWNS,
+          sortY: 400,
+        },
+        body: {
+          family: 'basic',
+          silhouetteKey: 'enemy-basic',
+          variantKey: 'enemy-basic-red',
+          color: 0xff5f7a,
+          width: 31,
+          height: 36,
+        },
+        hpBar: {
+          offsetY: -25,
+          width: 23,
+          height: 4,
+        },
+        attachments: {
+          hitFlash: {
+            x: 0,
+            y: -3,
+          },
+        },
+      },
+    ]);
+
+    const lastThree = model.enemies.slice(3);
+    expect(lastThree).toEqual([
+      {
+        runtimeId: 'enemy-runtime-4',
+        definitionId: 'enemy-green-basic',
+        container: {
+          name: 'enemy-container-4',
+          x: 180,
+          y: 240,
+          depth: CombatLayoutConfig.DEPTH.PAWNS,
+          sortY: 240,
         },
         body: {
           family: 'basic',
@@ -205,14 +274,44 @@ describe('CombatRenderModel', () => {
         },
       },
       {
-        runtimeId: 'enemy-runtime-3',
+        runtimeId: 'enemy-runtime-5',
         definitionId: 'enemy-blue-basic',
         container: {
-          name: 'enemy-container-3',
-          x: 540,
-          y: 400,
+          name: 'enemy-container-5',
+          x: 180,
+          y: 240,
           depth: CombatLayoutConfig.DEPTH.PAWNS,
-          sortY: 400,
+          sortY: 240,
+        },
+        body: {
+          family: 'basic',
+          silhouetteKey: 'enemy-basic',
+          variantKey: 'enemy-basic-blue',
+          color: 0x5db7ff,
+          width: 31,
+          height: 36,
+        },
+        hpBar: {
+          offsetY: -25,
+          width: 23,
+          height: 4,
+        },
+        attachments: {
+          hitFlash: {
+            x: 0,
+            y: -3,
+          },
+        },
+      },
+      {
+        runtimeId: 'enemy-runtime-6',
+        definitionId: 'enemy-blue-basic',
+        container: {
+          name: 'enemy-container-6',
+          x: 180,
+          y: 240,
+          depth: CombatLayoutConfig.DEPTH.PAWNS,
+          sortY: 240,
         },
         body: {
           family: 'basic',

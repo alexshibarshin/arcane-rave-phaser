@@ -14,7 +14,7 @@ import { GameScene } from '@scenes/GameScene';
 import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
 import { createCombatRenderModel } from '@combat/CombatRenderModel';
 import { getCombatBaseHpBarFillMetrics } from '@combat/CombatBaseHpBar';
-import { publishCombatHudSnapshot } from '@combat/CombatHudEvents';
+
 import { CombatStateSystem } from '@systems/CombatStateSystem';
 import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
 import type { InputSystem } from '@systems/InputSystem';
@@ -78,7 +78,6 @@ export class CombatScene extends GameScene {
       key: this.scene.key,
       state: this.runtime!.state,
     });
-    publishCombatHudSnapshot(this.runtime!);
   }
 
   update(time: number, delta: number): void {

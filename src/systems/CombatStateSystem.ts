@@ -3,6 +3,7 @@ import { advanceCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime'
 import {
   publishCombatStateTransition,
   publishPendingCombatEvents,
+  publishCombatHudSnapshot,
 } from '@combat/CombatHudEvents';
 import { SimulationSystem } from './SimulationSystem';
 
@@ -23,6 +24,8 @@ export class CombatStateSystem extends SimulationSystem {
 
     const previousState = runtime.state;
     advanceCombatRuntime(runtime, delta);
+
+    publishCombatHudSnapshot(runtime);
     publishPendingCombatEvents(runtime);
 
     if (runtime.state !== previousState) {

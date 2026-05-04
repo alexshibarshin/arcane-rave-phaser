@@ -33,12 +33,13 @@ describe('createCombatRuntime', () => {
     expect(runtime.wave.currentWaveIndex).toBe(0);
     expect(runtime.wave.totalWaves).toBe(CombatWaveConfig.WAVES.length);
     expect(runtime.wave.pendingSubWaves).toEqual(
-      CombatWaveConfig.WAVES[0]?.subWaves ?? [],
+      CombatWaveConfig.WAVES[0]?.subWaves.filter((sw) => sw.startTimeMs > 0) ?? [],
     );
     expect(runtime.slots).toHaveLength(8);
-    expect(runtime.enemies).toHaveLength(CombatContentConfig.ENEMY_DEFINITIONS.length);
-    expect(runtime.wave.activeSubWaves).toEqual([]);
-    expect(runtime.wave.enemiesRemaining).toBe(CombatContentConfig.ENEMY_DEFINITIONS.length);
+    expect(runtime.enemies).toHaveLength(6);
+    expect(runtime.wave.activeSubWaves).toHaveLength(1);
+    expect(runtime.wave.activeSubWaves[0]?.id).toBe('wave-1-a');
+    expect(runtime.wave.enemiesRemaining).toBe(6);
     expect(runtime.outcome).toEqual({
       victory: false,
       defeat: false,
@@ -89,25 +90,33 @@ describe('createCombatRuntime', () => {
     });
   });
 
-  it('creates one placeholder runtime enemy per content definition with future combat fields', () => {
+  it('creates runtime enemies for all spawns across all sub-waves', () => {
     const runtime = createCombatRuntime();
 
-    expect(runtime.enemies).toEqual(
-      CombatContentConfig.ENEMY_DEFINITIONS.map((enemy, index) => ({
-        runtimeId: `enemy-runtime-${index + 1}`,
-        definitionId: enemy.id,
-        archetype: enemy.archetype,
-        color: enemy.color,
-        currentHp: enemy.maxHp,
-        maxHp: enemy.maxHp,
-        x: [180, 360, 540][index],
-        y: [240, 320, 400][index],
-        state: 'moving',
-        spawned: false,
-        nextAttackAtMs: 0,
-        renderContainerName: `enemy-container-${index + 1}`,
-      })),
-    );
+    // wave-1-a: 2 red + 1 green = 3
+    // wave-1-b: 2 blue + 1 red = 3
+    // Total: 3 red + 1 green + 2 blue = 6
+    expect(runtime.enemies).toHaveLength(6);
+
+    const redEnemies = runtime.enemies.filter((e) => e.definitionId === 'enemy-red-basic');
+    const greenEnemies = runtime.enemies.filter((e) => e.definitionId === 'enemy-green-basic');
+    const blueEnemies = runtime.enemies.filter((e) => e.definitionId === 'enemy-blue-basic');
+
+    expect(redEnemies).toHaveLength(3);
+    expect(greenEnemies).toHaveLength(1);
+    expect(blueEnemies).toHaveLength(2);
+
+    expect(runtime.enemies[0]!.runtimeId).toBe('enemy-runtime-1');
+    expect(runtime.enemies[0]!.definitionId).toBe('enemy-red-basic');
+    expect(runtime.enemies[3]!.runtimeId).toBe('enemy-runtime-4');
+    expect(runtime.enemies[3]!.definitionId).toBe('enemy-green-basic');
+    expect(runtime.enemies[5]!.runtimeId).toBe('enemy-runtime-6');
+    expect(runtime.enemies[5]!.definitionId).toBe('enemy-blue-basic');
+
+    for (const enemy of runtime.enemies) {
+      expect(enemy.spawned).toBe(false);
+      expect(enemy.state).toBe('moving');
+    }
   });
 
   it('creates stable runtime slots from the combat layout geometry', () => {
@@ -588,7 +597,9 @@ describe('createCombatRuntime', () => {
       return;
     }
 
-    runtime.spawn.pendingEnemyRuntimeIds = [];
+    // Prevent spawn bag from interfering with manual test setup
+    runtime.wave.activeSubWaves = [];
+    runtime.wave.spawnBags.clear();
     for (const slot of runtime.slots) {
       slot.pawnId = null;
     }
@@ -624,7 +635,9 @@ describe('createCombatRuntime', () => {
       return;
     }
 
-    runtime.spawn.pendingEnemyRuntimeIds = [];
+    // Prevent spawn bag from interfering with manual test setup
+    runtime.wave.activeSubWaves = [];
+    runtime.wave.spawnBags.clear();
     for (const slot of runtime.slots) {
       slot.pawnId = null;
     }
@@ -843,6 +856,38 @@ describe('createCombatRuntime', () => {
     expect(hitPayload.wasWeaknessHit).toBe(false);
   });
 
+  it('activates sub-waves by absolute startTimeMs from wave start, not by completion order', () => {
+    const runtime = createCombatRuntime();
+
+    // At t=0: first sub-wave (startTimeMs: 0) should be active with spawn bag
+    expect(runtime.wave.activeSubWaves).toHaveLength(1);
+    expect(runtime.wave.activeSubWaves[0]?.id).toBe('wave-1-a');
+    expect(runtime.wave.pendingSubWaves).toHaveLength(1);
+    expect(runtime.wave.pendingSubWaves[0]?.id).toBe('wave-1-b');
+    expect(runtime.wave.spawnBags.get('wave-1-a')?.enemyRuntimeIds).toHaveLength(3);
+    const redRuntimes = runtime.enemies.filter((e) => e.definitionId === 'enemy-red-basic');
+    const greenRuntime = runtime.enemies.find((e) => e.definitionId === 'enemy-green-basic');
+    expect(redRuntimes.length).toBe(3);
+    expect(greenRuntime).toBeDefined();
+    expect(runtime.wave.spawnBags.get('wave-1-a')?.enemyRuntimeIds).toContain(
+      redRuntimes[0]?.runtimeId,
+    );
+    expect(runtime.wave.spawnBags.get('wave-1-a')?.enemyRuntimeIds).toContain(
+      greenRuntime?.runtimeId,
+    );
+
+    // After advancing past second sub-wave start time (2500ms)
+    setCombatState(runtime, 'running');
+    runtime.waveElapsedMs = 2500;
+
+    advanceCombatRuntime(runtime, 1);
+
+    expect(runtime.wave.activeSubWaves).toHaveLength(2);
+    expect(runtime.wave.pendingSubWaves).toHaveLength(0);
+    // Bag exists (contents immediately consumed by bootstrapEnemySpawns in same advance call)
+    expect(runtime.wave.spawnBags.has('wave-1-b')).toBe(true);
+  });
+
   it('bootstraps enemy spawns into the top lane with config-driven x range and anti-clumping', () => {
     const runtime = createCombatRuntime();
     const randomValues = [0.1, 0.12, 0.9];
@@ -862,26 +907,92 @@ describe('createCombatRuntime', () => {
 
     advanceCombatRuntime(runtime, 1, { random: nextRandom });
 
-    expect(runtime.enemies[0]).toMatchObject({
-      spawned: true,
-      state: 'moving',
-      y: CombatLayoutConfig.ENEMY_SPAWN_Y,
-    });
-    expect(runtime.enemies[0]?.x).toBeGreaterThanOrEqual(CombatLayoutConfig.ENEMY_SPAWN_X_MIN);
-    expect(runtime.enemies[0]?.x).toBeLessThanOrEqual(CombatLayoutConfig.ENEMY_SPAWN_X_MAX);
-    expect(runtime.enemies[1]?.spawned).toBe(false);
+    // After 1ms the first enemy from the shuffled bag should be spawned
+    const spawnedAfterFirst = runtime.enemies.filter((e) => e.spawned);
+    expect(spawnedAfterFirst).toHaveLength(1);
+    expect(spawnedAfterFirst[0]?.state).toBe('moving');
+    expect(spawnedAfterFirst[0]?.y).toBe(CombatLayoutConfig.ENEMY_SPAWN_Y);
+    expect(spawnedAfterFirst[0]?.x).toBeGreaterThanOrEqual(
+      CombatLayoutConfig.ENEMY_SPAWN_X_MIN,
+    );
+    expect(spawnedAfterFirst[0]?.x).toBeLessThanOrEqual(CombatLayoutConfig.ENEMY_SPAWN_X_MAX);
 
     advanceCombatRuntime(runtime, CombatWaveConfig.WAVES[0]?.subWaves[0]?.spawnIntervalMs ?? 900, {
       random: nextRandom,
     });
 
-    expect(runtime.enemies[1]).toMatchObject({
-      spawned: true,
-      state: 'moving',
-      y: CombatLayoutConfig.ENEMY_SPAWN_Y,
-    });
-    expect(
-      Math.abs((runtime.enemies[1]?.x ?? 0) - (runtime.enemies[0]?.x ?? 0)),
-    ).toBeGreaterThanOrEqual(CombatBalanceConfig.ENEMY_SPAWN_MIN_GAP_PX);
+    // After 900ms more the second enemy from the bag should be spawned
+    const spawnedAfterSecond = runtime.enemies.filter((e) => e.spawned);
+    expect(spawnedAfterSecond).toHaveLength(2);
+    // One enemy was just spawned (y at spawn line), the other moved down
+    expect(spawnedAfterSecond.some((e) => e.y === CombatLayoutConfig.ENEMY_SPAWN_Y)).toBe(true);
+    const spawnXs = spawnedAfterSecond.map((e) => e.x ?? 0);
+    expect(Math.abs((spawnXs[1] ?? 0) - (spawnXs[0] ?? 0))).toBeGreaterThanOrEqual(
+      CombatBalanceConfig.ENEMY_SPAWN_MIN_GAP_PX,
+    );
+  });
+
+  it('evaluates victory when all sub-waves started, all bags empty, and all enemies dead', () => {
+    const runtime = createCombatRuntime();
+    setCombatState(runtime, 'running');
+
+    // Advance past all sub-wave spawn times:
+    // wave-1-a: spawns at 0, 900, 1800 (3 runtime IDs: 2 red + 1 green)
+    // wave-1-b: activates at 2500, spawns at 2500 (3 runtime IDs: 2 blue + 1 red)
+    advanceCombatRuntime(runtime, 5000);
+
+    const allSpawned = runtime.enemies.filter((e) => e.spawned);
+    expect(allSpawned).toHaveLength(6);
+
+    // Kill all enemies
+    for (const enemy of runtime.enemies) {
+      if (enemy.spawned) {
+        enemy.state = 'dead';
+        enemy.currentHp = 0;
+      }
+    }
+
+    // After all enemies dead and all bags empty, victory should be true
+    advanceCombatRuntime(runtime, 1);
+
+    expect(runtime.state).toBe('victory');
+    expect(runtime.outcome.victory).toBe(true);
+  });
+
+  it('does not evaluate victory when future sub-waves are still pending', () => {
+    const runtime = createCombatRuntime();
+    setCombatState(runtime, 'running');
+
+    // Advance time to spawn all enemies from wave-1-a (wave-1-b still pending at 2000ms)
+    advanceCombatRuntime(runtime, 2000);
+
+    // Kill all currently spawned enemies
+    for (const enemy of runtime.enemies) {
+      if (enemy.spawned) {
+        enemy.state = 'dead';
+        enemy.currentHp = 0;
+      }
+    }
+
+    // Advance a bit more - victory should NOT trigger because wave-1-b is still pending
+    advanceCombatRuntime(runtime, 500);
+
+    expect(runtime.state).toBe('running');
+    expect(runtime.outcome.victory).toBe(false);
+  });
+
+  it('emits enemies-left count via runtime wave state', () => {
+    const runtime = createCombatRuntime();
+    setCombatState(runtime, 'running');
+
+    // Advance to spawn wave-1-a enemies (wave-1-b still pending)
+    // wave-1-a: spawns at 0, 900, 1800 (3 enemies total)
+    advanceCombatRuntime(runtime, 2000);
+
+    const spawnedAfterFirst = runtime.enemies.filter((e) => e.spawned);
+    expect(spawnedAfterFirst).toHaveLength(3);
+
+    // enemiesRemaining = living enemies (3) + enemies in active bags (0) + enemies in pending sub-waves (3)
+    expect(runtime.wave.enemiesRemaining).toBe(6);
   });
 });
