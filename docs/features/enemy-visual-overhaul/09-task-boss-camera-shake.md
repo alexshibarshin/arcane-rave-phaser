@@ -92,7 +92,7 @@ Phaser's built-in `shake()` is well-tested and doesn't affect game state or rayc
 - [ ] Camera shake does not affect raycasting or input detection
 - [ ] Shake is triggered only once per boss death
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes
+- [ ] `npm run test:run` passes
 
 ## Technical Notes
 
@@ -109,7 +109,7 @@ Phaser's built-in `shake()` is well-tested and doesn't affect game state or rayc
 3. Initialize `deathTriggeredShake` to `false` in `renderEnemyUnits()`
 4. In `syncEnemyPresentation()`, detect boss death and trigger shake
 5. Run `npx tsc --noEmit` to check for type errors
-6. Run `npm test` to confirm no regressions
+6. Run `npm run test:run` to confirm no regressions
 7. Open the game in browser — spawn a boss and kill it to verify camera shake
 
 ## Additional Notes

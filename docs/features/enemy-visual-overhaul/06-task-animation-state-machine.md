@@ -193,7 +193,7 @@ Set this when the enemy first dies (when `deathProgress` transitions from 0 to >
 - [ ] Boss death uses `DEATH_BOSS_DURATION_MS` (1000ms) instead of `DEATH_DURATION_MS` (500ms)
 - [ ] Expired flash timers reset to 0
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes
+- [ ] `npm run test:run` passes
 
 ## Technical Notes
 
@@ -213,7 +213,7 @@ Set this when the enemy first dies (when `deathProgress` transitions from 0 to >
 5. Update `syncEnemyPresentation()` to manage animation state
 6. Add the `combat:enemy-hit` event listener in `createSceneContent()`
 7. Run `npx tsc --noEmit` to check for type errors
-8. Run `npm test` to confirm no regressions
+8. Run `npm run test:run` to confirm no regressions
 9. Open the game in browser — enemies should not visually change yet (no transforms applied)
 
 ## Additional Notes

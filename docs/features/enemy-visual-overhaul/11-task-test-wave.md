@@ -120,7 +120,7 @@ No additional validation logic is needed.
 - [ ] Spawn interval is 1200ms for all sub-waves
 - [ ] `validateCombatWaveConfig()` passes at module load
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes (tests that reference specific enemy counts may need inline fixes)
+- [ ] `npm run test:run` passes (tests that reference specific enemy counts may need inline fixes)
 
 ## Technical Notes
 
@@ -136,7 +136,7 @@ No additional validation logic is needed.
 2. Add the `wave-test-all` wave definition as a constant
 3. Add it to the `WAVES` array as the first entry
 4. Run `npx tsc --noEmit` to check for type errors
-5. Run `npm test` to check for test failures (fix any that break)
+5. Run `npm run test:run` to check for test failures (fix any that break)
 6. Open the game in browser — should load `wave-test-all` by default
 
 ## Additional Notes

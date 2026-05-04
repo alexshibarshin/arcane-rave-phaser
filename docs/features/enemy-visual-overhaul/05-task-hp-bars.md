@@ -78,7 +78,7 @@ However, for dead enemies, the container is hidden but the death animation shoul
 3. Find the line `hpBar.fillStyle(0x58f29b, 1);`
 4. Change it to `hpBar.fillStyle(0xff0000, 1);`
 5. Run `npx tsc --noEmit` to check for type errors
-6. Run `npm test` to confirm no regressions
+6. Run `npm run test:run` to confirm no regressions
 7. Open the game in browser to visually verify HP bars are red
 
 ## Additional Notes

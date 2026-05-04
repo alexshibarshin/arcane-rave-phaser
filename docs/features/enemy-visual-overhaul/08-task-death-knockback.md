@@ -113,7 +113,7 @@ This is a module-level constant in `CombatScene.ts`. If it needs to be tunable p
 - [ ] If enemy is at needle tip, no knockback is applied (no division by zero)
 - [ ] Boss death uses same knockback logic as regular enemies
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes
+- [ ] `npm run test:run` passes
 
 ## Technical Notes
 
@@ -146,7 +146,7 @@ this.needleTipY = model.needle.tipY;
 5. Store knockback in animation state
 6. Update death transform to use `deathStartX/Y + knockbackX/Y`
 7. Run `npx tsc --noEmit` to check for type errors
-8. Run `npm test` to confirm no regressions
+8. Run `npm run test:run` to confirm no regressions
 9. Open the game in browser — dead enemies should fly backward when killed
 
 ## Additional Notes

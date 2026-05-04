@@ -200,7 +200,7 @@ The attack lunge is toward the base (downward in screen space, positive Y). The 
 - [ ] Transform priority is correct (death > hit > attack > move > idle)
 - [ ] Boss death uses 1.0s duration instead of 0.5s
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes
+- [ ] `npm run test:run` passes
 
 ## Technical Notes
 
@@ -221,7 +221,7 @@ Each transform has different logic (scale vs position vs tint vs alpha). Separat
 1. Add private transform methods to `CombatScene`: `applyIdleTransform`, `applyMoveTransform`, `applyAttackTransform`, `applyHitTransform`, `applyDeathTransform`
 2. Update `syncEnemyPresentation()` to call the appropriate transform method based on priority
 3. Run `npx tsc --noEmit` to check for type errors
-4. Run `npm test` to confirm no regressions
+4. Run `npm run test:run` to confirm no regressions
 5. Open the game in browser — enemies should now have idle pulse, move hop, attack flash, hit flash, and death animations
 
 ## Additional Notes

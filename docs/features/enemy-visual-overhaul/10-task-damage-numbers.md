@@ -221,7 +221,7 @@ Wait — the event payload is `{ current: number; max: number }`. The `max` is a
 - [ ] Damage numbers are white text with dark stroke
 - [ ] No memory leaks (all damage numbers destroyed on scene shutdown)
 - [ ] `npx tsc --noEmit` passes with no errors
-- [ ] `npm test` passes
+- [ ] `npm run test:run` passes
 
 ## Technical Notes
 
@@ -239,7 +239,7 @@ Wait — the event payload is `{ current: number; max: number }`. The `max` is a
 4. Add event listeners in `createSceneContent()`
 5. Add cleanup in the SHUTDOWN event handler
 6. Run `npx tsc --noEmit` to check for type errors
-7. Run `npm test` to confirm no regressions
+7. Run `npm run test:run` to confirm no regressions
 8. Open the game in browser — deal damage to see floating numbers
 
 ## Additional Notes
