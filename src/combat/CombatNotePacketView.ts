@@ -25,28 +25,34 @@ export function createCombatNotePacketViewModel(
   }
 
   const centerIndex = (packet.count - 1) / 2;
-  const bouncePhase =
-    (elapsedMs % CombatVisualConfig.NOTE_PACKET.BOUNCE_PERIOD_MS)
-    / CombatVisualConfig.NOTE_PACKET.BOUNCE_PERIOD_MS;
-  const bounceOffsetY =
-    (1 - Math.cos(bouncePhase * Math.PI * 2))
-    * CombatVisualConfig.NOTE_PACKET.BOUNCE_AMPLITUDE_Y;
+  const floatPhase =
+    ((elapsedMs % CombatVisualConfig.NOTE_PACKET.FLOAT_PERIOD_MS)
+      / CombatVisualConfig.NOTE_PACKET.FLOAT_PERIOD_MS)
+    * Math.PI
+    * 2;
 
   return packet.visuals.map((id, index) => {
     const distanceFromCenter = Math.abs(index - centerIndex);
-    const bounceWeight =
-      centerIndex === 0 ? 1 : Math.max(0, 1 - distanceFromCenter / centerIndex);
+    const baseY =
+      anchor.y
+      - (centerIndex - distanceFromCenter) * CombatVisualConfig.NOTE_PACKET.STACK_RISE_Y;
+    const floatAmplitude = Math.max(
+      1,
+      CombatVisualConfig.NOTE_PACKET.FLOAT_AMPLITUDE_Y
+        - distanceFromCenter * CombatVisualConfig.NOTE_PACKET.FLOAT_OUTER_NOTE_FALLOFF_Y,
+    );
+    const instancePhase =
+      floatPhase
+      + CombatVisualConfig.NOTE_PACKET.FLOAT_PHASE_OFFSET_RAD
+      + index * CombatVisualConfig.NOTE_PACKET.FLOAT_PHASE_STEP_RAD;
+    const floatOffsetY = Math.round(Math.sin(instancePhase) * floatAmplitude);
 
     return {
       id,
       color: packet.color!,
       tint: CombatVisualConfig.NOTE_COLORS[packet.color!],
       x: anchor.x + (index - centerIndex) * CombatVisualConfig.NOTE_PACKET.SPACING_X,
-      y:
-        anchor.y
-        - (centerIndex - distanceFromCenter)
-          * CombatVisualConfig.NOTE_PACKET.STACK_RISE_Y
-        + bounceOffsetY * bounceWeight,
+      y: baseY + floatOffsetY,
       scale: CombatVisualConfig.NOTE_PACKET.GLYPH_SCALE,
     };
   });

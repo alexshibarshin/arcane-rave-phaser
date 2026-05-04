@@ -1,5 +1,8 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
-import { CombatContentConfig } from '@config/CombatContentConfig';
+import {
+  CombatContentConfig,
+  type CombatFinisherPawnDefinition,
+} from '@config/CombatContentConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatWaveConfig, type CombatSubWaveConfig } from '@config/CombatWaveConfig';
 import {
@@ -119,6 +122,24 @@ export interface CombatRuntime {
       | {
         event: 'combat:note-packet-color-broke';
         payload: { previousColor: NoteColor; nextColor: NoteColor };
+      }
+      | {
+        event: 'combat:finisher-consumed-notes';
+        payload: {
+          slotIndex: number;
+          pawnId: string;
+          consumedNotes: number;
+          multiplier: number;
+        };
+      }
+      | {
+        event: 'combat:finisher-output-note-emitted';
+        payload: {
+          slotIndex: number;
+          pawnId: string;
+          color: NoteColor;
+          count: 1;
+        };
       }
     >;
   };
@@ -342,7 +363,10 @@ function processCrossedSlots(runtime: CombatRuntime): void {
 
     if (pawn.type === 'generator') {
       resolveGeneratorSlotActivation(runtime, slot, pawn.color, pawn.baseDamage);
+      continue;
     }
+
+    resolveFinisherSlotActivation(runtime, slot, pawn);
   }
 }
 
@@ -381,6 +405,55 @@ function resolveGeneratorSlotActivation(
   }
 
   applyGeneratorPacketMutation(runtime, color);
+}
+
+function resolveFinisherSlotActivation(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatFinisherPawnDefinition,
+): void {
+  const consumedNotes = getFinisherConsumedNotes(runtime, pawn.color);
+  const multiplier = getFinisherConsumedNotesMultiplier(consumedNotes);
+  const damage = Math.round(pawn.baseDamage * multiplier);
+  const target = selectNearestLivingEnemy(runtime, slot.worldPosition);
+
+  runtime.effects.pendingEvents.push({
+    event: 'combat:finisher-consumed-notes',
+    payload: {
+      slotIndex: slot.slotIndex,
+      pawnId: pawn.id,
+      consumedNotes,
+      multiplier,
+    },
+  });
+
+  if (target) {
+    target.currentHp = Math.max(0, target.currentHp - damage);
+    runtime.effects.pendingEvents.push({
+      event: 'combat:enemy-hit',
+      payload: {
+        enemyId: target.runtimeId,
+        slotIndex: slot.slotIndex,
+        damage,
+        currentHp: target.currentHp,
+        maxHp: target.maxHp,
+      },
+    });
+
+    if (target.currentHp <= 0 && target.state !== 'dead') {
+      target.state = 'dead';
+      runtime.wave.enemiesRemaining = Math.max(0, runtime.wave.enemiesRemaining - 1);
+      runtime.effects.pendingEvents.push({
+        event: 'combat:enemy-died',
+        payload: {
+          enemyId: target.runtimeId,
+          remaining: runtime.wave.enemiesRemaining,
+        },
+      });
+    }
+  }
+
+  applyFinisherPacketMutation(runtime, slot, pawn);
 }
 
 function selectNearestLivingEnemy(
@@ -439,6 +512,51 @@ function applyGeneratorPacketMutation(runtime: CombatRuntime, color: NoteColor):
     },
   });
   setCombatNotePacket(runtime, color, 2);
+  pushNotePacketChangedEvent(runtime);
+}
+
+function getFinisherConsumedNotes(runtime: CombatRuntime, color: NoteColor): number {
+  if (runtime.notePacket.color !== color || runtime.notePacket.count <= 0) {
+    return 0;
+  }
+
+  return Math.min(runtime.notePacket.count, CombatBalanceConfig.NOTE_PACKET_CAPACITY);
+}
+
+function getFinisherConsumedNotesMultiplier(consumedNotes: number): number {
+  const normalizedConsumedNotes = Math.max(
+    0,
+    Math.min(consumedNotes, CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER.length - 1),
+  );
+
+  return CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[normalizedConsumedNotes] ?? 0.75;
+}
+
+function applyFinisherPacketMutation(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatFinisherPawnDefinition,
+): void {
+  if (runtime.notePacket.color !== null && runtime.notePacket.color !== pawn.color) {
+    runtime.effects.pendingEvents.push({
+      event: 'combat:note-packet-color-broke',
+      payload: {
+        previousColor: runtime.notePacket.color,
+        nextColor: pawn.outputNoteColor,
+      },
+    });
+  }
+
+  setCombatNotePacket(runtime, pawn.outputNoteColor, 1);
+  runtime.effects.pendingEvents.push({
+    event: 'combat:finisher-output-note-emitted',
+    payload: {
+      slotIndex: slot.slotIndex,
+      pawnId: pawn.id,
+      color: pawn.outputNoteColor,
+      count: 1,
+    },
+  });
   pushNotePacketChangedEvent(runtime);
 }
 

@@ -437,6 +437,147 @@ describe('createCombatRuntime', () => {
     });
   });
 
+  it('consumes a same-color packet, scales finisher damage by consumed notes, and leaves one output note', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+    setCombatNotePacket(runtime, 'green', 3);
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const finisherSlot = runtime.slots[0];
+    const targetEnemy = runtime.enemies[0];
+
+    expect(finisherSlot).toBeDefined();
+    expect(targetEnemy).toBeDefined();
+
+    if (!finisherSlot || !targetEnemy) {
+      return;
+    }
+
+    finisherSlot.pawnId = 'pawn-green-finisher';
+    finisherSlot.worldPosition = { x: 100, y: 100 };
+    finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    targetEnemy.spawned = true;
+    targetEnemy.state = 'moving';
+    targetEnemy.currentHp = targetEnemy.maxHp;
+    targetEnemy.x = 120;
+    targetEnemy.y = 100;
+
+    for (const enemy of runtime.enemies.slice(1)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(targetEnemy.currentHp).toBe(
+      targetEnemy.maxHp
+        - Math.round(
+          CombatBalanceConfig.FINISHER_BASE_DAMAGE
+            * CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[3],
+        ),
+    );
+    expect(runtime.notePacket).toEqual({
+      color: 'blue',
+      count: 1,
+      visuals: ['note-packet:blue:0'],
+    });
+  });
+
+  it('breaks a foreign-color packet, still attacks on the zero-consumed multiplier path, and emits one output note', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+    setCombatNotePacket(runtime, 'red', 5);
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const finisherSlot = runtime.slots[0];
+    const targetEnemy = runtime.enemies[0];
+
+    expect(finisherSlot).toBeDefined();
+    expect(targetEnemy).toBeDefined();
+
+    if (!finisherSlot || !targetEnemy) {
+      return;
+    }
+
+    finisherSlot.pawnId = 'pawn-green-finisher';
+    finisherSlot.worldPosition = { x: 100, y: 100 };
+    finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    targetEnemy.spawned = true;
+    targetEnemy.state = 'moving';
+    targetEnemy.currentHp = targetEnemy.maxHp;
+    targetEnemy.x = 120;
+    targetEnemy.y = 100;
+
+    for (const enemy of runtime.enemies.slice(1)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(targetEnemy.currentHp).toBe(
+      targetEnemy.maxHp
+        - Math.round(
+          CombatBalanceConfig.FINISHER_BASE_DAMAGE
+            * CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[0],
+        ),
+    );
+    expect(runtime.notePacket).toEqual({
+      color: 'blue',
+      count: 1,
+      visuals: ['note-packet:blue:0'],
+    });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:note-packet-color-broke',
+      payload: {
+        previousColor: 'red',
+        nextColor: 'blue',
+      },
+    });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:finisher-consumed-notes',
+      payload: {
+        slotIndex: 0,
+        pawnId: 'pawn-green-finisher',
+        consumedNotes: 0,
+        multiplier: CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[0],
+      },
+    });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:finisher-output-note-emitted',
+      payload: {
+        slotIndex: 0,
+        pawnId: 'pawn-green-finisher',
+        color: 'blue',
+        count: 1,
+      },
+    });
+  });
+
   it('moves enemies downward until they enter base attack range and then switches them to attacking', () => {
     const runtime = createCombatRuntime();
     const enemy = runtime.enemies[0];

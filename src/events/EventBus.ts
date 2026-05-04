@@ -32,6 +32,18 @@ export interface EventMap {
     currentHp: number;
     maxHp: number;
   };
+  'combat:finisher-consumed-notes': {
+    slotIndex: number;
+    pawnId: string;
+    consumedNotes: number;
+    multiplier: number;
+  };
+  'combat:finisher-output-note-emitted': {
+    slotIndex: number;
+    pawnId: string;
+    color: NoteColor;
+    count: 1;
+  };
   'combat:note-packet-changed': { color: NoteColor | null; count: number };
   'combat:note-packet-color-broke': { previousColor: NoteColor; nextColor: NoteColor };
   'combat:enemy-spawned': { enemyId: string };

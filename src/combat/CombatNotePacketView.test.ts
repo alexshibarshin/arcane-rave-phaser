@@ -5,7 +5,7 @@ import { createCombatRenderModel } from './CombatRenderModel';
 import { createCombatNotePacketViewModel } from './CombatNotePacketView';
 
 describe('CombatNotePacketView', () => {
-  it('builds individual anchored note instances with deterministic bounce offsets', () => {
+  it('animates all packet notes with deterministic phase-shifted motion', () => {
     const runtime = createCombatRuntime();
     const renderModel = createCombatRenderModel();
 
@@ -17,7 +17,7 @@ describe('CombatNotePacketView', () => {
         color: 'green',
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x - 28,
-        y: renderModel.notePacketAnchor.y,
+        y: renderModel.notePacketAnchor.y - 4,
         scale: 0.72,
       },
       {
@@ -25,7 +25,7 @@ describe('CombatNotePacketView', () => {
         color: 'green',
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x,
-        y: renderModel.notePacketAnchor.y - 6,
+        y: renderModel.notePacketAnchor.y - 4,
         scale: 0.72,
       },
       {
@@ -33,7 +33,7 @@ describe('CombatNotePacketView', () => {
         color: 'green',
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x + 28,
-        y: renderModel.notePacketAnchor.y,
+        y: renderModel.notePacketAnchor.y + 2,
         scale: 0.72,
       },
     ]);
@@ -46,7 +46,7 @@ describe('CombatNotePacketView', () => {
         color: 'green',
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x - 28,
-        y: renderModel.notePacketAnchor.y,
+        y: renderModel.notePacketAnchor.y + 4,
         scale: 0.72,
       },
       {
@@ -54,7 +54,7 @@ describe('CombatNotePacketView', () => {
         color: 'green',
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x,
-        y: renderModel.notePacketAnchor.y + 6,
+        y: renderModel.notePacketAnchor.y - 8,
         scale: 0.72,
       },
       {
@@ -62,7 +62,7 @@ describe('CombatNotePacketView', () => {
         color: 'green',
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x + 28,
-        y: renderModel.notePacketAnchor.y,
+        y: renderModel.notePacketAnchor.y - 2,
         scale: 0.72,
       },
     ]);
