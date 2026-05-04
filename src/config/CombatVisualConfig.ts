@@ -68,4 +68,12 @@ export const CombatVisualConfig = {
     BASE_OFFSET_Y: -20,
     ENEMY_OFFSET_Y: -10,
   },
+  ANIMATION: {
+    IDLE_PULSE_PERIOD_MS: 1500,
+    MOVE_HOP_PERIOD_MS: 400,
+    ATTACK_FLASH_DURATION_MS: 150,
+    HIT_FLASH_DURATION_MS: 80,
+    DEATH_DURATION_MS: 500,
+    DEATH_BOSS_DURATION_MS: 1000,
+  },
 } as const;

@@ -57,6 +57,18 @@ interface CombatEnemyView {
   hpBarWidth: number;
   hpBarHeight: number;
   maxHp: number;
+  animation: {
+    idlePulsePhase: number;
+    moveHopPhase: number;
+    attackFlashAt: number;
+    hitFlashAt: number;
+    deathProgress: number;
+    deathStartX: number;
+    deathStartY: number;
+    deathKnockbackX: number;
+    deathKnockbackY: number;
+    deathDurationMs: number;
+  };
 }
 
 interface CombatBaseHpBarView {
@@ -322,6 +334,18 @@ export class CombatScene extends GameScene {
         hpBarWidth: enemy.hpBar.width,
         hpBarHeight: enemy.hpBar.height,
         maxHp,
+        animation: {
+          idlePulsePhase: 0,
+          moveHopPhase: 0,
+          attackFlashAt: 0,
+          hitFlashAt: 0,
+          deathProgress: 0,
+          deathStartX: 0,
+          deathStartY: 0,
+          deathKnockbackX: 0,
+          deathKnockbackY: 0,
+          deathDurationMs: CombatVisualConfig.ANIMATION.DEATH_DURATION_MS,
+        },
       });
     }
   }
@@ -632,7 +656,7 @@ export class CombatScene extends GameScene {
     const recordRotation = Phaser.Math.DegToRad(this.runtime.record.currentAngle);
 
     this.recordContainer.setRotation(recordRotation);
-    this.syncEnemyPresentation();
+    this.syncEnemyPresentation(presentationDelta);
     this.syncBaseHpBarPresentation();
     this.syncNotePacketPresentation(vfxSnapshot);
     this.syncSlotVfxPresentation(recordRotation, vfxSnapshot);
@@ -675,10 +699,13 @@ export class CombatScene extends GameScene {
     }
   }
 
-  private syncEnemyPresentation(): void {
+  private syncEnemyPresentation(deltaMs: number): void {
     if (!this.runtime) {
       return;
     }
+
+    const deltaRad = (Math.PI * 2 * deltaMs) / 1000;
+    const elapsed = this.runtime.combatElapsedMs;
 
     for (const enemy of this.runtime.enemies) {
       const enemyView = this.enemyViews.get(enemy.runtimeId);
@@ -691,6 +718,54 @@ export class CombatScene extends GameScene {
       enemyView.container.setVisible(enemy.spawned && enemy.state !== 'dead');
       enemyView.container.setPosition(enemy.x, enemy.y);
       enemyView.container.setDepth(this.getEnemyContainerDepth(enemyView.sortY));
+
+      const anim = enemyView.animation;
+
+      switch (enemy.state) {
+        case 'moving':
+          anim.idlePulsePhase += deltaRad;
+          anim.moveHopPhase += deltaRad;
+          anim.attackFlashAt = 0;
+          anim.hitFlashAt = 0;
+          anim.deathProgress = 0;
+          break;
+
+        case 'attacking':
+          anim.idlePulsePhase += deltaRad;
+          anim.moveHopPhase = 0;
+          anim.attackFlashAt = anim.attackFlashAt || elapsed;
+          anim.hitFlashAt = 0;
+          anim.deathProgress = 0;
+          break;
+
+        case 'dead':
+          anim.idlePulsePhase = 0;
+          anim.moveHopPhase = 0;
+          anim.attackFlashAt = 0;
+          anim.hitFlashAt = 0;
+          if (anim.deathProgress === 0) {
+            anim.deathStartX = enemy.x;
+            anim.deathStartY = enemy.y;
+            anim.deathDurationMs = enemy.archetype === 'boss'
+              ? CombatVisualConfig.ANIMATION.DEATH_BOSS_DURATION_MS
+              : CombatVisualConfig.ANIMATION.DEATH_DURATION_MS;
+          }
+          anim.deathProgress = Math.min(
+            1,
+            anim.deathProgress + deltaMs / anim.deathDurationMs,
+          );
+          break;
+      }
+
+      // Expire flash timers
+      if (anim.attackFlashAt !== 0
+        && (elapsed - anim.attackFlashAt) >= CombatVisualConfig.ANIMATION.ATTACK_FLASH_DURATION_MS) {
+        anim.attackFlashAt = 0;
+      }
+      if (anim.hitFlashAt !== 0
+        && (elapsed - anim.hitFlashAt) >= CombatVisualConfig.ANIMATION.HIT_FLASH_DURATION_MS) {
+        anim.hitFlashAt = 0;
+      }
     }
   }
 
@@ -703,6 +778,8 @@ export class CombatScene extends GameScene {
     if (!view) {
       return;
     }
+
+    view.animation.hitFlashAt = this.runtime!.combatElapsedMs;
 
     const innerPadding = 2;
     const innerWidth = view.hpBarWidth - innerPadding * 2;
