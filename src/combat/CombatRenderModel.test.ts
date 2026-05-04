@@ -73,7 +73,7 @@ describe('CombatRenderModel', () => {
         silhouetteKey: 'finisher-green',
         pedestalStyleKey: 'pedestal-green',
         tierStars: 2,
-        ruleLabel: '-all ♪ -> +♪',
+        ruleLabel: '♪♪♪ > ♪',
       },
     });
     expect(model.record.slots[2]?.pawn).toBeNull();
@@ -81,7 +81,7 @@ describe('CombatRenderModel', () => {
       pawn: {
         id: 'pawn-blue-finisher',
         color: 'blue',
-        ruleLabel: '-all ♪ -> +♪',
+        ruleLabel: '♪♪♪ > ♪',
       },
     });
   });
