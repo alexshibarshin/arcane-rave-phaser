@@ -230,6 +230,22 @@ export function setCombatState(runtime: CombatRuntime, nextState: CombatState): 
   return true;
 }
 
+export function setCombatNotePacket(
+  runtime: CombatRuntime,
+  color: NoteColor | null,
+  count: number,
+): void {
+  const clampedCount = Math.max(0, Math.min(count, CombatBalanceConfig.NOTE_PACKET_CAPACITY));
+  const nextColor = clampedCount > 0 ? color : null;
+
+  runtime.notePacket.color = nextColor;
+  runtime.notePacket.count = clampedCount;
+  runtime.notePacket.visuals =
+    nextColor === null
+      ? []
+      : Array.from({ length: clampedCount }, (_, index) => `note-packet:${nextColor}:${index}`);
+}
+
 function resetSlotActivationEffects(runtime: CombatRuntime): void {
   runtime.effects.transientIds = [];
   runtime.effects.pendingEvents = [];

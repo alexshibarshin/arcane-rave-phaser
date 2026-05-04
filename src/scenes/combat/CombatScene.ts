@@ -5,6 +5,11 @@ import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { SceneKeys } from '@config/GameConfig';
+import {
+  ensureCombatNoteGlyphTexture,
+  COMBAT_NOTE_GLYPH_TEXTURE_KEY,
+} from '@combat/CombatNoteGlyph';
+import { createCombatNotePacketViewModel } from '@combat/CombatNotePacketView';
 import { GameScene } from '@scenes/GameScene';
 import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
 import { createCombatRenderModel } from '@combat/CombatRenderModel';
@@ -37,10 +42,19 @@ interface CombatBaseHpBarView {
   height: number;
 }
 
+interface CombatNotePacketView {
+  anchorX: number;
+  anchorY: number;
+  depth: number;
+  glyphs: Map<string, Phaser.GameObjects.Image>;
+}
+
 export class CombatScene extends GameScene {
   private runtime?: CombatRuntime;
   private recordContainer?: Phaser.GameObjects.Container;
   private baseHpBarView?: CombatBaseHpBarView;
+  private notePacketView?: CombatNotePacketView;
+  private notePacketElapsedMs = 0;
   private readonly slotViews = new Map<number, CombatSlotView>();
   private readonly enemyViews = new Map<string, CombatEnemyView>();
 
@@ -80,6 +94,9 @@ export class CombatScene extends GameScene {
       off('combat:slot-activated', this.handleSlotActivated);
       this.slotViews.clear();
       this.enemyViews.clear();
+      this.notePacketView?.glyphs.clear();
+      this.notePacketView = undefined;
+      this.notePacketElapsedMs = 0;
       this.baseHpBarView = undefined;
       this.recordContainer = undefined;
     });
@@ -100,6 +117,7 @@ export class CombatScene extends GameScene {
   private renderStaticCombatLayout(): void {
     const model = createCombatRenderModel();
 
+    ensureCombatNoteGlyphTexture(this);
     this.renderBackground(model);
     this.renderEnemyLane(model);
     this.renderEnemyUnits(model);
@@ -433,19 +451,12 @@ export class CombatScene extends GameScene {
     graphics.strokeCircle(model.notePacketAnchor.x, model.notePacketAnchor.y, 36);
     graphics.lineStyle(2, 0xff89c6, 0.4);
     graphics.strokeCircle(model.notePacketAnchor.x, model.notePacketAnchor.y, 54);
-
-    const label = this.add.text(
-      model.notePacketAnchor.x,
-      model.notePacketAnchor.y,
-      'PACKET',
-      {
-        color: '#ffd0ec',
-        fontFamily: 'monospace',
-        fontSize: '16px',
-      },
-    );
-    label.setOrigin(0.5, 0.5);
-    label.setDepth(model.notePacketAnchor.depth);
+    this.notePacketView = {
+      anchorX: model.notePacketAnchor.x,
+      anchorY: model.notePacketAnchor.y,
+      depth: model.notePacketAnchor.depth,
+      glyphs: new Map(),
+    };
   }
 
   private fillSector(
@@ -506,11 +517,13 @@ export class CombatScene extends GameScene {
       return;
     }
 
+    this.notePacketElapsedMs += delta;
     const recordRotation = Phaser.Math.DegToRad(this.runtime.record.currentAngle);
 
     this.recordContainer.setRotation(recordRotation);
     this.syncEnemyPresentation();
     this.syncBaseHpBarPresentation();
+    this.syncNotePacketPresentation();
 
     for (const slotView of this.slotViews.values()) {
       slotView.uprightContainer.setRotation(-recordRotation);
@@ -581,6 +594,47 @@ export class CombatScene extends GameScene {
     this.baseHpBarView.label.setText(
       `BASE HP ${this.runtime.baseHp}/${CombatBalanceConfig.BASE_HP}`,
     );
+  }
+
+  private syncNotePacketPresentation(): void {
+    if (!this.runtime || !this.notePacketView) {
+      return;
+    }
+
+    const instances = createCombatNotePacketViewModel(
+      this.runtime.notePacket,
+      {
+        x: this.notePacketView.anchorX,
+        y: this.notePacketView.anchorY,
+      },
+      this.notePacketElapsedMs,
+    );
+    const activeIds = new Set(instances.map((instance) => instance.id));
+
+    for (const [id, glyph] of this.notePacketView.glyphs.entries()) {
+      if (activeIds.has(id)) {
+        continue;
+      }
+
+      glyph.destroy();
+      this.notePacketView.glyphs.delete(id);
+    }
+
+    for (let index = 0; index < instances.length; index += 1) {
+      const instance = instances[index]!;
+      let glyph = this.notePacketView.glyphs.get(instance.id);
+
+      if (!glyph) {
+        glyph = this.add.image(instance.x, instance.y, COMBAT_NOTE_GLYPH_TEXTURE_KEY);
+        glyph.setOrigin(0.5, 0.5);
+        this.notePacketView.glyphs.set(instance.id, glyph);
+      }
+
+      glyph.setDepth(this.notePacketView.depth + index * 0.01);
+      glyph.setPosition(instance.x, instance.y);
+      glyph.setTint(instance.tint);
+      glyph.setScale(instance.scale);
+    }
   }
 
   private getEnemyContainerDepth(sortY: number): number {

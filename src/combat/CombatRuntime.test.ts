@@ -4,7 +4,12 @@ import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatWaveConfig } from '@config/CombatWaveConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
-import { advanceCombatRuntime, createCombatRuntime, setCombatState } from './CombatRuntime';
+import {
+  advanceCombatRuntime,
+  createCombatRuntime,
+  setCombatNotePacket,
+  setCombatState,
+} from './CombatRuntime';
 
 describe('createCombatRuntime', () => {
   it('creates the initial combat source of truth from combat config', () => {
@@ -50,6 +55,37 @@ describe('createCombatRuntime', () => {
     expect(runtime.preview).toEqual({
       elapsedMs: 0,
       durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
+    });
+  });
+
+  it('centralizes note packet updates with capacity clamping and fresh visual ids', () => {
+    const runtime = createCombatRuntime();
+
+    setCombatNotePacket(runtime, 'red', CombatBalanceConfig.NOTE_PACKET_CAPACITY + 2);
+    expect(runtime.notePacket).toEqual({
+      color: 'red',
+      count: CombatBalanceConfig.NOTE_PACKET_CAPACITY,
+      visuals: [
+        'note-packet:red:0',
+        'note-packet:red:1',
+        'note-packet:red:2',
+        'note-packet:red:3',
+        'note-packet:red:4',
+      ],
+    });
+
+    setCombatNotePacket(runtime, 'blue', 2);
+    expect(runtime.notePacket).toEqual({
+      color: 'blue',
+      count: 2,
+      visuals: ['note-packet:blue:0', 'note-packet:blue:1'],
+    });
+
+    setCombatNotePacket(runtime, 'blue', 0);
+    expect(runtime.notePacket).toEqual({
+      color: null,
+      count: 0,
+      visuals: [],
     });
   });
 

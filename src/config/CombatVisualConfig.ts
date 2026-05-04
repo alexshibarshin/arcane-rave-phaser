@@ -4,6 +4,13 @@ export const CombatVisualConfig = {
     green: 0x63f5a6,
     blue: 0x5db7ff,
   },
+  NOTE_PACKET: {
+    SPACING_X: 28,
+    STACK_RISE_Y: 6,
+    BOUNCE_AMPLITUDE_Y: 6,
+    BOUNCE_PERIOD_MS: 750,
+    GLYPH_SCALE: 1,
+  },
   EMPTY_SLOT_LABEL: 'EMPTY',
   RULE_LABEL_FONT_SIZE_PX: 18,
   EMPTY_LABEL_FONT_SIZE_PX: 14,
