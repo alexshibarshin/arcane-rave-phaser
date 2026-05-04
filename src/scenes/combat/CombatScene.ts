@@ -8,6 +8,7 @@ import { SceneKeys } from '@config/GameConfig';
 import { GameScene } from '@scenes/GameScene';
 import { createCombatRuntime, type CombatRuntime } from '@combat/CombatRuntime';
 import { createCombatRenderModel } from '@combat/CombatRenderModel';
+import { getCombatBaseHpBarFillMetrics } from '@combat/CombatBaseHpBar';
 import { publishCombatHudSnapshot } from '@combat/CombatHudEvents';
 import { CombatStateSystem } from '@systems/CombatStateSystem';
 import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
@@ -27,9 +28,19 @@ interface CombatEnemyView {
   sortY: number;
 }
 
+interface CombatBaseHpBarView {
+  fill: Phaser.GameObjects.Graphics;
+  label: Phaser.GameObjects.Text;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export class CombatScene extends GameScene {
   private runtime?: CombatRuntime;
   private recordContainer?: Phaser.GameObjects.Container;
+  private baseHpBarView?: CombatBaseHpBarView;
   private readonly slotViews = new Map<number, CombatSlotView>();
   private readonly enemyViews = new Map<string, CombatEnemyView>();
 
@@ -69,6 +80,7 @@ export class CombatScene extends GameScene {
       off('combat:slot-activated', this.handleSlotActivated);
       this.slotViews.clear();
       this.enemyViews.clear();
+      this.baseHpBarView = undefined;
       this.recordContainer = undefined;
     });
   }
@@ -196,6 +208,7 @@ export class CombatScene extends GameScene {
       hitFlashAnchor.setVisible(false);
 
       container.add([hpBar, body, hitFlashAnchor]);
+      container.setVisible(false);
       this.enemyViews.set(enemy.runtimeId, {
         container,
         sortY: enemy.container.sortY,
@@ -383,15 +396,15 @@ export class CombatScene extends GameScene {
   }
 
   private renderBaseHpBar(model: ReturnType<typeof createCombatRenderModel>): void {
-    const graphics = this.add.graphics();
     const x = model.baseHpBar.x - model.baseHpBar.width / 2;
     const y = model.baseHpBar.y - model.baseHpBar.height / 2;
+    const frame = this.add.graphics();
+    const fill = this.add.graphics();
 
-    graphics.setDepth(model.baseHpBar.depth);
-    graphics.fillStyle(0x201927, 1);
-    graphics.fillRoundedRect(x, y, model.baseHpBar.width, model.baseHpBar.height, 10);
-    graphics.fillStyle(0x58f29b, 1);
-    graphics.fillRoundedRect(x + 3, y + 3, model.baseHpBar.width - 6, model.baseHpBar.height - 6, 8);
+    frame.setDepth(model.baseHpBar.depth);
+    frame.fillStyle(0x201927, 1);
+    frame.fillRoundedRect(x, y, model.baseHpBar.width, model.baseHpBar.height, 10);
+    fill.setDepth(model.baseHpBar.depth);
 
     const label = this.add.text(model.baseHpBar.x, model.baseHpBar.y + 26, 'BASE HP 100/100', {
       color: '#bde7c7',
@@ -400,6 +413,16 @@ export class CombatScene extends GameScene {
     });
     label.setOrigin(0.5, 0.5);
     label.setDepth(model.baseHpBar.depth);
+
+    this.baseHpBarView = {
+      fill,
+      label,
+      x,
+      y,
+      width: model.baseHpBar.width,
+      height: model.baseHpBar.height,
+    };
+    this.syncBaseHpBarPresentation();
   }
 
   private renderNotePacketAnchor(model: ReturnType<typeof createCombatRenderModel>): void {
@@ -487,6 +510,7 @@ export class CombatScene extends GameScene {
 
     this.recordContainer.setRotation(recordRotation);
     this.syncEnemyPresentation();
+    this.syncBaseHpBarPresentation();
 
     for (const slotView of this.slotViews.values()) {
       slotView.uprightContainer.setRotation(-recordRotation);
@@ -513,9 +537,50 @@ export class CombatScene extends GameScene {
   }
 
   private syncEnemyPresentation(): void {
-    for (const enemyView of this.enemyViews.values()) {
+    if (!this.runtime) {
+      return;
+    }
+
+    for (const enemy of this.runtime.enemies) {
+      const enemyView = this.enemyViews.get(enemy.runtimeId);
+
+      if (!enemyView) {
+        continue;
+      }
+
+      enemyView.sortY = enemy.y;
+      enemyView.container.setVisible(enemy.spawned && enemy.state !== 'dead');
+      enemyView.container.setPosition(enemy.x, enemy.y);
       enemyView.container.setDepth(this.getEnemyContainerDepth(enemyView.sortY));
     }
+  }
+
+  private syncBaseHpBarPresentation(): void {
+    if (!this.runtime || !this.baseHpBarView) {
+      return;
+    }
+
+    const innerPadding = 3;
+    const innerWidth = this.baseHpBarView.width - innerPadding * 2;
+    const innerHeight = this.baseHpBarView.height - innerPadding * 2;
+    const metrics = getCombatBaseHpBarFillMetrics(
+      this.runtime.baseHp,
+      CombatBalanceConfig.BASE_HP,
+      innerWidth,
+    );
+
+    this.baseHpBarView.fill.clear();
+    this.baseHpBarView.fill.fillStyle(0x58f29b, 1);
+    this.baseHpBarView.fill.fillRoundedRect(
+      this.baseHpBarView.x + innerPadding,
+      this.baseHpBarView.y + innerPadding,
+      metrics.width,
+      innerHeight,
+      8,
+    );
+    this.baseHpBarView.label.setText(
+      `BASE HP ${this.runtime.baseHp}/${CombatBalanceConfig.BASE_HP}`,
+    );
   }
 
   private getEnemyContainerDepth(sortY: number): number {

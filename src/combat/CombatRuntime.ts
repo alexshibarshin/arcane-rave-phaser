@@ -1,5 +1,6 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatContentConfig } from '@config/CombatContentConfig';
+import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatWaveConfig, type CombatSubWaveConfig } from '@config/CombatWaveConfig';
 import {
   COMBAT_NEEDLE_ANGLE_DEGREES,
@@ -35,6 +36,7 @@ export interface CombatEnemyRuntime {
   x: number;
   y: number;
   state: CombatEnemyState;
+  spawned: boolean;
   nextAttackAtMs: number;
   renderContainerName: string;
 }
@@ -52,6 +54,12 @@ export interface CombatRuntime {
   state: CombatState;
   combatElapsedMs: number;
   waveElapsedMs: number;
+  spawn: {
+    pendingEnemyRuntimeIds: string[];
+    nextSpawnAtMs: number;
+    lastSpawnX: number | null;
+    intervalMs: number;
+  };
   preview: {
     elapsedMs: number;
     durationMs: number;
@@ -73,11 +81,25 @@ export interface CombatRuntime {
   };
   effects: {
     transientIds: string[];
-    pendingEvents: Array<{
-      event: 'combat:slot-activated';
-      payload: { slotIndex: number };
-    }>;
+    pendingEvents: Array<
+      | {
+        event: 'combat:slot-activated';
+        payload: { slotIndex: number };
+      }
+      | {
+        event: 'combat:base-damaged';
+        payload: { current: number; max: number };
+      }
+      | {
+        event: 'combat:hud-base-hp-updated';
+        payload: { current: number; max: number };
+      }
+    >;
   };
+}
+
+interface CombatRuntimeAdvanceOptions {
+  random?: () => number;
 }
 
 export function createCombatRuntime(): CombatRuntime {
@@ -88,11 +110,18 @@ export function createCombatRuntime(): CombatRuntime {
   const slotPreset =
     CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
     ?? null;
+  const enemies = createCombatEnemyRuntimes();
 
   return {
     state: 'preview',
     combatElapsedMs: 0,
     waveElapsedMs: 0,
+    spawn: {
+      pendingEnemyRuntimeIds: enemies.map((enemy) => enemy.runtimeId),
+      nextSpawnAtMs: initialWave?.subWaves[0]?.startTimeMs ?? 0,
+      lastSpawnX: null,
+      intervalMs: initialWave?.subWaves[0]?.spawnIntervalMs ?? 900,
+    },
     preview: {
       elapsedMs: 0,
       durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
@@ -121,14 +150,14 @@ export function createCombatRuntime(): CombatRuntime {
       count: 0,
       visuals: [],
     },
-    enemies: createCombatEnemyRuntimes(),
+    enemies,
     wave: {
       currentWaveIndex: 0,
       totalWaves: CombatWaveConfig.WAVES.length,
       currentWaveId: initialWave?.id ?? null,
       activeSubWaves: [],
       pendingSubWaves: [...(initialWave?.subWaves ?? [])],
-      enemiesRemaining: 0,
+      enemiesRemaining: enemies.length,
     },
     outcome: {
       victory: false,
@@ -155,15 +184,22 @@ function getSlotWorldPosition(
   };
 }
 
-export function advanceCombatRuntime(runtime: CombatRuntime, deltaMs: number): void {
+export function advanceCombatRuntime(
+  runtime: CombatRuntime,
+  deltaMs: number,
+  options: CombatRuntimeAdvanceOptions = {},
+): void {
   runtime.combatElapsedMs += deltaMs;
 
   if (runtime.state === 'running') {
+    runtime.waveElapsedMs += deltaMs;
     resetSlotActivationEffects(runtime);
     runtime.record.previousAngle = runtime.record.currentAngle;
     runtime.record.currentAngle -=
       runtime.record.rotationSpeedDegPerSecond * (deltaMs / 1000);
     processCrossedSlots(runtime);
+    updateEnemyPressure(runtime, deltaMs);
+    bootstrapEnemySpawns(runtime, options.random ?? Math.random);
 
     return;
   }
@@ -229,6 +265,155 @@ function processCrossedSlots(runtime: CombatRuntime): void {
       payload: { slotIndex: slot.slotIndex },
     });
   }
+}
+
+function updateEnemyPressure(runtime: CombatRuntime, deltaMs: number): void {
+  const layout = createCombatLayoutPlan();
+  const enemyDefinitionsById = new Map(
+    CombatContentConfig.ENEMY_DEFINITIONS.map((enemy) => [enemy.id, enemy]),
+  );
+
+  for (const enemy of runtime.enemies) {
+    if (!enemy.spawned) {
+      continue;
+    }
+
+    const definition = enemyDefinitionsById.get(enemy.definitionId);
+
+    if (!definition) {
+      continue;
+    }
+
+    if (enemy.state === 'attacking') {
+      updateEnemyBaseAttacks(runtime, enemy, definition.attackCooldownMs, definition.attackDamage);
+      continue;
+    }
+
+    if (enemy.state !== 'moving') {
+      continue;
+    }
+
+    const distanceToBase = getDistance(enemy.x, enemy.y, layout.base.x, layout.base.y);
+
+    if (distanceToBase <= definition.attackRangePx) {
+      enemy.state = 'attacking';
+      enemy.nextAttackAtMs = runtime.combatElapsedMs + definition.attackCooldownMs;
+      continue;
+    }
+
+    const stepPx = definition.moveSpeedPxPerSec * (deltaMs / 1000);
+    const nextY = enemy.y + stepPx;
+    const nextDistanceToBase = getDistance(enemy.x, nextY, layout.base.x, layout.base.y);
+
+    if (nextDistanceToBase <= definition.attackRangePx) {
+      enemy.y = clampEnemyToAttackRange(enemy.x, layout.base.x, layout.base.y, definition.attackRangePx);
+      enemy.state = 'attacking';
+      enemy.nextAttackAtMs = runtime.combatElapsedMs + definition.attackCooldownMs;
+      continue;
+    }
+
+    enemy.y = nextY;
+  }
+}
+
+function bootstrapEnemySpawns(runtime: CombatRuntime, random: () => number): void {
+  while (runtime.waveElapsedMs >= runtime.spawn.nextSpawnAtMs) {
+    const nextEnemyRuntimeId = runtime.spawn.pendingEnemyRuntimeIds.shift();
+
+    if (!nextEnemyRuntimeId) {
+      return;
+    }
+
+    const enemy = runtime.enemies.find((entry) => entry.runtimeId === nextEnemyRuntimeId);
+
+    if (!enemy) {
+      runtime.spawn.nextSpawnAtMs += runtime.spawn.intervalMs;
+      continue;
+    }
+
+    enemy.spawned = true;
+    enemy.state = 'moving';
+    enemy.nextAttackAtMs = 0;
+    enemy.x = selectEnemySpawnX(random, runtime.spawn.lastSpawnX);
+    enemy.y = CombatLayoutConfig.ENEMY_SPAWN_Y;
+    runtime.spawn.lastSpawnX = enemy.x;
+    runtime.spawn.nextSpawnAtMs += runtime.spawn.intervalMs;
+  }
+}
+
+function selectEnemySpawnX(random: () => number, lastSpawnX: number | null): number {
+  let fallbackX: number = CombatLayoutConfig.ENEMY_SPAWN_X_MIN;
+
+  for (let attempt = 0; attempt < CombatBalanceConfig.ENEMY_SPAWN_ATTEMPTS; attempt += 1) {
+    const candidateX = Math.round(
+      CombatLayoutConfig.ENEMY_SPAWN_X_MIN
+      + random() * (CombatLayoutConfig.ENEMY_SPAWN_X_MAX - CombatLayoutConfig.ENEMY_SPAWN_X_MIN),
+    );
+
+    fallbackX = candidateX;
+
+    if (
+      lastSpawnX === null
+      || Math.abs(candidateX - lastSpawnX) >= CombatBalanceConfig.ENEMY_SPAWN_MIN_GAP_PX
+    ) {
+      return candidateX;
+    }
+  }
+
+  return fallbackX;
+}
+
+function updateEnemyBaseAttacks(
+  runtime: CombatRuntime,
+  enemy: CombatEnemyRuntime,
+  attackCooldownMs: number,
+  attackDamage: number,
+): void {
+  if (enemy.nextAttackAtMs <= 0) {
+    enemy.nextAttackAtMs = attackCooldownMs;
+    return;
+  }
+
+  while (runtime.state === 'running' && runtime.combatElapsedMs >= enemy.nextAttackAtMs) {
+    runtime.baseHp = Math.max(0, runtime.baseHp - attackDamage);
+    runtime.effects.pendingEvents.push({
+      event: 'combat:base-damaged',
+      payload: {
+        current: runtime.baseHp,
+        max: CombatBalanceConfig.BASE_HP,
+      },
+    });
+    runtime.effects.pendingEvents.push({
+      event: 'combat:hud-base-hp-updated',
+      payload: {
+        current: runtime.baseHp,
+        max: CombatBalanceConfig.BASE_HP,
+      },
+    });
+
+    if (runtime.baseHp <= 0) {
+      setCombatState(runtime, 'defeat');
+      return;
+    }
+
+    enemy.nextAttackAtMs += attackCooldownMs;
+  }
+}
+
+function clampEnemyToAttackRange(
+  enemyX: number,
+  baseX: number,
+  baseY: number,
+  attackRangePx: number,
+): number {
+  const deltaX = enemyX - baseX;
+  const maxDeltaY = Math.sqrt(Math.max(attackRangePx ** 2 - deltaX ** 2, 0));
+
+  return baseY - maxDeltaY;
+}
+
+function getDistance(fromX: number, fromY: number, toX: number, toY: number): number {
+  return Math.hypot(toX - fromX, toY - fromY);
 }
 
 function collectCrossingsForSlot(

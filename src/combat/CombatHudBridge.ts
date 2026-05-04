@@ -1,3 +1,4 @@
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import type { CombatRuntime, CombatState } from './CombatRuntime';
 
 export interface CombatHudEventMap {
@@ -51,7 +52,7 @@ export function createCombatHudBridgeEvents(
       event: 'combat:hud-base-hp-updated',
       payload: {
         current: runtime.baseHp,
-        max: runtime.baseHp,
+        max: CombatBalanceConfig.BASE_HP,
       },
     },
     {

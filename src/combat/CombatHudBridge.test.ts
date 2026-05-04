@@ -21,7 +21,7 @@ describe('CombatHudBridge', () => {
       },
       {
         event: 'combat:hud-enemies-updated',
-        payload: { remaining: 0 },
+        payload: { remaining: 3 },
       },
       {
         event: 'combat:hud-base-hp-updated',

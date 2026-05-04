@@ -13,6 +13,7 @@ export function createCombatEnemyRuntimes(): CombatEnemyRuntime[] {
     x: CombatLayoutConfig.ENEMY_PREVIEW_SPAWN_X[index] ?? CombatLayoutConfig.ENEMY_PREVIEW_SPAWN_X[0],
     y: CombatLayoutConfig.ENEMY_PREVIEW_SPAWN_Y[index] ?? CombatLayoutConfig.ENEMY_PREVIEW_SPAWN_Y[0],
     state: 'moving',
+    spawned: false,
     nextAttackAtMs: 0,
     renderContainerName: `enemy-container-${index + 1}`,
   }));

@@ -20,6 +20,9 @@ describe('CombatLayoutConfig', () => {
       NOTE_PACKET_ANCHOR_Y: 1050,
       ENEMY_ZONE_TOP: 120,
       ENEMY_ZONE_BOTTOM: 1200,
+      ENEMY_SPAWN_X_MIN: 72,
+      ENEMY_SPAWN_X_MAX: 648,
+      ENEMY_SPAWN_Y: 80,
       HUD_PADDING_X: 24,
       HUD_PADDING_Y: 20,
     });
