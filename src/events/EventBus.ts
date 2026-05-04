@@ -24,7 +24,16 @@ export interface EventMap {
   'combat:hud-enemies-updated': { remaining: number };
   'combat:hud-base-hp-updated': { current: number; max: number };
   'combat:slot-activated': { slotIndex: number };
+  'combat:pawn-resolved': { slotIndex: number; pawnId: string; pawnType: 'generator' | 'finisher' };
+  'combat:enemy-hit': {
+    enemyId: string;
+    slotIndex: number;
+    damage: number;
+    currentHp: number;
+    maxHp: number;
+  };
   'combat:note-packet-changed': { color: NoteColor | null; count: number };
+  'combat:note-packet-color-broke': { previousColor: NoteColor; nextColor: NoteColor };
   'combat:enemy-spawned': { enemyId: string };
   'combat:enemy-died': { enemyId: string; remaining: number };
   'combat:base-damaged': { current: number; max: number };

@@ -11,21 +11,23 @@ export function ensureCombatNoteGlyphTexture(scene: Phaser.Scene): void {
 
   graphics.clear();
   graphics.fillStyle(0xffffff, 1);
-  graphics.lineStyle(6, 0xffffff, 1);
-  graphics.fillCircle(24, 50, 16);
-  graphics.fillCircle(52, 40, 16);
-  graphics.fillRect(36, 2, 10, 46);
+  graphics.lineStyle(2, 0xffffff, 0.95);
+  graphics.fillCircle(17, 46, 10);
+  graphics.fillRect(22, 10, 5, 36);
   graphics.beginPath();
-  graphics.moveTo(41, 2);
-  graphics.lineTo(66, 10);
-  graphics.lineTo(66, 24);
-  graphics.lineTo(46, 18);
+  graphics.moveTo(24, 10);
+  graphics.lineTo(39, 14);
+  graphics.lineTo(39, 22);
+  graphics.lineTo(27, 19);
   graphics.closePath();
   graphics.fillPath();
-  graphics.strokeLineShape(new Phaser.Geom.Line(41, 2, 41, 56));
-  graphics.strokeLineShape(new Phaser.Geom.Line(41, 2, 66, 10));
-  graphics.strokeLineShape(new Phaser.Geom.Line(66, 10, 66, 24));
+  graphics.strokeCircle(17, 46, 10);
+  graphics.strokeLineShape(new Phaser.Geom.Line(24, 10, 24, 46));
+  graphics.strokeLineShape(new Phaser.Geom.Line(24, 10, 39, 14));
+  graphics.strokeLineShape(new Phaser.Geom.Line(39, 14, 39, 22));
+  graphics.lineStyle(2, 0xffffff, 0.45);
+  graphics.strokeLineShape(new Phaser.Geom.Line(14, 39, 22, 34));
 
-  graphics.generateTexture(COMBAT_NOTE_GLYPH_TEXTURE_KEY, 72, 72);
+  graphics.generateTexture(COMBAT_NOTE_GLYPH_TEXTURE_KEY, 48, 64);
   graphics.destroy();
 }

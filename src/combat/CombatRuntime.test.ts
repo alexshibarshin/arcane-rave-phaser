@@ -3,7 +3,7 @@ import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatWaveConfig } from '@config/CombatWaveConfig';
-import { createCombatLayoutPlan } from './CombatLayout';
+import { COMBAT_NEEDLE_ANGLE_DEGREES, createCombatLayoutPlan } from './CombatLayout';
 import {
   advanceCombatRuntime,
   createCombatRuntime,
@@ -203,6 +203,240 @@ describe('createCombatRuntime', () => {
     expect(runtime.slots[5]?.activationVisualState).toBe('idle');
   });
 
+  it('resolves a crossed generator slot against the nearest living enemy and creates a new packet from empty', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const generatorSlot = runtime.slots[0];
+
+    expect(generatorSlot).toBeDefined();
+
+    if (!generatorSlot) {
+      return;
+    }
+
+    generatorSlot.pawnId = 'pawn-red-generator';
+    generatorSlot.worldPosition = { x: 100, y: 100 };
+    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    const nearestEnemy = runtime.enemies[0];
+    const fartherEnemy = runtime.enemies[1];
+
+    expect(nearestEnemy).toBeDefined();
+    expect(fartherEnemy).toBeDefined();
+
+    if (!nearestEnemy || !fartherEnemy) {
+      return;
+    }
+
+    nearestEnemy.spawned = true;
+    nearestEnemy.state = 'moving';
+    nearestEnemy.currentHp = nearestEnemy.maxHp;
+    nearestEnemy.x = 120;
+    nearestEnemy.y = 100;
+
+    fartherEnemy.spawned = true;
+    fartherEnemy.state = 'moving';
+    fartherEnemy.currentHp = fartherEnemy.maxHp;
+    fartherEnemy.x = 320;
+    fartherEnemy.y = 260;
+
+    for (const enemy of runtime.enemies.slice(2)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.effects.transientIds).toContain('slot-activated:0');
+    expect(runtime.slots[0]?.activationVisualState).toBe('active');
+    expect(nearestEnemy.currentHp).toBe(
+      nearestEnemy.maxHp - CombatBalanceConfig.GENERATOR_BASE_DAMAGE,
+    );
+    expect(fartherEnemy.currentHp).toBe(fartherEnemy.maxHp);
+    expect(runtime.notePacket).toEqual({
+      color: 'red',
+      count: 2,
+      visuals: ['note-packet:red:0', 'note-packet:red:1'],
+    });
+  });
+
+  it('adds two notes to a same-color packet and clamps the count at the packet cap', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+    setCombatNotePacket(runtime, 'green', CombatBalanceConfig.NOTE_PACKET_CAPACITY - 1);
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 200, y: 200 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const generatorSlot = runtime.slots[0];
+
+    expect(generatorSlot).toBeDefined();
+
+    if (!generatorSlot) {
+      return;
+    }
+
+    generatorSlot.pawnId = 'pawn-green-generator';
+    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket).toEqual({
+      color: 'green',
+      count: CombatBalanceConfig.NOTE_PACKET_CAPACITY,
+      visuals: [
+        'note-packet:green:0',
+        'note-packet:green:1',
+        'note-packet:green:2',
+        'note-packet:green:3',
+        'note-packet:green:4',
+      ],
+    });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:note-packet-changed',
+      payload: {
+        color: 'green',
+        count: CombatBalanceConfig.NOTE_PACKET_CAPACITY,
+      },
+    });
+  });
+
+  it('breaks a foreign-color packet, replaces it with a two-note generator packet, and emits a color-break signal', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+    setCombatNotePacket(runtime, 'blue', 4);
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 200, y: 200 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const generatorSlot = runtime.slots[0];
+
+    expect(generatorSlot).toBeDefined();
+
+    if (!generatorSlot) {
+      return;
+    }
+
+    generatorSlot.pawnId = 'pawn-red-generator';
+    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket).toEqual({
+      color: 'red',
+      count: 2,
+      visuals: ['note-packet:red:0', 'note-packet:red:1'],
+    });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:note-packet-color-broke',
+      payload: {
+        previousColor: 'blue',
+        nextColor: 'red',
+      },
+    });
+  });
+
+  it('ignores dead or invalid enemies, resolves safely into empty space, and still mutates the packet', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const generatorSlot = runtime.slots[0];
+
+    expect(generatorSlot).toBeDefined();
+
+    if (!generatorSlot) {
+      return;
+    }
+
+    generatorSlot.pawnId = 'pawn-blue-generator';
+    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    const nearestDeadEnemy = runtime.enemies[0];
+    const unspawnedEnemy = runtime.enemies[1];
+
+    expect(nearestDeadEnemy).toBeDefined();
+    expect(unspawnedEnemy).toBeDefined();
+
+    if (!nearestDeadEnemy || !unspawnedEnemy) {
+      return;
+    }
+
+    nearestDeadEnemy.spawned = true;
+    nearestDeadEnemy.state = 'dead';
+    nearestDeadEnemy.currentHp = 0;
+    nearestDeadEnemy.x = 105;
+    nearestDeadEnemy.y = 100;
+
+    unspawnedEnemy.spawned = false;
+    unspawnedEnemy.state = 'moving';
+    unspawnedEnemy.currentHp = unspawnedEnemy.maxHp;
+    unspawnedEnemy.x = 110;
+    unspawnedEnemy.y = 100;
+
+    for (const enemy of runtime.enemies.slice(2)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:enemy-hit')).toBe(false);
+    expect(runtime.notePacket).toEqual({
+      color: 'blue',
+      count: 2,
+      visuals: ['note-packet:blue:0', 'note-packet:blue:1'],
+    });
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:pawn-resolved',
+      payload: {
+        slotIndex: 0,
+        pawnId: 'pawn-blue-generator',
+        pawnType: 'generator',
+      },
+    });
+  });
+
   it('moves enemies downward until they enter base attack range and then switches them to attacking', () => {
     const runtime = createCombatRuntime();
     const enemy = runtime.enemies[0];
@@ -214,6 +448,9 @@ describe('createCombatRuntime', () => {
     }
 
     runtime.spawn.pendingEnemyRuntimeIds = [];
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+    }
     enemy.x = CombatLayoutConfig.BASE_X;
     enemy.y = CombatLayoutConfig.ENEMY_ZONE_TOP;
     enemy.spawned = true;
@@ -247,6 +484,9 @@ describe('createCombatRuntime', () => {
     }
 
     runtime.spawn.pendingEnemyRuntimeIds = [];
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+    }
     runtime.baseHp = 2;
     enemy.state = 'attacking';
     enemy.spawned = true;
@@ -278,6 +518,9 @@ describe('createCombatRuntime', () => {
       return value;
     };
 
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+    }
     setCombatState(runtime, 'running');
 
     advanceCombatRuntime(runtime, 1, { random: nextRandom });

@@ -94,6 +94,32 @@ export interface CombatRuntime {
         event: 'combat:hud-base-hp-updated';
         payload: { current: number; max: number };
       }
+      | {
+        event: 'combat:pawn-resolved';
+        payload: { slotIndex: number; pawnId: string; pawnType: 'generator' | 'finisher' };
+      }
+      | {
+        event: 'combat:enemy-hit';
+        payload: {
+          enemyId: string;
+          slotIndex: number;
+          damage: number;
+          currentHp: number;
+          maxHp: number;
+        };
+      }
+      | {
+        event: 'combat:enemy-died';
+        payload: { enemyId: string; remaining: number };
+      }
+      | {
+        event: 'combat:note-packet-changed';
+        payload: { color: NoteColor | null; count: number };
+      }
+      | {
+        event: 'combat:note-packet-color-broke';
+        payload: { previousColor: NoteColor; nextColor: NoteColor };
+      }
     >;
   };
 }
@@ -236,6 +262,17 @@ export function setCombatNotePacket(
   count: number,
 ): void {
   const clampedCount = Math.max(0, Math.min(count, CombatBalanceConfig.NOTE_PACKET_CAPACITY));
+
+  if (count !== clampedCount) {
+    console.warn(
+      `Combat note packet count ${count} exceeded bounds and was clamped to ${clampedCount}.`,
+    );
+  }
+
+  if (clampedCount > 0 && color === null) {
+    console.warn('Combat note packet cannot keep notes without a color; clearing packet instead.');
+  }
+
   const nextColor = clampedCount > 0 ? color : null;
 
   runtime.notePacket.color = nextColor;
@@ -256,6 +293,9 @@ function resetSlotActivationEffects(runtime: CombatRuntime): void {
 }
 
 function processCrossedSlots(runtime: CombatRuntime): void {
+  const pawnDefinitionsById = new Map(
+    CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => [pawn.id, pawn]),
+  );
   const crossings = runtime.slots
     .flatMap((slot) =>
       collectCrossingsForSlot(
@@ -280,7 +320,136 @@ function processCrossedSlots(runtime: CombatRuntime): void {
       event: 'combat:slot-activated',
       payload: { slotIndex: slot.slotIndex },
     });
+
+    if (slot.pawnId === null) {
+      continue;
+    }
+
+    const pawn = pawnDefinitionsById.get(slot.pawnId);
+
+    if (!pawn) {
+      continue;
+    }
+
+    runtime.effects.pendingEvents.push({
+      event: 'combat:pawn-resolved',
+      payload: {
+        slotIndex: slot.slotIndex,
+        pawnId: pawn.id,
+        pawnType: pawn.type,
+      },
+    });
+
+    if (pawn.type === 'generator') {
+      resolveGeneratorSlotActivation(runtime, slot, pawn.color, pawn.baseDamage);
+    }
   }
+}
+
+function resolveGeneratorSlotActivation(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  color: NoteColor,
+  baseDamage: number,
+): void {
+  const target = selectNearestLivingEnemy(runtime, slot.worldPosition);
+
+  if (target) {
+    target.currentHp = Math.max(0, target.currentHp - baseDamage);
+    runtime.effects.pendingEvents.push({
+      event: 'combat:enemy-hit',
+      payload: {
+        enemyId: target.runtimeId,
+        slotIndex: slot.slotIndex,
+        damage: baseDamage,
+        currentHp: target.currentHp,
+        maxHp: target.maxHp,
+      },
+    });
+
+    if (target.currentHp <= 0 && target.state !== 'dead') {
+      target.state = 'dead';
+      runtime.wave.enemiesRemaining = Math.max(0, runtime.wave.enemiesRemaining - 1);
+      runtime.effects.pendingEvents.push({
+        event: 'combat:enemy-died',
+        payload: {
+          enemyId: target.runtimeId,
+          remaining: runtime.wave.enemiesRemaining,
+        },
+      });
+    }
+  }
+
+  applyGeneratorPacketMutation(runtime, color);
+}
+
+function selectNearestLivingEnemy(
+  runtime: CombatRuntime,
+  origin: CombatSlotRuntime['worldPosition'],
+): CombatEnemyRuntime | null {
+  if (origin === null) {
+    return null;
+  }
+
+  let nearestEnemy: CombatEnemyRuntime | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const enemy of runtime.enemies) {
+    if (!enemy.spawned || enemy.state === 'dead' || enemy.currentHp <= 0) {
+      continue;
+    }
+
+    const distance = getDistance(origin.x, origin.y, enemy.x, enemy.y);
+
+    if (distance < nearestDistance) {
+      nearestEnemy = enemy;
+      nearestDistance = distance;
+    }
+  }
+
+  return nearestEnemy;
+}
+
+function applyGeneratorPacketMutation(runtime: CombatRuntime, color: NoteColor): void {
+  const previousColor = runtime.notePacket.color;
+  const previousCount = runtime.notePacket.count;
+
+  if (previousColor === null || previousCount <= 0) {
+    setCombatNotePacket(runtime, color, 2);
+    pushNotePacketChangedEvent(runtime);
+    return;
+  }
+
+  if (previousColor === color) {
+    const nextCount = Math.min(
+      previousCount + 2,
+      CombatBalanceConfig.NOTE_PACKET_CAPACITY,
+    );
+
+    setCombatNotePacket(runtime, color, nextCount);
+    pushNotePacketChangedEvent(runtime);
+    return;
+  }
+
+  runtime.effects.pendingEvents.push({
+    event: 'combat:note-packet-color-broke',
+    payload: {
+      previousColor,
+      nextColor: color,
+    },
+  });
+  setCombatNotePacket(runtime, color, 2);
+  pushNotePacketChangedEvent(runtime);
+}
+
+function pushNotePacketChangedEvent(runtime: CombatRuntime): void {
+  runtime.effects.pendingEvents.push({
+    event: 'combat:note-packet-changed',
+    payload: {
+      color: runtime.notePacket.color,
+      count: runtime.notePacket.count,
+    },
+  });
 }
 
 function updateEnemyPressure(runtime: CombatRuntime, deltaMs: number): void {

@@ -9,7 +9,7 @@ export const CombatVisualConfig = {
     STACK_RISE_Y: 6,
     BOUNCE_AMPLITUDE_Y: 6,
     BOUNCE_PERIOD_MS: 750,
-    GLYPH_SCALE: 1,
+    GLYPH_SCALE: 0.72,
   },
   EMPTY_SLOT_LABEL: 'EMPTY',
   RULE_LABEL_FONT_SIZE_PX: 18,

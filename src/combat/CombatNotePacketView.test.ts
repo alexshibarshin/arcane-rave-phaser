@@ -18,7 +18,7 @@ describe('CombatNotePacketView', () => {
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x - 28,
         y: renderModel.notePacketAnchor.y,
-        scale: 1,
+        scale: 0.72,
       },
       {
         id: 'note-packet:green:1',
@@ -26,7 +26,7 @@ describe('CombatNotePacketView', () => {
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x,
         y: renderModel.notePacketAnchor.y - 6,
-        scale: 1,
+        scale: 0.72,
       },
       {
         id: 'note-packet:green:2',
@@ -34,7 +34,7 @@ describe('CombatNotePacketView', () => {
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x + 28,
         y: renderModel.notePacketAnchor.y,
-        scale: 1,
+        scale: 0.72,
       },
     ]);
 
@@ -47,7 +47,7 @@ describe('CombatNotePacketView', () => {
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x - 28,
         y: renderModel.notePacketAnchor.y,
-        scale: 1,
+        scale: 0.72,
       },
       {
         id: 'note-packet:green:1',
@@ -55,7 +55,7 @@ describe('CombatNotePacketView', () => {
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x,
         y: renderModel.notePacketAnchor.y + 6,
-        scale: 1,
+        scale: 0.72,
       },
       {
         id: 'note-packet:green:2',
@@ -63,7 +63,7 @@ describe('CombatNotePacketView', () => {
         tint: CombatVisualConfig.NOTE_COLORS.green,
         x: renderModel.notePacketAnchor.x + 28,
         y: renderModel.notePacketAnchor.y,
-        scale: 1,
+        scale: 0.72,
       },
     ]);
   });

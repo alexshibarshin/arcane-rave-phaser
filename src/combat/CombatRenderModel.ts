@@ -360,7 +360,7 @@ function createSlotPawnRenderModel(
     silhouetteKey: pawnDefinition.visualSilhouetteKey,
     pedestalStyleKey: pawnDefinition.pedestalStyleKey,
     tierStars: pawnDefinition.type === 'generator' ? 1 : 2,
-    ruleLabel: pawnDefinition.type === 'generator' ? '+♪♪' : '-all ♪ -> +♪',
+    ruleLabel: pawnDefinition.type === 'generator' ? '+♪♪' : '-♪ -> +♪',
   };
 }
 
@@ -396,7 +396,7 @@ function createSlotPresentationModel(
     rotating: {
       pedestal: null,
       ruleLabel: {
-        text: pawnDefinition.type === 'generator' ? '+♪♪' : '-all ♪ -> +♪',
+        text: pawnDefinition.type === 'generator' ? '+♪♪' : '-♪ -> +♪',
         color: accentColor,
       },
       emptyLabel: null,
