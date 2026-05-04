@@ -959,8 +959,14 @@ describe('createCombatRuntime', () => {
 
     expect(runtime.wave.activeSubWaves).toHaveLength(2);
     expect(runtime.wave.pendingSubWaves).toHaveLength(0);
-    // Bag exists (contents immediately consumed by bootstrapEnemySpawns in same advance call)
     expect(runtime.wave.spawnBags.has('wave-1-b')).toBe(true);
+    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(4);
+
+    advanceCombatRuntime(runtime, 798);
+    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(4);
+
+    advanceCombatRuntime(runtime, 1);
+    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(5);
   });
 
   it('bootstraps enemy spawns into the top lane with config-driven x range and anti-clumping', () => {

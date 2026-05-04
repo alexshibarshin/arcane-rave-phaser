@@ -169,7 +169,10 @@ export interface CombatRenderModel {
     pause: {
       x: number;
       y: number;
-      align: 'left';
+      width: number;
+      height: number;
+      hitWidth: number;
+      hitHeight: number;
     };
     wave: {
       x: number;
@@ -180,6 +183,20 @@ export interface CombatRenderModel {
       x: number;
       y: number;
       align: 'right';
+    };
+    overlay: {
+      label: {
+        x: number;
+        y: number;
+      };
+      primaryAction: {
+        x: number;
+        y: number;
+      };
+      secondaryAction: {
+        x: number;
+        y: number;
+      };
     };
   };
   enemies: CombatEnemyRenderModel[];
@@ -288,7 +305,10 @@ export function createCombatRenderModel(): CombatRenderModel {
       pause: {
         x: CombatLayoutConfig.HUD_PADDING_X,
         y: CombatLayoutConfig.HUD_PADDING_Y,
-        align: 'left',
+        width: 52,
+        height: 52,
+        hitWidth: 80,
+        hitHeight: 80,
       },
       wave: {
         x: GameConfig.VIEWPORT_WIDTH / 2,
@@ -299,6 +319,20 @@ export function createCombatRenderModel(): CombatRenderModel {
         x: GameConfig.VIEWPORT_WIDTH - CombatLayoutConfig.HUD_PADDING_X,
         y: CombatLayoutConfig.HUD_PADDING_Y,
         align: 'right',
+      },
+      overlay: {
+        label: {
+          x: GameConfig.VIEWPORT_WIDTH / 2,
+          y: GameConfig.VIEWPORT_HEIGHT / 2,
+        },
+        primaryAction: {
+          x: GameConfig.VIEWPORT_WIDTH / 2,
+          y: GameConfig.VIEWPORT_HEIGHT / 2 + 92,
+        },
+        secondaryAction: {
+          x: GameConfig.VIEWPORT_WIDTH / 2,
+          y: GameConfig.VIEWPORT_HEIGHT / 2 + 160,
+        },
       },
     },
     enemies: createCombatEnemyRuntimes(activeWave!).flatMap((enemyRuntime) => {

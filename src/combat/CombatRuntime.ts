@@ -311,7 +311,7 @@ function activateSubWave(
 
   spawnBags.set(subWave.id, {
     enemyRuntimeIds: shuffleArray(enemyRuntimeIds, random),
-    nextSpawnAtMs: 0,
+    nextSpawnAtMs: subWave.startTimeMs,
     intervalMs: subWave.spawnIntervalMs,
   });
 }

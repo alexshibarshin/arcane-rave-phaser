@@ -47,10 +47,25 @@ describe('CombatRenderModel', () => {
     expect(model.hud.pause).toEqual({
       x: CombatLayoutConfig.HUD_PADDING_X,
       y: CombatLayoutConfig.HUD_PADDING_Y,
-      align: 'left',
+      width: 52,
+      height: 52,
+      hitWidth: 80,
+      hitHeight: 80,
     });
     expect(model.hud.wave.x).toBe(CombatLayoutConfig.RECORD_CENTER_X);
     expect(model.hud.enemies.align).toBe('right');
+    expect(model.hud.overlay.label).toEqual({
+      x: 360,
+      y: 640,
+    });
+    expect(model.hud.overlay.primaryAction).toEqual({
+      x: 360,
+      y: 732,
+    });
+    expect(model.hud.overlay.secondaryAction).toEqual({
+      x: 360,
+      y: 800,
+    });
   });
 
   it('maps the starter preset into occupied and empty slot visual primitives', () => {

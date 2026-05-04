@@ -89,10 +89,10 @@ describe('CombatHudBridge', () => {
     expect(getCombatOverlayText('defeat')).toBe('Defeat');
   });
 
-  it('shows a restart overlay action only for victory and defeat', () => {
+  it('maps overlay actions for paused and result states', () => {
     expect(getCombatOverlayActions('preview')).toEqual([]);
     expect(getCombatOverlayActions('running')).toEqual([]);
-    expect(getCombatOverlayActions('paused')).toEqual([]);
+    expect(getCombatOverlayActions('paused')).toEqual(['Resume', 'Restart']);
     expect(getCombatOverlayActions('victory')).toEqual(['Restart']);
     expect(getCombatOverlayActions('defeat')).toEqual(['Restart']);
   });

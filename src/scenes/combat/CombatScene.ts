@@ -24,6 +24,8 @@ import {
   COMBAT_VFX_RING_TEXTURE_KEY,
   ensureCombatVfxTextures,
 } from '@combat/CombatVfxTextures';
+import { publishCombatStateTransition } from '@combat/CombatHudEvents';
+import { setCombatState } from '@combat/CombatRuntime';
 
 import { CombatStateSystem } from '@systems/CombatStateSystem';
 import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
@@ -85,6 +87,34 @@ export class CombatScene extends GameScene {
     restartCombatScenes(this.scene, SceneKeys.HUD);
     emit('combat:restarted');
   };
+  private readonly handlePauseRequested = (): void => {
+    const runtime = this.runtime;
+
+    if (!runtime || (runtime.state !== 'preview' && runtime.state !== 'running')) {
+      return;
+    }
+
+    const previousState = runtime.state;
+
+    if (!setCombatState(runtime, 'paused')) {
+      return;
+    }
+
+    publishCombatStateTransition(previousState, 'paused');
+  };
+  private readonly handleResumeRequested = (): void => {
+    const runtime = this.runtime;
+
+    if (!runtime || runtime.state !== 'paused') {
+      return;
+    }
+
+    if (!setCombatState(runtime, 'running')) {
+      return;
+    }
+
+    publishCombatStateTransition('paused', 'running');
+  };
 
   constructor() {
     super(SceneKeys.COMBAT);
@@ -106,7 +136,9 @@ export class CombatScene extends GameScene {
   protected createSceneContent(): void {
     this.runtime = createCombatRuntime();
     this.renderStaticCombatLayout();
+    on('combat:pause-requested', this.handlePauseRequested);
     on('combat:restart-requested', this.handleRestartRequested);
+    on('combat:resume-requested', this.handleResumeRequested);
     this.combatVfx = new CombatVfxSystem({
       getSlotAnchor: (slotIndex) => this.getSlotVfxAnchor(slotIndex),
       getEnemyAnchor: (enemyId) => this.getEnemyVfxAnchor(enemyId),
@@ -115,7 +147,9 @@ export class CombatScene extends GameScene {
     });
     this.detachCombatVfxEvents = bindCombatVfxEvents(this.combatVfx);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      off('combat:pause-requested', this.handlePauseRequested);
       off('combat:restart-requested', this.handleRestartRequested);
+      off('combat:resume-requested', this.handleResumeRequested);
       this.detachCombatVfxEvents?.();
       this.detachCombatVfxEvents = undefined;
       this.combatVfx = undefined;

@@ -115,6 +115,8 @@ export function getCombatOverlayText(state: CombatState): string | null {
 
 export function getCombatOverlayActions(state: CombatState): string[] {
   switch (state) {
+    case 'paused':
+      return ['Resume', 'Restart'];
     case 'victory':
     case 'defeat':
       return ['Restart'];

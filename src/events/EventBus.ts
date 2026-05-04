@@ -17,6 +17,8 @@ export interface EventMap {
   'combat:hud-ready': { key: string };
   'combat:restarted': void;
   'combat:restart-requested': void;
+  'combat:pause-requested': void;
+  'combat:resume-requested': void;
   'combat:state-changed': { state: CombatState };
   'combat:pause-opened': void;
   'combat:pause-closed': void;
