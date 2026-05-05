@@ -22,6 +22,7 @@ import { createCombatRenderModel } from '@combat/CombatRenderModel';
 import { getCombatPresentationDelta } from '@combat/CombatSceneLifecycle';
 import { getCombatBaseHpBarFillMetrics } from '@combat/CombatBaseHpBar';
 import { CombatVfxSystem, type CombatVfxAnchor, type CombatVfxSnapshot } from '@combat/CombatVfxSystem';
+import { CombatDamageNumber } from '@combat/CombatDamageNumber';
 import {
   COMBAT_VFX_BEAM_TEXTURE_KEY,
   COMBAT_VFX_GLOW_TEXTURE_KEY,
@@ -112,6 +113,7 @@ export class CombatScene extends GameScene {
   private readonly packetBreakPool: Phaser.GameObjects.Image[] = [];
   private readonly baseHitViews = new Map<string, Phaser.GameObjects.Image>();
   private readonly baseHitPool: Phaser.GameObjects.Image[] = [];
+  private readonly damageNumbers: CombatDamageNumber[] = [];
   private readonly handleRestartRequested = (): void => {
     restartCombatScenes(this.scene, SceneKeys.HUD);
     emit('combat:restarted');
@@ -169,6 +171,8 @@ export class CombatScene extends GameScene {
     on('combat:restart-requested', this.handleRestartRequested);
     on('combat:resume-requested', this.handleResumeRequested);
     on('combat:enemy-hit', this.handleEnemyHit);
+    on('combat:enemy-hit', this.handleEnemyDamageNumber);
+    on('combat:base-damaged', this.handleBaseDamageNumber);
     this.combatVfx = new CombatVfxSystem({
       getSlotAnchor: (slotIndex) => this.getSlotVfxAnchor(slotIndex),
       getEnemyAnchor: (enemyId) => this.getEnemyVfxAnchor(enemyId),
@@ -181,6 +185,8 @@ export class CombatScene extends GameScene {
       off('combat:restart-requested', this.handleRestartRequested);
       off('combat:resume-requested', this.handleResumeRequested);
       off('combat:enemy-hit', this.handleEnemyHit);
+      off('combat:enemy-hit', this.handleEnemyDamageNumber);
+      off('combat:base-damaged', this.handleBaseDamageNumber);
       this.detachCombatVfxEvents?.();
       this.detachCombatVfxEvents = undefined;
       this.combatVfx = undefined;
@@ -191,6 +197,8 @@ export class CombatScene extends GameScene {
       this.clearPooledImageMaps(this.enemyHitViews, this.enemyHitPool);
       this.clearPooledImageMaps(this.packetBreakViews, this.packetBreakPool);
       this.clearPooledImageMaps(this.baseHitViews, this.baseHitPool);
+      this.damageNumbers.forEach((damageNumber) => damageNumber.destroy());
+      this.damageNumbers.length = 0;
       this.notePacketView?.glyphs.forEach((glyph) => glyph.destroy());
       this.notePacketView?.glyphs.clear();
       this.resultEmphasisWash?.destroy();
@@ -683,6 +691,7 @@ export class CombatScene extends GameScene {
     this.syncEnemyHitPresentation(vfxSnapshot);
     this.syncPacketBreakPresentation(vfxSnapshot);
     this.syncBaseHitPresentation(vfxSnapshot);
+    this.syncDamageNumberPresentation();
     this.syncResultEmphasisPresentation(vfxSnapshot);
   }
 
@@ -864,6 +873,78 @@ export class CombatScene extends GameScene {
       `BASE HP ${this.runtime.baseHp}/${CombatBalanceConfig.BASE_HP}`,
     );
   }
+
+  private syncDamageNumberPresentation(): void {
+    if (!this.runtime) {
+      return;
+    }
+
+    const elapsed = this.runtime.combatElapsedMs;
+
+    for (let index = this.damageNumbers.length - 1; index >= 0; index -= 1) {
+      const damageNumber = this.damageNumbers[index]!;
+      const ageMs = elapsed - damageNumber.startTime;
+
+      damageNumber.update(ageMs);
+
+      if (!damageNumber.isComplete(ageMs)) {
+        continue;
+      }
+
+      damageNumber.destroy();
+      this.damageNumbers.splice(index, 1);
+    }
+  }
+
+  private handleEnemyDamageNumber = (payload: {
+    enemyId: string;
+    damage: number;
+  }): void => {
+    const view = this.enemyViews.get(payload.enemyId);
+
+    if (!view || !this.runtime) {
+      return;
+    }
+
+    const config = CombatVisualConfig.DAMAGE_NUMBER;
+    this.damageNumbers.push(new CombatDamageNumber(
+      this,
+      view.container.x,
+      view.container.y + CombatVisualConfig.ENEMY.HP_BAR_OFFSET_Y + config.ENEMY_OFFSET_Y,
+      payload.damage,
+      this.runtime.combatElapsedMs,
+      {
+        fontSizePx: config.FONT_SIZE_PX,
+        floatDurationMs: config.FLOAT_DURATION_MS,
+        floatDistanceY: config.FLOAT_DISTANCE_Y,
+      },
+    ));
+  };
+
+  private handleBaseDamageNumber = (payload: {
+    current: number;
+    max: number;
+  }): void => {
+    if (!this.baseHpBarView || !this.runtime) {
+      return;
+    }
+
+    const config = CombatVisualConfig.DAMAGE_NUMBER;
+    const damage = Math.max(0, payload.max - payload.current);
+
+    this.damageNumbers.push(new CombatDamageNumber(
+      this,
+      this.baseHpBarView.x + config.BASE_OFFSET_X,
+      this.baseHpBarView.y + config.BASE_OFFSET_Y,
+      damage,
+      this.runtime.combatElapsedMs,
+      {
+        fontSizePx: config.FONT_SIZE_PX,
+        floatDurationMs: config.FLOAT_DURATION_MS,
+        floatDistanceY: config.FLOAT_DISTANCE_Y,
+      },
+    ));
+  };
 
   private syncNotePacketPresentation(vfxSnapshot: CombatVfxSnapshot): void {
     if (!this.runtime || !this.notePacketView) {
