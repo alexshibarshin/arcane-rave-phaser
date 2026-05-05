@@ -35,6 +35,9 @@ const IDLE_PULSE_PERIOD_MS = CombatVisualConfig.ANIMATION.IDLE_PULSE_PERIOD_MS;
 const MOVE_HOP_PERIOD_MS = CombatVisualConfig.ANIMATION.MOVE_HOP_PERIOD_MS;
 const ATTACK_FLASH_DURATION_MS = CombatVisualConfig.ANIMATION.ATTACK_FLASH_DURATION_MS;
 const HIT_FLASH_DURATION_MS = CombatVisualConfig.ANIMATION.HIT_FLASH_DURATION_MS;
+const DEATH_SCALE_DELAY_RATIO = CombatVisualConfig.ANIMATION.DEATH_SCALE_DELAY_RATIO;
+const DEATH_SCALE_EASE_POWER = CombatVisualConfig.ANIMATION.DEATH_SCALE_EASE_POWER;
+const DEATH_KNOCKBACK_EASE_POWER = CombatVisualConfig.ANIMATION.DEATH_KNOCKBACK_EASE_POWER;
 
 /**
  * Advance animation phases for a given enemy state.
@@ -193,12 +196,27 @@ function computeHitTransform(): CombatAnimationTransformOutput {
 
 function computeDeathTransform(anim: CombatAnimationState): CombatAnimationTransformOutput {
   const progress = anim.deathProgress;
+  const knockbackProgress = easeOutPower(progress, DEATH_KNOCKBACK_EASE_POWER);
+  const scaleProgress = getDelayedProgress(progress, DEATH_SCALE_DELAY_RATIO);
+  const scale = 1 - Math.pow(scaleProgress, DEATH_SCALE_EASE_POWER);
 
   return {
-    scale: 1 - progress,
-    yShift: anim.deathKnockbackY,
+    scale,
+    yShift: anim.deathKnockbackY * knockbackProgress,
     tint: null,
     alpha: 1 - progress,
-    xShift: anim.deathKnockbackX,
+    xShift: anim.deathKnockbackX * knockbackProgress,
   };
+}
+
+function getDelayedProgress(progress: number, delayRatio: number): number {
+  if (progress <= delayRatio) {
+    return 0;
+  }
+
+  return Math.min(1, (progress - delayRatio) / (1 - delayRatio));
+}
+
+function easeOutPower(progress: number, power: number): number {
+  return 1 - Math.pow(1 - progress, power);
 }

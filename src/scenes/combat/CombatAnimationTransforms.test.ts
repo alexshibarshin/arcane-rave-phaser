@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import {
   advanceAnimationState,
   expireAnimationTimers,
@@ -356,7 +357,15 @@ describe('computeAnimationTransform', () => {
       scaleMultiplier: 1,
     });
 
-    expect(result.scale).toBe(0.5);
+    const normalizedScaleProgress = (
+      deathAnim.deathProgress - CombatVisualConfig.ANIMATION.DEATH_SCALE_DELAY_RATIO
+    ) / (1 - CombatVisualConfig.ANIMATION.DEATH_SCALE_DELAY_RATIO);
+    expect(result.scale).toBeCloseTo(
+      1 - Math.pow(
+        normalizedScaleProgress,
+        CombatVisualConfig.ANIMATION.DEATH_SCALE_EASE_POWER,
+      ),
+    );
     expect(result.alpha).toBe(0.5);
     expect(result.tint).toBeNull();
     expect(result.yShift).toBe(0);
@@ -379,10 +388,55 @@ describe('computeAnimationTransform', () => {
     expect(result.alpha).toBe(0);
   });
 
+  it('death keeps full scale during the configured startup delay', () => {
+    const delayProgress = CombatVisualConfig.ANIMATION.DEATH_SCALE_DELAY_RATIO / 2;
+    const deathAnim: CombatAnimationState = {
+      ...baseAnim,
+      deathProgress: delayProgress,
+    };
+    const result = computeAnimationTransform({
+      anim: deathAnim,
+      enemyState: 'dead',
+      elapsed: 0,
+      deltaMs: 16.67,
+      scaleMultiplier: 1,
+    });
+
+    expect(result.scale).toBe(1);
+    expect(result.alpha).toBeCloseTo(1 - delayProgress);
+  });
+
   it('death applies knockback offset', () => {
     const deathAnim: CombatAnimationState = {
       ...baseAnim,
       deathProgress: 0.5,
+      deathKnockbackX: 10,
+      deathKnockbackY: -5,
+    };
+    const result = computeAnimationTransform({
+      anim: deathAnim,
+      enemyState: 'dead',
+      elapsed: 0,
+      deltaMs: 16.67,
+      scaleMultiplier: 1,
+    });
+
+    const expectedKnockbackProgress = 1 - Math.pow(
+      1 - deathAnim.deathProgress,
+      CombatVisualConfig.ANIMATION.DEATH_KNOCKBACK_EASE_POWER,
+    );
+    expect(result.xShift).toBeCloseTo(
+      deathAnim.deathKnockbackX * expectedKnockbackProgress,
+    );
+    expect(result.yShift).toBeCloseTo(
+      deathAnim.deathKnockbackY * expectedKnockbackProgress,
+    );
+  });
+
+  it('death knockback reaches the full offset at progress=1', () => {
+    const deathAnim: CombatAnimationState = {
+      ...baseAnim,
+      deathProgress: 1,
       deathKnockbackX: 10,
       deathKnockbackY: -5,
     };

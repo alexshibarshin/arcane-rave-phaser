@@ -44,6 +44,7 @@ import {
   computeAnimationTransform,
   type CombatAnimationState,
 } from '@scenes/combat/CombatAnimationTransforms';
+import { computeDeathKnockbackOffset } from '@scenes/combat/CombatDeathKnockback';
 
 import { CombatStateSystem } from '@systems/CombatStateSystem';
 import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
@@ -91,6 +92,8 @@ export class CombatScene extends GameScene {
   private runtime?: CombatRuntime;
   private combatVfx?: CombatVfxSystem;
   private detachCombatVfxEvents?: () => void;
+  private needleTipX = 0;
+  private needleTipY = 0;
   private recordContainer?: Phaser.GameObjects.Container;
   private baseHpBarView?: CombatBaseHpBarView;
   private notePacketView?: CombatNotePacketView;
@@ -214,6 +217,8 @@ export class CombatScene extends GameScene {
 
   private renderStaticCombatLayout(): void {
     const model = createCombatRenderModel();
+    this.needleTipX = model.needle.tipX;
+    this.needleTipY = model.needle.tipY;
 
     ensureCombatNoteGlyphTexture(this);
     ensureCombatVfxTextures(this);
@@ -748,6 +753,12 @@ export class CombatScene extends GameScene {
       if (runtimeState === 'dead' && anim.lastState !== 'dead') {
         anim.deathStartX = enemy.x;
         anim.deathStartY = enemy.y;
+        const knockback = computeDeathKnockbackOffset(
+          { x: this.needleTipX, y: this.needleTipY },
+          { x: enemy.x, y: enemy.y },
+        );
+        anim.deathKnockbackX = knockback.x;
+        anim.deathKnockbackY = knockback.y;
         anim.deathDurationMs = enemy.archetype === 'boss'
           ? CombatVisualConfig.ANIMATION.DEATH_BOSS_DURATION_MS
           : CombatVisualConfig.ANIMATION.DEATH_DURATION_MS;
@@ -774,7 +785,10 @@ export class CombatScene extends GameScene {
       });
 
       const container = enemyView.container;
-      container.setPosition(enemy.x + transform.xShift, enemy.y + transform.yShift);
+      // Freeze death presentation at the point of death so runtime movement cannot drift the fade-out.
+      const baseX = runtimeState === 'dead' ? anim.deathStartX : enemy.x;
+      const baseY = runtimeState === 'dead' ? anim.deathStartY : enemy.y;
+      container.setPosition(baseX + transform.xShift, baseY + transform.yShift);
       container.setScale(transform.scale);
       container.setAlpha(transform.alpha);
       if (transform.tint !== null) {

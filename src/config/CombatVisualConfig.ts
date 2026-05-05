@@ -29,6 +29,7 @@ export const CombatVisualConfig = {
   ENEMY: {
     BASE_BODY_WIDTH: 31,
     BASE_BODY_HEIGHT: 36,
+    KNOCKBACK_MAGNITUDE_PX: 100,
     SCALE_MULTIPLIERS: {
       basic: 1.0,
       tank: 1.6,
@@ -73,7 +74,10 @@ export const CombatVisualConfig = {
     MOVE_HOP_PERIOD_MS: 400,
     ATTACK_FLASH_DURATION_MS: 150,
     HIT_FLASH_DURATION_MS: 80,
-    DEATH_DURATION_MS: 500,
-    DEATH_BOSS_DURATION_MS: 1000,
+    DEATH_DURATION_MS: 300,
+    DEATH_BOSS_DURATION_MS: 500,
+    DEATH_SCALE_DELAY_RATIO: 0.18,
+    DEATH_SCALE_EASE_POWER: 2.4,
+    DEATH_KNOCKBACK_EASE_POWER: 3,
   },
 } as const;
