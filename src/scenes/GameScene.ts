@@ -35,9 +35,10 @@ export class GameScene extends Phaser.Scene {
     this.createSceneContent();
 
     const overlaySceneKey = this.getOverlaySceneKey();
+    const overlaySceneData = this.getOverlaySceneData();
 
     if (overlaySceneKey && !this.scene.isActive(overlaySceneKey)) {
-      this.scene.launch(overlaySceneKey);
+      this.scene.launch(overlaySceneKey, overlaySceneData);
     }
 
     emit('scene:ready', { key: this.scene.key });
@@ -78,6 +79,10 @@ export class GameScene extends Phaser.Scene {
 
   protected getOverlaySceneKey(): string | null {
     return SceneKeys.UI;
+  }
+
+  protected getOverlaySceneData(): Record<string, unknown> | undefined {
+    return undefined;
   }
 
   protected registerRootEntity<T extends IRenderable>(entity: T): T {

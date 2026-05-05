@@ -16,6 +16,7 @@ export class CombatDebugInputSystem extends InputSystem {
   constructor(
     scene: Phaser.Scene,
     private readonly getRuntime: () => CombatRuntime | undefined,
+    private readonly allowRestart: boolean = true,
   ) {
     super(scene);
   }
@@ -39,12 +40,20 @@ export class CombatDebugInputSystem extends InputSystem {
     }
 
     if (
-      this.restartKey
+      this.allowRestart
+      && this.restartKey
       && Phaser.Input.Keyboard.JustDown(this.restartKey)
       && resolveCombatControlIntent(runtime.state, { restartPressed: true }) === 'restart'
     ) {
       restartCombatScenes(this.scene.scene, SceneKeys.HUD);
       emit('combat:restarted');
+      return;
+    }
+
+    if (
+      this.restartKey
+      && Phaser.Input.Keyboard.JustDown(this.restartKey)
+    ) {
       return;
     }
 

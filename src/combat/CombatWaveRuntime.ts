@@ -1,5 +1,4 @@
 import {
-  CombatWaveConfig,
   type CombatSubWaveConfig,
   type CombatWaveDefinition,
 } from '@config/CombatWaveConfig';
@@ -85,12 +84,16 @@ export function calculateCombatEnemiesRemaining(runtime: CombatRuntime): number 
   return livingEnemies + pendingInBags + pendingInSubWaves;
 }
 
-export function createInitialCombatWaveState(): CombatRuntime['wave'] {
-  const initialWave = CombatWaveConfig.WAVES[0];
+export function createInitialCombatWaveState(
+  currentWaveIndex: number,
+  totalWaves: number,
+  waveDefinition: CombatWaveDefinition,
+): CombatRuntime['wave'] {
+  const initialWave = waveDefinition;
 
   return {
-    currentWaveIndex: 0,
-    totalWaves: CombatWaveConfig.WAVES.length,
+    currentWaveIndex,
+    totalWaves,
     currentWaveId: initialWave?.id ?? null,
     activeSubWaves: [],
     pendingSubWaves: [...(initialWave?.subWaves ?? [])],

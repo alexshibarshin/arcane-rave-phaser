@@ -1,6 +1,6 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatContentConfig } from '@config/CombatContentConfig';
-import { CombatWaveConfig } from '@config/CombatWaveConfig';
+import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { resolveCombatActivations } from './CombatActivation';
 import { advanceCombatEnemyPressure } from './CombatEnemyPressure';
@@ -108,10 +108,18 @@ interface CombatRuntimeAdvanceOptions {
   random?: () => number;
 }
 
+export interface CreateCombatRuntimeOptions {
+  waveIndex?: number;
+  totalWaves?: number;
+}
+
 export function createCombatRuntime(
   random: () => number = Math.random,
+  options: CreateCombatRuntimeOptions = {},
 ): CombatRuntime {
-  const initialWave = CombatWaveConfig.WAVES[0];
+  const waveIndex = options.waveIndex ?? 0;
+  const totalWaves = options.totalWaves ?? CombatWaveConfig.WAVES.length;
+  const initialWave = getCombatWaveDefinition(waveIndex);
   const startAngle = initialWave?.startAngleDeg ?? CombatBalanceConfig.RECORD_START_ANGLE_DEG;
   const layout = createCombatLayoutPlan();
   const slotAnchorRadius = layout.record.radius * 0.75;
@@ -159,7 +167,7 @@ export function createCombatRuntime(
       visuals: [],
     },
     enemies,
-    wave: createInitialCombatWaveState(),
+    wave: createInitialCombatWaveState(waveIndex, totalWaves, initialWave),
     outcome: {
       victory: false,
       defeat: false,

@@ -1,5 +1,6 @@
 import { Events } from 'phaser';
 import type { CombatState, NoteColor } from '@combat/CombatRuntime';
+import type { StagePhase } from '@stage/StageRuntime';
 
 /**
  * Глобальный типизированный EventBus.
@@ -13,6 +14,18 @@ export interface EventMap {
   'scene:ready': { key: string };
   'scene:shutdown': { key: string };
   'ui:ready': void;
+  'stage:scene-ready': { key: string; phase: StagePhase };
+  'stage:start-wave-requested': void;
+  'stage:phase-changed': { phase: StagePhase };
+  'stage:snapshot-updated': {
+    phase: StagePhase;
+    coins: number;
+    currentWave: number;
+    totalWaves: number;
+    canStartWave: boolean;
+    previewTitle: string;
+    previewBody: string;
+  };
   'combat:scene-ready': { key: string; state: CombatState };
   'combat:hud-ready': { key: string };
   'combat:restarted': void;

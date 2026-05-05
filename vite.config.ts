@@ -12,6 +12,7 @@ export default defineConfig({
       '@systems': fromRoot('./src/systems'),
       '@scenes': fromRoot('./src/scenes'),
       '@combat': fromRoot('./src/combat'),
+      '@stage': fromRoot('./src/stage'),
       '@render': fromRoot('./src/render'),
       '@utils': fromRoot('./src/utils'),
       '@app-types': fromRoot('./src/types'),

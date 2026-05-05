@@ -89,8 +89,19 @@ interface CombatNotePacketView {
   glyphs: Map<string, Phaser.GameObjects.Image>;
 }
 
+interface CombatSceneInitData {
+  waveIndex?: number;
+  totalWaves?: number;
+  stageManaged?: boolean;
+  allowRestart?: boolean;
+}
+
 export class CombatScene extends GameScene {
   private runtime?: CombatRuntime;
+  private waveIndex = 0;
+  private totalWaves = 1;
+  private stageManaged = false;
+  private allowRestart = true;
   private combatVfx?: CombatVfxSystem;
   private detachCombatVfxEvents?: () => void;
   private needleTipX = 0;
@@ -115,6 +126,10 @@ export class CombatScene extends GameScene {
   private readonly baseHitPool: Phaser.GameObjects.Image[] = [];
   private readonly damageNumbers: CombatDamageNumber[] = [];
   private readonly handleRestartRequested = (): void => {
+    if (!this.allowRestart) {
+      return;
+    }
+
     restartCombatScenes(this.scene, SceneKeys.HUD);
     emit('combat:restarted');
   };
@@ -151,6 +166,13 @@ export class CombatScene extends GameScene {
     super(SceneKeys.COMBAT);
   }
 
+  init(data: CombatSceneInitData = {}): void {
+    this.waveIndex = data.waveIndex ?? 0;
+    this.totalWaves = data.totalWaves ?? 1;
+    this.stageManaged = data.stageManaged ?? false;
+    this.allowRestart = data.allowRestart ?? true;
+  }
+
   create(): void {
     super.create();
     emit('combat:scene-ready', {
@@ -165,7 +187,10 @@ export class CombatScene extends GameScene {
   }
 
   protected createSceneContent(): void {
-    this.runtime = createCombatRuntime();
+    this.runtime = createCombatRuntime(Math.random, {
+      waveIndex: this.waveIndex,
+      totalWaves: this.totalWaves,
+    });
     this.renderStaticCombatLayout();
     on('combat:pause-requested', this.handlePauseRequested);
     on('combat:restart-requested', this.handleRestartRequested);
@@ -208,11 +233,15 @@ export class CombatScene extends GameScene {
       this.baseHpBarView = undefined;
       this.baseVfxAnchor = undefined;
       this.recordContainer = undefined;
+      this.waveIndex = 0;
+      this.totalWaves = 1;
+      this.stageManaged = false;
+      this.allowRestart = true;
     });
   }
 
   protected createInputSystems(): InputSystem[] {
-    return [new CombatDebugInputSystem(this, () => this.runtime)];
+    return [new CombatDebugInputSystem(this, () => this.runtime, this.allowRestart)];
   }
 
   protected createSimulationSystems(): SimulationSystem[] {
@@ -223,8 +252,14 @@ export class CombatScene extends GameScene {
     return SceneKeys.HUD;
   }
 
+  protected getOverlaySceneData(): Record<string, unknown> | undefined {
+    return {
+      allowRestart: this.allowRestart,
+    };
+  }
+
   private renderStaticCombatLayout(): void {
-    const model = createCombatRenderModel();
+    const model = createCombatRenderModel({ waveIndex: this.waveIndex });
     this.needleTipX = model.needle.tipX;
     this.needleTipY = model.needle.tipY;
 

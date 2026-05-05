@@ -26,6 +26,6 @@ export class BootScene extends Phaser.Scene {
 
     emit('scene:ready', { key: this.scene.key });
 
-    this.scene.start(SceneKeys.COMBAT);
+    this.scene.start(SceneKeys.STAGE);
   }
 }

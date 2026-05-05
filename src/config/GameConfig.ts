@@ -16,6 +16,7 @@ export const GameConfig = {
  */
 export const SceneKeys = {
   BOOT: 'BootScene',
+  STAGE: 'StageScene',
   GAME: 'GameScene',
   UI: 'UIScene',
   COMBAT: 'CombatScene',

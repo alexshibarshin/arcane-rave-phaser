@@ -7,7 +7,7 @@ import {
   type PawnType,
 } from '@config/CombatContentConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
-import { CombatWaveConfig } from '@config/CombatWaveConfig';
+import { getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { GameConfig } from '@config/GameConfig';
 import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 import { createCombatLayoutPlan } from './CombatLayout';
@@ -202,7 +202,13 @@ export interface CombatRenderModel {
   enemies: CombatEnemyRenderModel[];
 }
 
-export function createCombatRenderModel(): CombatRenderModel {
+export interface CreateCombatRenderModelOptions {
+  waveIndex?: number;
+}
+
+export function createCombatRenderModel(
+  options: CreateCombatRenderModelOptions = {},
+): CombatRenderModel {
   const layout = createCombatLayoutPlan();
   const innerZoneRadius = layout.record.radius * CombatLayoutConfig.RECORD_INNER_ZONE_RADIUS_RATIO;
   const hpBarY = layout.base.y + layout.base.height / 2 + 24;
@@ -213,7 +219,7 @@ export function createCombatRenderModel(): CombatRenderModel {
   const enemyDefinitionsById = new Map(
     CombatContentConfig.ENEMY_DEFINITIONS.map((enemy) => [enemy.id, enemy]),
   );
-  const activeWave = CombatWaveConfig.WAVES[0];
+  const activeWave = getCombatWaveDefinition(options.waveIndex ?? 0);
   const activePreset = CombatContentConfig.SLOT_PRESETS.find(
     (preset) => preset.id === activeWave?.slotPresetId,
   );

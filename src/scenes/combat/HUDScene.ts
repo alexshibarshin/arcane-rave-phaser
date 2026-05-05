@@ -8,6 +8,7 @@ import { UIScene } from '@scenes/UIScene';
 import type { CombatState } from '@combat/CombatRuntime';
 
 export class HUDScene extends UIScene {
+  private allowRestart = true;
   private pauseButton?: Phaser.GameObjects.Container;
   private stateLabel?: Phaser.GameObjects.Text;
   private waveLabel?: Phaser.GameObjects.Text;
@@ -19,6 +20,10 @@ export class HUDScene extends UIScene {
 
   constructor() {
     super(SceneKeys.HUD);
+  }
+
+  init(data: { allowRestart?: boolean } = {}): void {
+    this.allowRestart = data.allowRestart ?? true;
   }
 
   create(): void {
@@ -243,7 +248,9 @@ export class HUDScene extends UIScene {
 
   private syncOverlay(state: CombatState): void {
     const overlayText = getCombatOverlayText(state);
-    const overlayActions = getCombatOverlayActions(state);
+    const overlayActions = getCombatOverlayActions(state).filter(
+      (action) => this.allowRestart || action !== 'Restart',
+    );
     const isVisible = overlayText !== null;
 
     this.overlayBackdrop?.setVisible(isVisible);
@@ -261,6 +268,7 @@ export class HUDScene extends UIScene {
     off('combat:state-changed', this.handleStateChanged);
     off('combat:hud-wave-updated', this.handleWaveUpdated);
     off('combat:hud-enemies-updated', this.handleEnemiesUpdated);
+    this.allowRestart = true;
     this.pauseButton?.off('pointerdown', this.handlePausePressed);
     this.overlayResumeButton?.off('pointerdown', this.handleResumePressed);
     this.overlayRestartButton?.off('pointerdown', this.handleRestartPressed);

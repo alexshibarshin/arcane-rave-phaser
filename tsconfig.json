@@ -23,6 +23,7 @@
       "@systems/*": ["./src/systems/*"],
       "@scenes/*": ["./src/scenes/*"],
       "@combat/*": ["./src/combat/*"],
+      "@stage/*": ["./src/stage/*"],
       "@render/*": ["./src/render/*"],
       "@utils/*": ["./src/utils/*"],
       "@app-types/*": ["./src/types/*"]

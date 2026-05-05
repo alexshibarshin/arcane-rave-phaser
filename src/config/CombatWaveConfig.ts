@@ -128,3 +128,13 @@ export function validateCombatWaveConfig(
 validateCombatWaveConfig(combatWaveConfig.WAVES, CombatContentConfig);
 
 export const CombatWaveConfig = combatWaveConfig;
+
+export function getCombatWaveDefinition(waveIndex: number): CombatWaveDefinition {
+  const wave = CombatWaveConfig.WAVES[waveIndex];
+
+  if (!wave) {
+    throw new Error(`Combat wave at index ${waveIndex} is not defined.`);
+  }
+
+  return wave;
+}

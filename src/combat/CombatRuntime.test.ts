@@ -62,6 +62,21 @@ describe('createCombatRuntime', () => {
     });
   });
 
+  it('can initialize combat from a non-zero authored wave index', () => {
+    const runtime = createCombatRuntime(Math.random, {
+      waveIndex: 1,
+      totalWaves: CombatWaveConfig.WAVES.length,
+    });
+    const selectedWave = CombatWaveConfig.WAVES[1];
+
+    expect(runtime.wave.currentWaveIndex).toBe(1);
+    expect(runtime.wave.currentWaveId).toBe(selectedWave?.id ?? null);
+    expect(runtime.record.startAngle).toBe(selectedWave?.startAngleDeg ?? 0);
+    expect(runtime.wave.pendingSubWaves).toEqual(
+      selectedWave?.subWaves.filter((sw) => sw.startTimeMs > 0) ?? [],
+    );
+  });
+
   it('centralizes note packet updates with capacity clamping and fresh visual ids', () => {
     const runtime = createCombatRuntime();
 
