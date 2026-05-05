@@ -139,6 +139,7 @@ export function purchaseStagePawnIntoMergeSlot(
   }
 
   runtime.coins -= StageFlowConfig.SHOP_PURCHASE_COST;
+  grantStageMergeReward(runtime);
   return true;
 }
 
@@ -148,7 +149,14 @@ export function mergeStagePawnSlots(
   toSlotIndex: number,
   random: () => number = Math.random,
 ): boolean {
-  return mergeStagePawn(runtime.build, fromSlotIndex, toSlotIndex, random);
+  const merged = mergeStagePawn(runtime.build, fromSlotIndex, toSlotIndex, random);
+
+  if (!merged) {
+    return false;
+  }
+
+  grantStageMergeReward(runtime);
+  return true;
 }
 
 export function getStageCombatLoadout(runtime: StageRuntime): Array<string | null> {
@@ -183,4 +191,12 @@ export function rerollStageShopOffers(
 
   runtime.coins -= rerollCost;
   return true;
+}
+
+function grantStageMergeReward(runtime: StageRuntime): void {
+  if (StageFlowConfig.MERGE_REWARD_COINS <= 0) {
+    return;
+  }
+
+  runtime.coins += StageFlowConfig.MERGE_REWARD_COINS;
 }

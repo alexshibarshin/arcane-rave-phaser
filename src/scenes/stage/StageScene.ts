@@ -18,6 +18,7 @@ import {
 } from '@stage/StageRuntime';
 import { getStageBuildSlotPawnIds, type StagePawnInstance } from '@stage/StageBuild';
 import { createStageWavePreview } from '@stage/StageWavePreview';
+import { getStageCoinFeedback } from './StageCoinFeedback';
 import {
   createStageFlowCoordinationState,
   dispatchStageFlowIntent,
@@ -63,7 +64,9 @@ type DragPayload =
 export class StageScene extends Phaser.Scene {
   private runtime!: StageRuntime;
   private phaseLabel?: Phaser.GameObjects.Text;
+  private coinsGlowLabel?: Phaser.GameObjects.Text;
   private coinsLabel?: Phaser.GameObjects.Text;
+  private coinFeedbackLabel?: Phaser.GameObjects.Text;
   private waveLabel?: Phaser.GameObjects.Text;
   private previewBodyLabel?: Phaser.GameObjects.Text;
   private previewArchetypeLabel?: Phaser.GameObjects.Text;
@@ -81,6 +84,7 @@ export class StageScene extends Phaser.Scene {
   private readonly shopCardViews: StageShopCardView[] = [];
   private activeDropSlotIndex: number | null = null;
   private transientStatusText: string | null = null;
+  private lastPresentedCoins: number | null = null;
   private readonly stageFlowCoordination: StageFlowCoordinationState = createStageFlowCoordinationState();
   private synergySystem?: SynergyVisualSystem;
 
@@ -135,12 +139,33 @@ export class StageScene extends Phaser.Scene {
       fontSize: '22px',
     });
 
+    this.coinsGlowLabel = this.add.text(width - 52, 50, '', {
+      color: '#fff0b8',
+      fontFamily: 'monospace',
+      fontSize: '22px',
+      align: 'right',
+    }).setOrigin(1, 0).setAlpha(0).setScale(1);
+    this.coinsGlowLabel.setBlendMode(Phaser.BlendModes.ADD);
+    this.coinsGlowLabel.setShadow(0, 0, '#ffe08e', 22, true, true);
+
     this.coinsLabel = this.add.text(width - 52, 50, '', {
       color: '#ffe08e',
       fontFamily: 'monospace',
       fontSize: '22px',
       align: 'right',
     }).setOrigin(1, 0);
+    this.coinsLabel.setShadow(0, 0, '#6f5317', 8, false, true);
+
+    this.coinFeedbackLabel = this.add.text(width / 2, StagePresentationConfig.COIN_FEEDBACK_Y, '', {
+      color: '#8ef7b2',
+      fontFamily: 'monospace',
+      fontSize: '48px',
+      fontStyle: 'bold',
+      stroke: '#071019',
+      strokeThickness: 8,
+      align: 'center',
+    }).setOrigin(0.5, 0.5).setAlpha(0).setVisible(false);
+    this.coinFeedbackLabel.setShadow(0, 8, '#071019', 16, true, true);
 
     this.waveLabel = this.add.text(width / 2, 60, '', {
       color: '#f5f7ff',
@@ -857,8 +882,10 @@ export class StageScene extends Phaser.Scene {
       ? createStageWavePreview(wave, currentWave, this.runtime.totalWaves)
       : null;
 
+    const coinsText = `Coins ${this.runtime.coins}`;
     this.phaseLabel?.setText(getPhaseLabel(this.runtime.phase));
-    this.coinsLabel?.setText(`Coins ${this.runtime.coins}`);
+    this.coinsGlowLabel?.setText(coinsText);
+    this.coinsLabel?.setText(coinsText);
     this.waveLabel?.setText(
       this.runtime.totalWaves > 0
         ? `Wave ${currentWave}/${this.runtime.totalWaves}`
@@ -894,6 +921,8 @@ export class StageScene extends Phaser.Scene {
     this.previewCard?.setVisible(buildVisible);
     this.waveLabel?.setVisible(buildVisible);
     this.statusLabel?.setVisible(buildVisible);
+
+    this.playCoinFeedbackIfNeeded();
   }
 
   private publishSnapshot(): void {
@@ -917,6 +946,58 @@ export class StageScene extends Phaser.Scene {
 
   private canStageStartWave(): boolean {
     return this.runtime.phase === 'build' && this.runtime.currentWaveIndex < this.runtime.totalWaves;
+  }
+
+  private playCoinFeedbackIfNeeded(): void {
+    const feedback = getStageCoinFeedback(this.lastPresentedCoins, this.runtime.coins, this.runtime.phase);
+    this.lastPresentedCoins = this.runtime.coins;
+
+    if (!feedback || !this.coinFeedbackLabel || !this.coinsGlowLabel) {
+      return;
+    }
+
+    this.tweens.killTweensOf(this.coinFeedbackLabel);
+    this.tweens.killTweensOf(this.coinsGlowLabel);
+
+    this.coinFeedbackLabel
+      .setText(feedback.label)
+      .setColor(feedback.color)
+      .setY(StagePresentationConfig.COIN_FEEDBACK_Y)
+      .setScale(0.78)
+      .setAlpha(0)
+      .setVisible(true);
+
+    this.coinsGlowLabel
+      .setScale(1)
+      .setAlpha(0.18);
+
+    this.tweens.add({
+      targets: this.coinFeedbackLabel,
+      y: StagePresentationConfig.COIN_FEEDBACK_Y - StagePresentationConfig.COIN_FEEDBACK_FLOAT_Y,
+      scaleX: StagePresentationConfig.COIN_FEEDBACK_SCALE,
+      scaleY: StagePresentationConfig.COIN_FEEDBACK_SCALE,
+      alpha: 1,
+      duration: StagePresentationConfig.COIN_FEEDBACK_DURATION_MS * 0.42,
+      ease: 'Back.easeOut',
+      yoyo: true,
+      hold: 40,
+      onComplete: () => {
+        this.coinFeedbackLabel?.setVisible(false).setAlpha(0).setScale(1);
+      },
+    });
+
+    this.tweens.add({
+      targets: this.coinsGlowLabel,
+      alpha: 0.95,
+      scaleX: StagePresentationConfig.COIN_LABEL_GLOW_SCALE,
+      scaleY: StagePresentationConfig.COIN_LABEL_GLOW_SCALE,
+      duration: StagePresentationConfig.COIN_LABEL_GLOW_DURATION_MS,
+      ease: 'Sine.easeOut',
+      yoyo: true,
+      onComplete: () => {
+        this.coinsGlowLabel?.setAlpha(0).setScale(1);
+      },
+    });
   }
 
   private runStageFlowIntent(intent: StageFlowIntent): void {
@@ -1066,6 +1147,12 @@ export class StageScene extends Phaser.Scene {
     this.input.off(Phaser.Input.Events.DRAG_START);
     this.input.off(Phaser.Input.Events.DRAG);
     this.input.off(Phaser.Input.Events.DRAG_END);
+    if (this.coinFeedbackLabel) {
+      this.tweens.killTweensOf(this.coinFeedbackLabel);
+    }
+    if (this.coinsGlowLabel) {
+      this.tweens.killTweensOf(this.coinsGlowLabel);
+    }
     this.synergySystem?.destroy();
   }
 }

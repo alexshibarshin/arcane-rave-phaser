@@ -6,11 +6,13 @@ import {
   getStageCombatLoadoutSlots,
   getStageShopRerollCost,
   mergeStagePawnSlots,
+  purchaseStagePawnIntoMergeSlot,
   purchaseStagePawnIntoSlot,
   rerollStageShopOffers,
   requestStageWaveStart,
   resolveStageCombatOutcome,
 } from '@stage/StageRuntime';
+import { StageFlowConfig } from '@config/StageFlowConfig';
 
 describe('StageRuntime', () => {
   it('creates a build-phase runtime for authored stages', () => {
@@ -84,11 +86,39 @@ describe('StageRuntime', () => {
     expect(mergeStagePawnSlots(runtime, 0, 1, () => 0.5)).toBe(true);
 
     expect(runtime.build.slots[1]).toEqual({ pawnId: 'pawn-red-finisher', tier: 2 });
+    expect(runtime.coins).toBe(6);
     expect(getStageCombatLoadout(runtime)[1]).toBe('pawn-red-finisher');
     expect(getStageCombatLoadoutSlots(runtime)[1]).toEqual({
       pawnId: 'pawn-red-finisher',
       tier: 2,
     });
+  });
+
+  it('grants merge reward coins when buying a matching pawn from the shop into a merge', () => {
+    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 10 }, () => 0);
+
+    purchaseStagePawnIntoSlot(runtime, 0, 0);
+
+    expect(purchaseStagePawnIntoMergeSlot(runtime, 0, 0, () => 0.5)).toBe(true);
+    expect(runtime.coins).toBe(4);
+    expect(runtime.build.slots[0]).toEqual({ pawnId: 'pawn-red-finisher', tier: 2 });
+  });
+
+  it('disables merge reward coins when the config value is set to zero', () => {
+    const originalReward = StageFlowConfig.MERGE_REWARD_COINS;
+    (StageFlowConfig as { MERGE_REWARD_COINS: number }).MERGE_REWARD_COINS = 0;
+
+    try {
+      const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 12 }, () => 0);
+
+      purchaseStagePawnIntoSlot(runtime, 0, 0);
+      purchaseStagePawnIntoSlot(runtime, 0, 1);
+
+      expect(mergeStagePawnSlots(runtime, 0, 1, () => 0.5)).toBe(true);
+      expect(runtime.coins).toBe(2);
+    } finally {
+      (StageFlowConfig as { MERGE_REWARD_COINS: number }).MERGE_REWARD_COINS = originalReward;
+    }
   });
 
   it('rerolls the shop, spends coins, and increases reroll cost inside the build phase', () => {

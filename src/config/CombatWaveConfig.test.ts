@@ -3,15 +3,17 @@ import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatWaveConfig, validateCombatWaveConfig } from '@config/CombatWaveConfig';
 
 describe('CombatWaveConfig', () => {
-  it('uses wave-test-all as the default development wave while keeping wave-1 available', () => {
-    expect(CombatWaveConfig.WAVES[0]?.id).toBe('wave-test-all');
-    expect(CombatWaveConfig.WAVES[1]?.id).toBe('wave-1');
+  it('keeps the authored starter wave and the full-archetype coverage wave available', () => {
+    const waveIds = CombatWaveConfig.WAVES.map((wave) => wave.id);
+
+    expect(waveIds).toContain('wave-1');
+    expect(waveIds).toContain('wave-3');
   });
 
-  it('defines wave-test-all with one enemy per archetype across red, green, and blue sub-waves', () => {
-    const testWave = CombatWaveConfig.WAVES[0];
+  it('defines wave-3 with one enemy per archetype across red, green, and blue sub-waves', () => {
+    const testWave = CombatWaveConfig.WAVES.find((wave) => wave.id === 'wave-3');
 
-    expect(testWave?.id).toBe('wave-test-all');
+    expect(testWave?.id).toBe('wave-3');
     expect(testWave?.slotPresetId).toBe('preset-starter-1');
     expect(testWave?.subWaves).toHaveLength(3);
     expect(testWave?.subWaves.map((subWave) => subWave.id)).toEqual([
