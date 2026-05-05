@@ -30,7 +30,6 @@ interface StageShopCardView {
   offerIndex: number;
   pawnId: string;
   container: Phaser.GameObjects.Container;
-  hitZone: Phaser.GameObjects.Zone;
 }
 
 type DragPayload =
@@ -47,18 +46,6 @@ type DragPayload =
       pawnId: string;
       homeX: number;
       homeY: number;
-    };
-
-type PendingSelection =
-  | {
-      kind: 'shop-offer';
-      offerIndex: number;
-      pawnId: string;
-    }
-  | {
-      kind: 'slot-pawn';
-      slotIndex: number;
-      pawnId: string;
     };
 
 export class StageScene extends Phaser.Scene {
@@ -81,7 +68,6 @@ export class StageScene extends Phaser.Scene {
   private activeDropSlotIndex: number | null = null;
   private isTransitioning = false;
   private transientStatusText: string | null = null;
-  private pendingSelection: PendingSelection | null = null;
 
   constructor() {
     super({ key: SceneKeys.STAGE });
@@ -279,7 +265,6 @@ export class StageScene extends Phaser.Scene {
       zone.setRectangleDropZone(120, 120);
       zone.setOrigin(0.5, 0.5);
       zone.setInteractive();
-      zone.on('pointerdown', () => this.handleSlotPressed(slotIndex));
 
       container.add([slotArc, slotChip, label, glow, zone]);
 
@@ -364,9 +349,6 @@ export class StageScene extends Phaser.Scene {
 
         gameObject.setDepth(5000);
         gameObject.setScale(1.06);
-        this.pendingSelection = null;
-        this.transientStatusText = null;
-        this.syncPresentation();
       },
     );
 
@@ -405,20 +387,23 @@ export class StageScene extends Phaser.Scene {
         gameObject.setScale(1);
 
         let applied = false;
+        let errorMsg: string | null = null;
 
         if (payload.kind === 'shop-offer' && targetSlotIndex !== null) {
           applied = purchaseStagePawnIntoSlot(this.runtime, payload.offerIndex, targetSlotIndex);
-          this.transientStatusText = applied
+          errorMsg = applied
             ? null
             : `Need ${StageFlowConfig.SHOP_PURCHASE_COST} coins and an empty slot to buy.`;
         }
 
         if (payload.kind === 'slot-pawn' && targetSlotIndex !== null) {
           applied = repositionStagePawn(this.runtime, payload.slotIndex, targetSlotIndex);
-          this.transientStatusText = applied
+          errorMsg = applied
             ? null
             : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
         }
+
+        this.transientStatusText = errorMsg;
 
         this.clearSlotHighlights();
 
@@ -515,8 +500,8 @@ export class StageScene extends Phaser.Scene {
     container.add([graphics, typeLabel, colorLabel]);
     container.setSize(92, 92);
     container.setInteractive(
-      new Phaser.Geom.Circle(0, 0, 46),
-      Phaser.Geom.Circle.Contains,
+      new Phaser.Geom.Rectangle(0, 0, 84, 84),
+      Phaser.Geom.Rectangle.Contains,
     );
     this.input.setDraggable(container);
     container.setData('dragPayload', {
@@ -531,22 +516,11 @@ export class StageScene extends Phaser.Scene {
       container.input.cursor = 'grab';
     }
 
-    container.on('pointerdown', () => {
-      this.pendingSelection = {
-        kind: 'slot-pawn',
-        slotIndex,
-        pawnId: pawn.id,
-      };
-      this.transientStatusText = `Selected ${formatPawnTitle(pawn)}. Tap another slot to move or swap.`;
-      this.syncPresentation();
-    });
-
     return container;
   }
 
   private refreshShopCards(): void {
     this.shopCardViews.forEach((card) => {
-      card.hitZone.destroy();
       card.container.destroy();
     });
     this.shopCardViews.length = 0;
@@ -581,7 +555,6 @@ export class StageScene extends Phaser.Scene {
     pawn: CombatPawnDefinition,
   ): StageShopCardView {
     const container = this.add.container(x, y);
-    const hitZone = this.add.zone(x, y, StagePresentationConfig.SHOP_CARD_WIDTH, StagePresentationConfig.SHOP_CARD_HEIGHT);
     const graphics = this.add.graphics();
     const width = StagePresentationConfig.SHOP_CARD_WIDTH;
     const height = StagePresentationConfig.SHOP_CARD_HEIGHT;
@@ -630,7 +603,7 @@ export class StageScene extends Phaser.Scene {
     container.add([graphics, badge, title, subtitle, price]);
     container.setSize(width, height);
     container.setInteractive(
-      new Phaser.Geom.Rectangle(left, top, width, height),
+      new Phaser.Geom.Rectangle(0, 0, width, height),
       Phaser.Geom.Rectangle.Contains,
     );
     this.input.setDraggable(container);
@@ -646,24 +619,10 @@ export class StageScene extends Phaser.Scene {
       container.input.cursor = 'grab';
     }
 
-    hitZone.setInteractive({ useHandCursor: true });
-    hitZone.on('pointerdown', () => {
-      this.pendingSelection = {
-        kind: 'shop-offer',
-        offerIndex,
-        pawnId: pawn.id,
-      };
-      this.transientStatusText = `Selected ${formatPawnTitle(pawn)}. Tap an empty slot to buy it.`;
-      this.syncPresentation();
-    });
-
-    this.shopCardsLayer?.add(hitZone);
-
     return {
       offerIndex,
       pawnId: pawn.id,
       container,
-      hitZone,
     };
   }
 
@@ -678,7 +637,6 @@ export class StageScene extends Phaser.Scene {
 
     this.isTransitioning = true;
     this.transientStatusText = null;
-    this.pendingSelection = null;
     emit('stage:phase-changed', { phase: this.runtime.phase });
     this.publishSnapshot();
     this.syncPresentation();
@@ -709,7 +667,6 @@ export class StageScene extends Phaser.Scene {
     }
 
     this.transientStatusText = null;
-    this.pendingSelection = null;
     this.refreshBuildUI();
     this.publishSnapshot();
     this.playBuildPhaseIntro(true);
@@ -924,51 +881,6 @@ export class StageScene extends Phaser.Scene {
     return closestDistance <= 88 ? closestSlotIndex : null;
   }
 
-  private handleSlotPressed(slotIndex: number): void {
-    if (this.runtime.phase !== 'build' || this.isTransitioning) {
-      return;
-    }
-
-    if (!this.pendingSelection) {
-      const pawnId = this.runtime.build.slots[slotIndex];
-      if (!pawnId) {
-        return;
-      }
-
-      this.pendingSelection = {
-        kind: 'slot-pawn',
-        slotIndex,
-        pawnId,
-      };
-      this.transientStatusText = `Selected ${formatPawnTitleFromId(pawnId)}. Tap another slot to move or swap.`;
-      this.syncPresentation();
-      return;
-    }
-
-    let applied = false;
-
-    if (this.pendingSelection.kind === 'shop-offer') {
-      applied = purchaseStagePawnIntoSlot(this.runtime, this.pendingSelection.offerIndex, slotIndex);
-      this.transientStatusText = applied
-        ? null
-        : `Need ${StageFlowConfig.SHOP_PURCHASE_COST} coins and an empty slot to buy.`;
-    } else {
-      applied = repositionStagePawn(this.runtime, this.pendingSelection.slotIndex, slotIndex);
-      this.transientStatusText = applied
-        ? null
-        : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
-    }
-
-    if (!applied) {
-      this.syncPresentation();
-      return;
-    }
-
-    this.pendingSelection = null;
-    this.refreshBuildUI();
-    this.publishSnapshot();
-  }
-
   private fillSector(
     graphics: Phaser.GameObjects.Graphics,
     centerX: number,
@@ -1088,11 +1000,6 @@ function getPawnAccentColor(color: CombatPawnDefinition['color']): number {
 function formatPawnTitle(pawn: CombatPawnDefinition): string {
   const typeLabel = pawn.type === 'generator' ? 'Generator' : 'Finisher';
   return `${capitalize(pawn.color)} ${typeLabel}`;
-}
-
-function formatPawnTitleFromId(pawnId: string): string {
-  const pawn = findPawnDefinition(pawnId);
-  return pawn ? formatPawnTitle(pawn) : pawnId;
 }
 
 function getPawnShopSubtitle(pawn: CombatPawnDefinition): string {
