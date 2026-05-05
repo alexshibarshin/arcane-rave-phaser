@@ -347,6 +347,20 @@ function createEnemyRenderModel(
   enemyRuntime: ReturnType<typeof createCombatEnemyRuntimes>[number],
   definition: CombatEnemyDefinition,
 ): CombatEnemyRenderModel {
+  const scaleMultiplier =
+    CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS[
+      definition.archetype as keyof typeof CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS
+    ] ?? 1;
+  const bodyWidth = CombatVisualConfig.ENEMY.BASE_BODY_WIDTH * scaleMultiplier;
+  const bodyHeight = CombatVisualConfig.ENEMY.BASE_BODY_HEIGHT * scaleMultiplier;
+  const hpBarWidth = Math.max(
+    CombatVisualConfig.ENEMY.HP_BAR_WIDTH,
+    Math.round(CombatVisualConfig.ENEMY.HP_BAR_WIDTH * Math.min(scaleMultiplier, 1.9)),
+  );
+  const hpBarOffsetY = Math.round(
+    CombatVisualConfig.ENEMY.HP_BAR_OFFSET_Y - (bodyHeight - CombatVisualConfig.ENEMY.BASE_BODY_HEIGHT) * 0.45,
+  );
+
   return {
     runtimeId: enemyRuntime.runtimeId,
     definitionId: definition.id,
@@ -362,12 +376,12 @@ function createEnemyRenderModel(
       silhouetteKey: `enemy-${definition.archetype}`,
       variantKey: definition.visualKey,
       color: CombatVisualConfig.NOTE_COLORS[definition.color],
-      width: CombatVisualConfig.ENEMY.BODY_WIDTH,
-      height: CombatVisualConfig.ENEMY.BODY_HEIGHT,
+      width: bodyWidth,
+      height: bodyHeight,
     },
     hpBar: {
-      offsetY: CombatVisualConfig.ENEMY.HP_BAR_OFFSET_Y,
-      width: CombatVisualConfig.ENEMY.HP_BAR_WIDTH,
+      offsetY: hpBarOffsetY,
+      width: hpBarWidth,
       height: CombatVisualConfig.ENEMY.HP_BAR_HEIGHT,
     },
     attachments: {

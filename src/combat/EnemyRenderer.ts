@@ -1,27 +1,16 @@
 import * as Phaser from 'phaser';
 import {
-  drawRectangle,
-  drawTrapezoid,
   drawWideRectangle,
   drawOval,
-  drawVShape,
   drawHexagon,
-  drawThinRectangle,
   drawCapsule,
-  drawShortLeg,
-  drawCrown,
-  drawHeadBasic,
-  drawHeadTank,
-  drawHeadFast,
-  drawHeadRanged,
-  drawHeadSwarm,
-  drawHeadBoss,
 } from './EnemyShapePrimitives';
 
 // ─── Archetype render functions ─────────────────────────────────────────────
 
 /**
- * Draw a basic enemy: rounded-rect torso, circle head, line limbs, dot eyes.
+ * Draw a basic enemy: rectangle torso + shoulder trapezoid + triangle head.
+ * This replaces the old stick-figure silhouette from the pre-overhaul visual.
  */
 export function renderBasicEnemy(
   g: Phaser.GameObjects.Graphics,
@@ -31,42 +20,48 @@ export function renderBasicEnemy(
 ): void {
   const bodyHalfWidth = bodyWidth / 2;
   const bodyHalfHeight = bodyHeight / 2;
+  const mutedOutlineAlpha = 0.35;
+  const torsoWidth = bodyWidth * 0.68;
+  const torsoHeight = bodyHeight * 0.52;
+  const torsoY = bodyHeight * 0.1;
+  const shoulderTopWidth = bodyWidth;
+  const shoulderBottomWidth = bodyWidth * 0.74;
+  const shoulderHeight = bodyHeight * 0.3;
+  const shoulderTopY = -bodyHalfHeight + bodyHeight * 0.22;
+  const headSize = bodyWidth * 0.42;
+  const headCenterY = shoulderTopY - headSize * 0.55;
+  const eyeRadius = Math.max(2, bodyWidth * 0.045);
+  const eyeOffsetX = headSize * 0.16;
+  const eyeOffsetY = headSize * 0.1;
 
-  // Torso — rounded rectangle (first primitive: fill + outline in accent color)
+  // Torso — accent-filled primitive.
   g.fillStyle(color, 1.0);
-  g.lineStyle(3, color, 0.35);
-  g.fillRoundedRect(
-    -bodyHalfWidth,
-    -bodyHalfHeight + 12,
-    bodyWidth,
-    bodyHeight - 20,
-    22,
-  );
-  g.strokeRoundedRect(
-    -bodyHalfWidth,
-    -bodyHalfHeight + 12,
-    bodyWidth,
-    bodyHeight - 20,
-    22,
-  );
+  g.fillRect(-torsoWidth / 2, torsoY - torsoHeight / 2, torsoWidth, torsoHeight);
+  g.lineStyle(3, color, mutedOutlineAlpha);
+  g.strokeRect(-torsoWidth / 2, torsoY - torsoHeight / 2, torsoWidth, torsoHeight);
 
-  // Head — circle (white/grey outline, no fill)
+  // Shoulders — trapezoid outline only.
+  g.beginPath();
+  g.moveTo(-shoulderTopWidth / 2, shoulderTopY);
+  g.lineTo(shoulderTopWidth / 2, shoulderTopY);
+  g.lineTo(shoulderBottomWidth / 2, shoulderTopY + shoulderHeight);
+  g.lineTo(-shoulderBottomWidth / 2, shoulderTopY + shoulderHeight);
+  g.closePath();
+  g.strokePath();
+
+  // Head — triangle outline, no fill.
   g.lineStyle(3, 0xe8fbff, 0.8);
-  g.strokeCircle(0, -bodyHalfHeight + 10, 26);
-
-  // Arms — diagonal lines (white/grey)
-  g.lineStyle(3, 0xe8fbff, 0.6);
-  g.strokeLineShape(new Phaser.Geom.Line(-18, 8, -34, 28));
-  g.strokeLineShape(new Phaser.Geom.Line(18, 8, 34, 28));
-
-  // Legs — diagonal lines (white/grey)
-  g.strokeLineShape(new Phaser.Geom.Line(-14, 28, -24, 54));
-  g.strokeLineShape(new Phaser.Geom.Line(14, 28, 24, 54));
+  g.beginPath();
+  g.moveTo(0, headCenterY - headSize / 2);
+  g.lineTo(headSize / 2, headCenterY + headSize / 2);
+  g.lineTo(-headSize / 2, headCenterY + headSize / 2);
+  g.closePath();
+  g.strokePath();
 
   // Eyes — white dots
   g.fillStyle(0xe8fbff, 0.95);
-  g.fillCircle(-10, -bodyHalfHeight + 8, 4);
-  g.fillCircle(10, -bodyHalfHeight + 8, 4);
+  g.fillCircle(-eyeOffsetX, headCenterY + eyeOffsetY, eyeRadius);
+  g.fillCircle(eyeOffsetX, headCenterY + eyeOffsetY, eyeRadius);
 }
 
 /**
@@ -238,8 +233,7 @@ export function renderSwarmEnemy(
 }
 
 /**
- * Draw a boss enemy: same as basic but with crown on top of the head.
- * The boss scale (2.5×) is applied by the render model's body dimensions.
+ * Draw a boss enemy: same silhouette family as basic with crown and horned head.
  */
 export function renderBossEnemy(
   g: Phaser.GameObjects.Graphics,
@@ -247,13 +241,74 @@ export function renderBossEnemy(
   bodyHeight: number,
   color: number,
 ): void {
-  renderBasicEnemy(g, bodyWidth, bodyHeight, color);
+  const mutedOutlineAlpha = 0.35;
+  const torsoWidth = bodyWidth * 0.68;
+  const torsoHeight = bodyHeight * 0.52;
+  const torsoY = bodyHeight * 0.1;
+  const shoulderTopWidth = bodyWidth;
+  const shoulderBottomWidth = bodyWidth * 0.74;
+  const shoulderHeight = bodyHeight * 0.3;
+  const shoulderTopY = -bodyHeight / 2 + bodyHeight * 0.22;
+  const headSize = bodyWidth * 0.42;
+  const headCenterY = shoulderTopY - headSize * 0.48;
+  const hornWidth = headSize * 0.24;
+  const hornHeight = headSize * 0.22;
+  const crownWidth = bodyWidth * 0.52;
+  const crownHeight = bodyHeight * 0.14;
+  const crownBaseY = headCenterY - headSize * 0.86;
+  const eyeRadius = Math.max(2, bodyWidth * 0.04);
+  const eyeOffsetX = headSize * 0.16;
+  const eyeOffsetY = headSize * 0.08;
 
-  // Crown — on top of the head (outline only in accent color)
-  const crownWidth = bodyWidth * 0.5;
-  const crownHeight = bodyHeight * 0.15;
-  const crownY = -bodyHeight / 2 + 12 - crownHeight / 2 - 8;
+  g.fillStyle(color, 1.0);
+  g.fillRect(-torsoWidth / 2, torsoY - torsoHeight / 2, torsoWidth, torsoHeight);
+  g.lineStyle(3, color, mutedOutlineAlpha);
+  g.strokeRect(-torsoWidth / 2, torsoY - torsoHeight / 2, torsoWidth, torsoHeight);
 
-  g.lineStyle(3, color, 0.35);
-  drawCrown(g, crownWidth, crownHeight, 5);
+  g.beginPath();
+  g.moveTo(-shoulderTopWidth / 2, shoulderTopY);
+  g.lineTo(shoulderTopWidth / 2, shoulderTopY);
+  g.lineTo(shoulderBottomWidth / 2, shoulderTopY + shoulderHeight);
+  g.lineTo(-shoulderBottomWidth / 2, shoulderTopY + shoulderHeight);
+  g.closePath();
+  g.strokePath();
+
+  // Crown — outline accessory above the head.
+  g.beginPath();
+  g.moveTo(-crownWidth / 2, crownBaseY + crownHeight);
+  g.lineTo(-crownWidth / 2, crownBaseY + crownHeight * 0.35);
+  g.lineTo(-crownWidth * 0.22, crownBaseY - crownHeight * 0.25);
+  g.lineTo(0, crownBaseY + crownHeight * 0.15);
+  g.lineTo(crownWidth * 0.22, crownBaseY - crownHeight * 0.25);
+  g.lineTo(crownWidth / 2, crownBaseY + crownHeight * 0.35);
+  g.lineTo(crownWidth / 2, crownBaseY + crownHeight);
+  g.closePath();
+  g.strokePath();
+
+  // Horned triangle head — outline only.
+  g.lineStyle(3, 0xe8fbff, 0.8);
+  g.beginPath();
+  g.moveTo(0, headCenterY - headSize / 2);
+  g.lineTo(headSize / 2, headCenterY + headSize / 2);
+  g.lineTo(-headSize / 2, headCenterY + headSize / 2);
+  g.closePath();
+  g.strokePath();
+
+  g.beginPath();
+  g.moveTo(-headSize * 0.24, headCenterY - headSize * 0.22);
+  g.lineTo(-headSize * 0.44, headCenterY - headSize * 0.52 - hornHeight);
+  g.lineTo(-headSize * 0.08, headCenterY - headSize * 0.42);
+  g.closePath();
+  g.strokePath();
+
+  g.beginPath();
+  g.moveTo(headSize * 0.24, headCenterY - headSize * 0.22);
+  g.lineTo(headSize * 0.44, headCenterY - headSize * 0.52 - hornHeight);
+  g.lineTo(headSize * 0.08, headCenterY - headSize * 0.42);
+  g.closePath();
+  g.strokePath();
+
+  g.fillStyle(0xe8fbff, 0.95);
+  g.fillCircle(-eyeOffsetX, headCenterY + eyeOffsetY, eyeRadius);
+  g.fillCircle(eyeOffsetX, headCenterY + eyeOffsetY, eyeRadius);
 }

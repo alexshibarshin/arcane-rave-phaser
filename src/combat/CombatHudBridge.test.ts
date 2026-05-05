@@ -6,6 +6,7 @@ import {
   getCombatOverlayText,
 } from './CombatHudBridge';
 import { createCombatRuntime } from './CombatRuntime';
+import { CombatWaveConfig } from '@config/CombatWaveConfig';
 
 describe('CombatHudBridge', () => {
   it('creates typed HUD snapshot events from the combat runtime source of truth', () => {
@@ -18,11 +19,11 @@ describe('CombatHudBridge', () => {
       },
       {
         event: 'combat:hud-wave-updated',
-        payload: { current: 1, total: 1 },
+        payload: { current: 1, total: CombatWaveConfig.WAVES.length },
       },
       {
         event: 'combat:hud-enemies-updated',
-        payload: { remaining: 6 },
+        payload: { remaining: runtime.wave.enemiesRemaining },
       },
       {
         event: 'combat:hud-base-hp-updated',

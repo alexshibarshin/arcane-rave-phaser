@@ -38,8 +38,56 @@ const waveOneSubWaves: CombatSubWaveConfig[] = [
   },
 ];
 
+const waveTestAllSubWaves: CombatSubWaveConfig[] = [
+  {
+    id: 'wave-test-all-red',
+    startTimeMs: 0,
+    spawnIntervalMs: 1200,
+    enemies: {
+      'enemy-red-basic': 1,
+      'enemy-red-tank': 1,
+      'enemy-red-fast': 1,
+      'enemy-red-ranged': 1,
+      'enemy-red-swarm': 1,
+      'enemy-red-boss': 1,
+    },
+  },
+  {
+    id: 'wave-test-all-green',
+    startTimeMs: 3000,
+    spawnIntervalMs: 1200,
+    enemies: {
+      'enemy-green-basic': 1,
+      'enemy-green-tank': 1,
+      'enemy-green-fast': 1,
+      'enemy-green-ranged': 1,
+      'enemy-green-swarm': 1,
+      'enemy-green-boss': 1,
+    },
+  },
+  {
+    id: 'wave-test-all-blue',
+    startTimeMs: 6000,
+    spawnIntervalMs: 1200,
+    enemies: {
+      'enemy-blue-basic': 1,
+      'enemy-blue-tank': 1,
+      'enemy-blue-fast': 1,
+      'enemy-blue-ranged': 1,
+      'enemy-blue-swarm': 1,
+      'enemy-blue-boss': 1,
+    },
+  },
+];
+
 const combatWaveConfig = {
   WAVES: [
+    {
+      id: 'wave-test-all',
+      slotPresetId: 'preset-starter-1',
+      startAngleDeg: 0,
+      subWaves: waveTestAllSubWaves,
+    },
     {
       id: 'wave-1',
       slotPresetId: 'preset-starter-1',

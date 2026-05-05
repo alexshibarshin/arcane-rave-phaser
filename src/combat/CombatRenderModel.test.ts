@@ -105,6 +105,34 @@ describe('CombatRenderModel', () => {
       expect(enemy.container.sortY).toBe(enemy.container.y);
       expect(enemy.body.variantKey).toBe(definition.visualKey);
       expect(enemy.body.color).toBe(CombatVisualConfig.NOTE_COLORS[definition.color]);
+      const expectedScaleMultiplier =
+        CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS[
+          definition.archetype as keyof typeof CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS
+        ] ?? 1;
+      expect(enemy.body.width).toBe(
+        CombatVisualConfig.ENEMY.BASE_BODY_WIDTH * expectedScaleMultiplier,
+      );
+      expect(enemy.body.height).toBe(
+        CombatVisualConfig.ENEMY.BASE_BODY_HEIGHT * expectedScaleMultiplier,
+      );
     }
+  });
+
+  it('applies per-archetype size multipliers so enemy silhouettes do not share one uniform bounding box', () => {
+    const model = createCombatRenderModel();
+    const byDefinitionId = new Map(model.enemies.map((enemy) => [enemy.definitionId, enemy]));
+
+    expect(byDefinitionId.get('enemy-red-swarm')?.body.width).toBeLessThan(
+      byDefinitionId.get('enemy-red-basic')?.body.width ?? Number.POSITIVE_INFINITY,
+    );
+    expect(byDefinitionId.get('enemy-red-fast')?.body.width).toBeLessThan(
+      byDefinitionId.get('enemy-red-basic')?.body.width ?? Number.POSITIVE_INFINITY,
+    );
+    expect(byDefinitionId.get('enemy-red-tank')?.body.width).toBeGreaterThan(
+      byDefinitionId.get('enemy-red-basic')?.body.width ?? 0,
+    );
+    expect(byDefinitionId.get('enemy-red-boss')?.body.width).toBeGreaterThan(
+      byDefinitionId.get('enemy-red-tank')?.body.width ?? 0,
+    );
   });
 });

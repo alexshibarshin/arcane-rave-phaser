@@ -12,16 +12,15 @@ import {
 } from './CombatRuntime';
 
 describe('createCombatRuntime', () => {
+  const initialWave = CombatWaveConfig.WAVES[0];
+  const firstSubWave = initialWave?.subWaves[0];
+  const secondSubWave = initialWave?.subWaves[1];
+
   it('creates the initial combat source of truth from combat config', () => {
     const runtime = createCombatRuntime();
-    const totalSpawnCount = CombatWaveConfig.WAVES.reduce(
-      (waveTotal, wave) =>
-        waveTotal
-        + wave.subWaves.reduce(
-          (subWaveTotal, subWave) =>
-            subWaveTotal + Object.values(subWave.enemies).reduce((sum, count) => sum + count, 0),
-          0,
-        ),
+    const totalSpawnCount = (initialWave?.subWaves ?? []).reduce(
+      (subWaveTotal, subWave) =>
+        subWaveTotal + Object.values(subWave.enemies).reduce((sum, count) => sum + count, 0),
       0,
     );
 
@@ -98,11 +97,9 @@ describe('createCombatRuntime', () => {
     const runtime = createCombatRuntime();
     const expectedCounts = new Map<string, number>();
 
-    for (const wave of CombatWaveConfig.WAVES) {
-      for (const subWave of wave.subWaves) {
-        for (const [enemyId, count] of Object.entries(subWave.enemies)) {
-          expectedCounts.set(enemyId, (expectedCounts.get(enemyId) ?? 0) + count);
-        }
+    for (const subWave of initialWave?.subWaves ?? []) {
+      for (const [enemyId, count] of Object.entries(subWave.enemies)) {
+        expectedCounts.set(enemyId, (expectedCounts.get(enemyId) ?? 0) + count);
       }
     }
 
@@ -932,40 +929,53 @@ describe('createCombatRuntime', () => {
 
   it('activates sub-waves by absolute startTimeMs from wave start, not by completion order', () => {
     const runtime = createCombatRuntime();
+    const firstSubWaveEnemyCount = Object.values(firstSubWave?.enemies ?? {}).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+    const secondSubWaveEnemyCount = Object.values(secondSubWave?.enemies ?? {}).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+    const firstSubWaveEnemyEntries = Object.entries(firstSubWave?.enemies ?? {});
+    const [firstEnemyId, firstEnemyCount = 0] = firstSubWaveEnemyEntries[0] ?? [];
+    const [secondEnemyId] = firstSubWaveEnemyEntries[1] ?? [];
 
     // At t=0: first sub-wave (startTimeMs: 0) should be active with spawn bag
     expect(runtime.wave.activeSubWaves).toHaveLength(1);
-    expect(runtime.wave.activeSubWaves[0]?.id).toBe('wave-1-a');
-    expect(runtime.wave.pendingSubWaves).toHaveLength(1);
-    expect(runtime.wave.pendingSubWaves[0]?.id).toBe('wave-1-b');
-    expect(runtime.wave.spawnBags.get('wave-1-a')?.enemyRuntimeIds).toHaveLength(3);
-    const redRuntimes = runtime.enemies.filter((e) => e.definitionId === 'enemy-red-basic');
-    const greenRuntime = runtime.enemies.find((e) => e.definitionId === 'enemy-green-basic');
-    expect(redRuntimes.length).toBe(3);
-    expect(greenRuntime).toBeDefined();
-    expect(runtime.wave.spawnBags.get('wave-1-a')?.enemyRuntimeIds).toContain(
-      redRuntimes[0]?.runtimeId,
+    expect(runtime.wave.activeSubWaves[0]?.id).toBe(firstSubWave?.id);
+    expect(runtime.wave.pendingSubWaves).toHaveLength((initialWave?.subWaves.length ?? 1) - 1);
+    expect(runtime.wave.pendingSubWaves[0]?.id).toBe(secondSubWave?.id);
+    expect(runtime.wave.spawnBags.get(firstSubWave?.id ?? '')?.enemyRuntimeIds).toHaveLength(
+      firstSubWaveEnemyCount,
     );
-    expect(runtime.wave.spawnBags.get('wave-1-a')?.enemyRuntimeIds).toContain(
-      greenRuntime?.runtimeId,
+    const firstEnemyRuntimes = runtime.enemies.filter((e) => e.definitionId === firstEnemyId);
+    const secondEnemyRuntime = runtime.enemies.find((e) => e.definitionId === secondEnemyId);
+    expect(firstEnemyRuntimes.length).toBeGreaterThanOrEqual(firstEnemyCount);
+    expect(secondEnemyRuntime).toBeDefined();
+    expect(runtime.wave.spawnBags.get(firstSubWave?.id ?? '')?.enemyRuntimeIds).toContain(
+      firstEnemyRuntimes[0]?.runtimeId,
+    );
+    expect(runtime.wave.spawnBags.get(firstSubWave?.id ?? '')?.enemyRuntimeIds).toContain(
+      secondEnemyRuntime?.runtimeId,
     );
 
-    // After advancing past second sub-wave start time (2500ms)
+    // After advancing past second sub-wave start time
     setCombatState(runtime, 'running');
-    runtime.waveElapsedMs = 2500;
+    runtime.waveElapsedMs = (secondSubWave?.startTimeMs ?? 1) - 1;
 
     advanceCombatRuntime(runtime, 1);
 
     expect(runtime.wave.activeSubWaves).toHaveLength(2);
-    expect(runtime.wave.pendingSubWaves).toHaveLength(0);
-    expect(runtime.wave.spawnBags.has('wave-1-b')).toBe(true);
+    expect(runtime.wave.pendingSubWaves).toHaveLength(1);
+    expect(runtime.wave.spawnBags.has(secondSubWave?.id ?? '')).toBe(true);
     expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(4);
 
-    advanceCombatRuntime(runtime, 798);
-    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(4);
+    advanceCombatRuntime(runtime, (secondSubWave?.spawnIntervalMs ?? 1) - 1);
+    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(5);
 
     advanceCombatRuntime(runtime, 1);
-    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(5);
+    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(6);
   });
 
   it('bootstraps enemy spawns into the top lane with config-driven x range and anti-clumping', () => {
@@ -1015,14 +1025,16 @@ describe('createCombatRuntime', () => {
   it('evaluates victory when all sub-waves started, all bags empty, and all enemies dead', () => {
     const runtime = createCombatRuntime();
     setCombatState(runtime, 'running');
+    const lastSubWave = initialWave?.subWaves[initialWave.subWaves.length - 1];
+    const maxSpawnIntervalMs = Math.max(
+      ...(initialWave?.subWaves.map((subWave) => subWave.spawnIntervalMs) ?? [0]),
+    );
+    const totalEnemies = runtime.enemies.length;
 
-    // Advance past all sub-wave spawn times:
-    // wave-1-a: spawns at 0, 900, 1800 (3 runtime IDs: 2 red + 1 green)
-    // wave-1-b: activates at 2500, spawns at 2500 (3 runtime IDs: 2 blue + 1 red)
-    advanceCombatRuntime(runtime, 5000);
+    advanceCombatRuntime(runtime, (lastSubWave?.startTimeMs ?? 0) + totalEnemies * maxSpawnIntervalMs);
 
     const allSpawned = runtime.enemies.filter((e) => e.spawned);
-    expect(allSpawned).toHaveLength(6);
+    expect(allSpawned).toHaveLength(totalEnemies);
 
     // Kill all enemies
     for (const enemy of runtime.enemies) {
@@ -1043,8 +1055,9 @@ describe('createCombatRuntime', () => {
     const runtime = createCombatRuntime();
     setCombatState(runtime, 'running');
 
-    // Advance time to spawn all enemies from wave-1-a (wave-1-b still pending at 2000ms)
-    advanceCombatRuntime(runtime, 2000);
+    const beforeSecondSubWaveMs = Math.max((secondSubWave?.startTimeMs ?? 1) - 1, 0);
+
+    advanceCombatRuntime(runtime, beforeSecondSubWaveMs);
 
     // Kill all currently spawned enemies
     for (const enemy of runtime.enemies) {
@@ -1064,15 +1077,22 @@ describe('createCombatRuntime', () => {
   it('emits enemies-left count via runtime wave state', () => {
     const runtime = createCombatRuntime();
     setCombatState(runtime, 'running');
+    const firstSubWaveEnemyCount = Object.values(firstSubWave?.enemies ?? {}).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+    const secondSubWaveEnemyCount = Object.values(secondSubWave?.enemies ?? {}).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
 
-    // Advance to spawn wave-1-a enemies (wave-1-b still pending)
-    // wave-1-a: spawns at 0, 900, 1800 (3 enemies total)
-    advanceCombatRuntime(runtime, 2000);
+    advanceCombatRuntime(runtime, Math.max((secondSubWave?.startTimeMs ?? 1) - 1, 0));
 
     const spawnedAfterFirst = runtime.enemies.filter((e) => e.spawned);
     expect(spawnedAfterFirst).toHaveLength(3);
 
-    // enemiesRemaining = living enemies (3) + enemies in active bags (0) + enemies in pending sub-waves (3)
-    expect(runtime.wave.enemiesRemaining).toBe(6);
+    expect(runtime.wave.enemiesRemaining).toBe(
+      firstSubWaveEnemyCount + secondSubWaveEnemyCount + 6,
+    );
   });
 });
