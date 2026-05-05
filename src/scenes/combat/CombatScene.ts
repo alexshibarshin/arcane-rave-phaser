@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { emit, off, on } from '@events/EventBus';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
+import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { CombatVfxConfig } from '@config/CombatVfxConfig';
@@ -50,6 +51,7 @@ import { computeDeathKnockbackOffset } from '@scenes/combat/CombatDeathKnockback
 
 import { CombatStateSystem } from '@systems/CombatStateSystem';
 import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
+import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 import type { InputSystem } from '@systems/InputSystem';
 import type { SimulationSystem } from '@systems/SimulationSystem';
 
@@ -106,6 +108,7 @@ export class CombatScene extends GameScene {
   private allowRestart = true;
   private slotPawnIds?: Array<string | null>;
   private combatVfx?: CombatVfxSystem;
+  private synergySystem?: SynergyVisualSystem;
   private detachCombatVfxEvents?: () => void;
   private needleTipX = 0;
   private needleTipY = 0;
@@ -186,8 +189,31 @@ export class CombatScene extends GameScene {
     });
   }
 
+  private createSynergySystem(): void {
+    if (!this.recordContainer || !this.slotPawnIds) {
+      return;
+    }
+
+    this.synergySystem = new SynergyVisualSystem({
+      scene: this,
+      pawnDefinitions: CombatContentConfig.PAWN_DEFINITIONS,
+      slotCount: CombatContentConfig.SLOT_COUNT,
+      recordCenterX: this.recordContainer.x,
+      recordCenterY: this.recordContainer.y,
+      recordRadius: CombatLayoutConfig.RECORD_RADIUS,
+      depth: CombatLayoutConfig.DEPTH.PAWNS + 10,
+    });
+    this.synergySystem.create();
+    this.synergySystem.updateBuildState(this.slotPawnIds);
+  }
+
+  private readonly handleSlotActivated = (payload: { slotIndex: number }): void => {
+    this.synergySystem?.onSlotActivated(payload.slotIndex);
+  };
+
   update(time: number, delta: number): void {
     super.update(time, delta);
+    this.synergySystem?.update(time, delta);
     this.syncCombatPresentation(delta);
   }
 
@@ -198,6 +224,8 @@ export class CombatScene extends GameScene {
       slotPawnIds: this.slotPawnIds,
     });
     this.renderStaticCombatLayout();
+    this.createSynergySystem();
+    on('combat:slot-activated', this.handleSlotActivated);
     on('combat:pause-requested', this.handlePauseRequested);
     on('combat:restart-requested', this.handleRestartRequested);
     on('combat:resume-requested', this.handleResumeRequested);
@@ -212,12 +240,15 @@ export class CombatScene extends GameScene {
     });
     this.detachCombatVfxEvents = bindCombatVfxEvents(this.combatVfx);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      off('combat:slot-activated', this.handleSlotActivated);
       off('combat:pause-requested', this.handlePauseRequested);
       off('combat:restart-requested', this.handleRestartRequested);
       off('combat:resume-requested', this.handleResumeRequested);
       off('combat:enemy-hit', this.handleEnemyHit);
       off('combat:enemy-hit', this.handleEnemyDamageNumber);
       off('combat:base-damaged', this.handleBaseDamageNumber);
+      this.synergySystem?.destroy();
+      this.synergySystem = undefined;
       this.detachCombatVfxEvents?.();
       this.detachCombatVfxEvents = undefined;
       this.combatVfx = undefined;
@@ -743,6 +774,7 @@ export class CombatScene extends GameScene {
     const recordRotation = Phaser.Math.DegToRad(this.runtime.record.currentAngle);
 
     this.recordContainer.setRotation(recordRotation);
+    this.synergySystem?.setRecordRotation(this.runtime.record.currentAngle);
     this.syncEnemyPresentation(presentationDelta);
     this.syncBaseHpBarPresentation();
     this.syncNotePacketPresentation(vfxSnapshot);

@@ -16,6 +16,7 @@ import {
   type StageRuntime,
 } from '@stage/StageRuntime';
 import { createStageWavePreview } from '@stage/StageWavePreview';
+import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 
 interface StageRecordSlotView {
   slotIndex: number;
@@ -70,6 +71,7 @@ export class StageScene extends Phaser.Scene {
   private activeDropSlotIndex: number | null = null;
   private isTransitioning = false;
   private transientStatusText: string | null = null;
+  private synergySystem?: SynergyVisualSystem;
 
   constructor() {
     super({ key: SceneKeys.STAGE });
@@ -96,6 +98,10 @@ export class StageScene extends Phaser.Scene {
     emit('game:ready');
   }
 
+  update(time: number, delta: number): void {
+    this.synergySystem?.update(time, delta);
+  }
+
   private renderBuildPhaseLayout(): void {
     const width = this.scale.width;
     const height = this.scale.height;
@@ -111,6 +117,7 @@ export class StageScene extends Phaser.Scene {
     backdrop.fillRoundedRect(0, height - 310, width, 310, 40);
     this.previewCard = this.createPreviewCard();
     this.recordContainer = this.createBuildRecord();
+    this.createSynergySystem();
     this.shopPanel = this.createShopPanel();
 
     this.phaseLabel = this.add.text(52, 100, '', {
@@ -335,6 +342,21 @@ export class StageScene extends Phaser.Scene {
     return container;
   }
 
+  private createSynergySystem(): void {
+    const center = this.recordContainer!;
+    this.synergySystem = new SynergyVisualSystem({
+      scene: this,
+      pawnDefinitions: CombatContentConfig.PAWN_DEFINITIONS,
+      slotCount: CombatContentConfig.SLOT_COUNT,
+      recordCenterX: center.x,
+      recordCenterY: center.y,
+      recordRadius: StagePresentationConfig.BUILD_RECORD_RADIUS,
+      depth: 30,
+    });
+    this.synergySystem.create();
+    this.synergySystem.updateBuildState(this.runtime.build.slots);
+  }
+
   private bindDragEvents(): void {
     this.input.on(
       Phaser.Input.Events.DRAG_START,
@@ -424,6 +446,7 @@ export class StageScene extends Phaser.Scene {
     this.refreshRecordPawnViews();
     this.refreshShopCards();
     this.syncPresentation();
+    this.synergySystem?.updateBuildState(this.runtime.build.slots);
   }
 
   private refreshRecordPawnViews(): void {
@@ -956,6 +979,7 @@ export class StageScene extends Phaser.Scene {
     this.input.off(Phaser.Input.Events.DRAG_START);
     this.input.off(Phaser.Input.Events.DRAG);
     this.input.off(Phaser.Input.Events.DRAG_END);
+    this.synergySystem?.destroy();
   }
 }
 
