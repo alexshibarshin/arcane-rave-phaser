@@ -69,6 +69,25 @@ describe('CombatRenderModel', () => {
     }
   });
 
+  it('prefers stage-provided slot loadout over the authored wave preset', () => {
+    const model = createCombatRenderModel({
+      slotPawnIds: [
+        'pawn-green-generator',
+        null,
+        'pawn-red-finisher',
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    });
+
+    expect(model.record.slots[0]?.pawn?.id).toBe('pawn-green-generator');
+    expect(model.record.slots[2]?.pawn?.id).toBe('pawn-red-finisher');
+    expect(model.record.slots[1]?.pawn).toBeNull();
+  });
+
   it('keeps derived slot label rotations normalized to the upright viewing range', () => {
     const model = createCombatRenderModel();
 

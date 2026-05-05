@@ -77,6 +77,32 @@ describe('createCombatRuntime', () => {
     );
   });
 
+  it('can override authored slot presets with a stage-provided combat loadout', () => {
+    const runtime = createCombatRuntime(Math.random, {
+      slotPawnIds: [
+        'pawn-red-generator',
+        null,
+        'pawn-blue-finisher',
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    });
+
+    expect(runtime.slots.map((slot) => slot.pawnId)).toEqual([
+      'pawn-red-generator',
+      null,
+      'pawn-blue-finisher',
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
   it('centralizes note packet updates with capacity clamping and fresh visual ids', () => {
     const runtime = createCombatRuntime();
 

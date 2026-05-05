@@ -204,6 +204,7 @@ export interface CombatRenderModel {
 
 export interface CreateCombatRenderModelOptions {
   waveIndex?: number;
+  slotPawnIds?: Array<string | null>;
 }
 
 export function createCombatRenderModel(
@@ -223,6 +224,7 @@ export function createCombatRenderModel(
   const activePreset = CombatContentConfig.SLOT_PRESETS.find(
     (preset) => preset.id === activeWave?.slotPresetId,
   );
+  const slotPawnIds = options.slotPawnIds ?? activePreset?.slots ?? [];
 
   return {
     background: {
@@ -262,11 +264,11 @@ export function createCombatRenderModel(
           layout.record.radius * CombatVisualConfig.SLOT.OUTER_ZONE_OFFSET_RATIO,
         ),
         pawn: createSlotPawnRenderModel(
-          activePreset?.slots[slot.index] ?? null,
+          slotPawnIds[slot.index] ?? null,
           pawnDefinitionsById,
         ),
         presentation: createSlotPresentationModel(
-          activePreset?.slots[slot.index] ?? null,
+          slotPawnIds[slot.index] ?? null,
           pawnDefinitionsById,
         ),
       })),

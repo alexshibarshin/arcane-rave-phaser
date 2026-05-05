@@ -1,4 +1,7 @@
 export const StageFlowConfig = {
   INITIAL_COINS: 6,
   WAVE_CLEAR_REWARD_COINS: 3,
+  SHOP_OFFER_COUNT: 3,
+  SHOP_PURCHASE_COST: 3,
+  REPOSITION_COST: 1,
 } as const;

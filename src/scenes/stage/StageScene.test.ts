@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   canStageStartWave,
   createStageRuntime,
+  getStageCombatLoadout,
+  purchaseStagePawnIntoSlot,
   requestStageWaveStart,
   resolveStageCombatOutcome,
 } from '@stage/StageRuntime';
 
 describe('StageRuntime', () => {
   it('creates a build-phase runtime for authored stages', () => {
-    const runtime = createStageRuntime({ totalWaves: 3, initialCoins: 6 });
+    const runtime = createStageRuntime({ totalWaves: 3, initialCoins: 6 }, () => 0);
 
     expect(runtime).toEqual({
       phase: 'build',
@@ -16,6 +18,15 @@ describe('StageRuntime', () => {
       totalWaves: 3,
       coins: 6,
       lastCombatOutcome: null,
+      build: {
+        slots: Array(8).fill(null),
+        shopOffers: [
+          'pawn-red-generator',
+          'pawn-red-generator',
+          'pawn-red-generator',
+        ],
+        shopPurchaseCounts: {},
+      },
     });
     expect(canStageStartWave(runtime)).toBe(true);
   });
@@ -29,19 +40,35 @@ describe('StageRuntime', () => {
   });
 
   it('returns to build, increments wave, and grants reward after non-final victory', () => {
-    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 });
+    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 }, () => 0);
+    purchaseStagePawnIntoSlot(runtime, 0, 0);
     requestStageWaveStart(runtime);
 
     const nextPhase = resolveStageCombatOutcome(runtime, {
       outcome: 'victory',
       rewardCoins: 3,
+      random: () => 0.5,
     });
 
     expect(nextPhase).toBe('build');
     expect(runtime.currentWaveIndex).toBe(1);
-    expect(runtime.coins).toBe(9);
+    expect(runtime.coins).toBe(6);
     expect(runtime.lastCombatOutcome).toBe('victory');
+    expect(runtime.build.slots[0]).toBe('pawn-red-generator');
+    expect(runtime.build.shopOffers).toEqual([
+      'pawn-red-finisher',
+      'pawn-red-finisher',
+      'pawn-red-finisher',
+    ]);
     expect(canStageStartWave(runtime)).toBe(true);
+  });
+
+  it('uses the current build slots as the combat loadout', () => {
+    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 }, () => 0);
+    purchaseStagePawnIntoSlot(runtime, 0, 0);
+
+    expect(getStageCombatLoadout(runtime)[0]).toBe('pawn-red-generator');
+    expect(getStageCombatLoadout(runtime).slice(1).every((slot) => slot === null)).toBe(true);
   });
 
   it('completes the stage after final-wave victory', () => {

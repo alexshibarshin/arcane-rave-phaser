@@ -111,6 +111,7 @@ interface CombatRuntimeAdvanceOptions {
 export interface CreateCombatRuntimeOptions {
   waveIndex?: number;
   totalWaves?: number;
+  slotPawnIds?: Array<string | null>;
 }
 
 export function createCombatRuntime(
@@ -126,6 +127,7 @@ export function createCombatRuntime(
   const slotPreset =
     CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
     ?? null;
+  const slotPawnIds = options.slotPawnIds ?? slotPreset?.slots ?? [];
   const enemies = createCombatEnemyRuntimes(initialWave as CombatWaveDefinition);
 
   const runtime: CombatRuntime = {
@@ -151,7 +153,7 @@ export function createCombatRuntime(
     },
     slots: layout.record.slots.map((slot) => ({
       slotIndex: slot.index,
-      pawnId: slotPreset?.slots[slot.index] ?? null,
+      pawnId: slotPawnIds[slot.index] ?? null,
       worldPosition: getSlotWorldPosition(
         layout.record.centerX,
         layout.record.centerY,

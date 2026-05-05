@@ -1,3 +1,12 @@
+import { StageFlowConfig } from '@config/StageFlowConfig';
+import {
+  drawStageShopOffers,
+  createStageBuildState,
+  moveStagePawn,
+  purchaseStagePawn,
+  type StageBuildState,
+} from './StageBuild';
+
 export type StagePhase = 'build' | 'combat' | 'stage_complete' | 'stage_failed';
 export type StageCombatOutcome = 'victory' | 'defeat';
 
@@ -7,6 +16,7 @@ export interface StageRuntime {
   totalWaves: number;
   coins: number;
   lastCombatOutcome: StageCombatOutcome | null;
+  build: StageBuildState;
 }
 
 export interface CreateStageRuntimeOptions {
@@ -17,9 +27,13 @@ export interface CreateStageRuntimeOptions {
 export interface ResolveStageCombatOutcomeOptions {
   outcome: StageCombatOutcome;
   rewardCoins: number;
+  random?: () => number;
 }
 
-export function createStageRuntime(options: CreateStageRuntimeOptions): StageRuntime {
+export function createStageRuntime(
+  options: CreateStageRuntimeOptions,
+  random: () => number = Math.random,
+): StageRuntime {
   const totalWaves = Math.max(0, options.totalWaves);
   const initialCoins = Math.max(0, options.initialCoins);
 
@@ -29,6 +43,7 @@ export function createStageRuntime(options: CreateStageRuntimeOptions): StageRun
     totalWaves,
     coins: initialCoins,
     lastCombatOutcome: null,
+    build: createStageBuildState(random),
   };
 }
 
@@ -70,5 +85,40 @@ export function resolveStageCombatOutcome(
 
   runtime.currentWaveIndex += 1;
   runtime.phase = 'build';
+  runtime.build.shopOffers = drawStageShopOffers(options.random ?? Math.random);
   return runtime.phase;
+}
+
+export function purchaseStagePawnIntoSlot(
+  runtime: StageRuntime,
+  offerIndex: number,
+  slotIndex: number,
+): boolean {
+  const purchased = purchaseStagePawn(runtime.build, runtime.coins, offerIndex, slotIndex);
+
+  if (!purchased) {
+    return false;
+  }
+
+  runtime.coins -= StageFlowConfig.SHOP_PURCHASE_COST;
+  return true;
+}
+
+export function repositionStagePawn(
+  runtime: StageRuntime,
+  fromSlotIndex: number,
+  toSlotIndex: number,
+): boolean {
+  const moved = moveStagePawn(runtime.build, runtime.coins, fromSlotIndex, toSlotIndex);
+
+  if (!moved) {
+    return false;
+  }
+
+  runtime.coins -= StageFlowConfig.REPOSITION_COST;
+  return true;
+}
+
+export function getStageCombatLoadout(runtime: StageRuntime): Array<string | null> {
+  return [...runtime.build.slots];
 }

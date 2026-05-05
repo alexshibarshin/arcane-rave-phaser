@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { emit, off, on } from '@events/EventBus';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
+import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { CombatVfxConfig } from '@config/CombatVfxConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { SceneKeys } from '@config/GameConfig';
@@ -94,6 +95,7 @@ interface CombatSceneInitData {
   totalWaves?: number;
   stageManaged?: boolean;
   allowRestart?: boolean;
+  slotPawnIds?: Array<string | null>;
 }
 
 export class CombatScene extends GameScene {
@@ -102,6 +104,7 @@ export class CombatScene extends GameScene {
   private totalWaves = 1;
   private stageManaged = false;
   private allowRestart = true;
+  private slotPawnIds?: Array<string | null>;
   private combatVfx?: CombatVfxSystem;
   private detachCombatVfxEvents?: () => void;
   private needleTipX = 0;
@@ -171,10 +174,12 @@ export class CombatScene extends GameScene {
     this.totalWaves = data.totalWaves ?? 1;
     this.stageManaged = data.stageManaged ?? false;
     this.allowRestart = data.allowRestart ?? true;
+    this.slotPawnIds = data.slotPawnIds ? [...data.slotPawnIds] : undefined;
   }
 
   create(): void {
     super.create();
+    this.playStageManagedIntro();
     emit('combat:scene-ready', {
       key: this.scene.key,
       state: this.runtime!.state,
@@ -190,6 +195,7 @@ export class CombatScene extends GameScene {
     this.runtime = createCombatRuntime(Math.random, {
       waveIndex: this.waveIndex,
       totalWaves: this.totalWaves,
+      slotPawnIds: this.slotPawnIds,
     });
     this.renderStaticCombatLayout();
     on('combat:pause-requested', this.handlePauseRequested);
@@ -237,6 +243,7 @@ export class CombatScene extends GameScene {
       this.totalWaves = 1;
       this.stageManaged = false;
       this.allowRestart = true;
+      this.slotPawnIds = undefined;
     });
   }
 
@@ -259,7 +266,10 @@ export class CombatScene extends GameScene {
   }
 
   private renderStaticCombatLayout(): void {
-    const model = createCombatRenderModel({ waveIndex: this.waveIndex });
+    const model = createCombatRenderModel({
+      waveIndex: this.waveIndex,
+      slotPawnIds: this.slotPawnIds,
+    });
     this.needleTipX = model.needle.tipX;
     this.needleTipY = model.needle.tipY;
 
@@ -274,6 +284,22 @@ export class CombatScene extends GameScene {
     this.renderNeedle(model);
     this.renderBaseHpBar(model);
     this.renderNotePacketAnchor(model);
+  }
+
+  private playStageManagedIntro(): void {
+    if (!this.stageManaged) {
+      return;
+    }
+
+    this.cameras.main.setZoom(StagePresentationConfig.COMBAT_CAMERA_START_ZOOM);
+    this.cameras.main.setScroll(0, StagePresentationConfig.COMBAT_CAMERA_START_SCROLL_Y);
+    this.tweens.add({
+      targets: this.cameras.main,
+      zoom: 1,
+      scrollY: 0,
+      duration: StagePresentationConfig.COMBAT_CAMERA_TWEEN_MS,
+      ease: 'Sine.easeInOut',
+    });
   }
 
   private renderBackground(model: ReturnType<typeof createCombatRenderModel>): void {
