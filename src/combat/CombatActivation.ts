@@ -54,7 +54,13 @@ export function resolveCombatActivations(
     pushCombatPawnResolved(runtime, slot.slotIndex, pawn.id, pawn.type);
 
     if (pawn.type === 'generator') {
-      resolveGeneratorSlotActivation(runtime, slot, pawn.id, pawn.color, pawn.baseDamage);
+      resolveGeneratorSlotActivation(
+        runtime,
+        slot,
+        pawn.id,
+        pawn.color,
+        scalePawnDamageByTier(pawn.baseDamage, slot.pawnTier),
+      );
       continue;
     }
 
@@ -102,7 +108,9 @@ function resolveFinisherSlotActivation(
 ): void {
   const consumedNotes = getFinisherConsumedNotes(runtime, pawn.color);
   const consumedMultiplier = getFinisherConsumedNotesMultiplier(consumedNotes);
-  const baseDamage = Math.round(pawn.baseDamage * consumedMultiplier);
+  const baseDamage = Math.round(
+    scalePawnDamageByTier(pawn.baseDamage, slot.pawnTier) * consumedMultiplier,
+  );
   const target = selectNearestLivingEnemy(runtime, slot.worldPosition);
   const weaknessMultiplier = target ? resolveWeakness(pawn.color, target.color) : 1;
   const damage = Math.round(baseDamage * weaknessMultiplier);
@@ -239,4 +247,15 @@ function resolveWeakness(attackerColor: NoteColor, targetColor: NoteColor): numb
   const weakTarget = CombatContentConfig.WEAKNESS_ADVANTAGE[attackerColor];
 
   return weakTarget === targetColor ? CombatBalanceConfig.WEAKNESS_MULTIPLIER : 1;
+}
+
+function scalePawnDamageByTier(baseDamage: number, pawnTier: number | null): number {
+  const normalizedTier = Math.max(1, pawnTier ?? 1);
+  const multiplierIndex = Math.min(
+    normalizedTier - 1,
+    CombatBalanceConfig.PAWN_TIER_DAMAGE_MULTIPLIER.length - 1,
+  );
+  const multiplier = CombatBalanceConfig.PAWN_TIER_DAMAGE_MULTIPLIER[multiplierIndex] ?? 1;
+
+  return baseDamage * multiplier;
 }

@@ -3,7 +3,9 @@ import {
   canStageStartWave,
   createStageRuntime,
   getStageCombatLoadout,
+  getStageCombatLoadoutSlots,
   getStageShopRerollCost,
+  mergeStagePawnSlots,
   purchaseStagePawnIntoSlot,
   rerollStageShopOffers,
   requestStageWaveStart,
@@ -72,6 +74,21 @@ describe('StageRuntime', () => {
 
     expect(getStageCombatLoadout(runtime)[0]).toBe('pawn-red-generator');
     expect(getStageCombatLoadout(runtime).slice(1).every((slot) => slot === null)).toBe(true);
+  });
+
+  it('keeps merged pawn tiers aligned with pawn ids in the combat loadout snapshot', () => {
+    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 12 }, () => 0);
+
+    purchaseStagePawnIntoSlot(runtime, 0, 0);
+    purchaseStagePawnIntoSlot(runtime, 0, 1);
+    expect(mergeStagePawnSlots(runtime, 0, 1, () => 0.5)).toBe(true);
+
+    expect(runtime.build.slots[1]).toEqual({ pawnId: 'pawn-red-finisher', tier: 2 });
+    expect(getStageCombatLoadout(runtime)[1]).toBe('pawn-red-finisher');
+    expect(getStageCombatLoadoutSlots(runtime)[1]).toEqual({
+      pawnId: 'pawn-red-finisher',
+      tier: 2,
+    });
   });
 
   it('rerolls the shop, spends coins, and increases reroll cost inside the build phase', () => {

@@ -59,11 +59,12 @@ describe('CombatRenderModel', () => {
       );
       expect(slot.presentation.upright.pedestal?.styleKey).toBe(pawnDefinition?.pedestalStyleKey);
 
+      expect(slot.pawn?.tierStars).toBe(1);
+      expect(slot.presentation.upright.tierStars?.count).toBe(1);
+
       if (pawnDefinition?.type === 'generator') {
-        expect(slot.pawn?.tierStars).toBe(1);
         expect(slot.presentation.rotating.ruleLabel?.segments).toHaveLength(3);
       } else {
-        expect(slot.pawn?.tierStars).toBe(2);
         expect(slot.presentation.rotating.ruleLabel?.segments).toHaveLength(7);
       }
     }
@@ -86,6 +87,21 @@ describe('CombatRenderModel', () => {
     expect(model.record.slots[0]?.pawn?.id).toBe('pawn-green-generator');
     expect(model.record.slots[2]?.pawn?.id).toBe('pawn-red-finisher');
     expect(model.record.slots[1]?.pawn).toBeNull();
+  });
+
+  it('renders stage-provided pawn tiers instead of hardcoded type-based stars', () => {
+    const model = createCombatRenderModel({
+      slotPawns: [
+        { pawnId: 'pawn-green-generator', tier: 3 },
+        { pawnId: 'pawn-red-finisher', tier: 2 },
+        ...Array.from({ length: 6 }, () => ({ pawnId: null, tier: null })),
+      ],
+    });
+
+    expect(model.record.slots[0]?.pawn?.tierStars).toBe(3);
+    expect(model.record.slots[0]?.presentation.upright.tierStars?.count).toBe(3);
+    expect(model.record.slots[1]?.pawn?.tierStars).toBe(2);
+    expect(model.record.slots[1]?.presentation.upright.tierStars?.count).toBe(2);
   });
 
   it('keeps derived slot label rotations normalized to the upright viewing range', () => {
@@ -138,7 +154,7 @@ describe('CombatRenderModel', () => {
   });
 
   it('applies per-archetype size multipliers so enemy silhouettes do not share one uniform bounding box', () => {
-    const model = createCombatRenderModel();
+    const model = createCombatRenderModel({ waveIndex: 2 });
     const byDefinitionId = new Map(model.enemies.map((enemy) => [enemy.definitionId, enemy]));
 
     expect(byDefinitionId.get('enemy-red-swarm')?.body.width).toBeLessThan(

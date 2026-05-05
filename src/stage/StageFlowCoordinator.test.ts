@@ -33,7 +33,7 @@ describe('StageFlowCoordinator', () => {
         totalWaves: 2,
         canStartWave: true,
         previewTitle: 'Wave 1/2',
-        previewBody: 'Enemies 18\nBlue x6, Green x6, Red x6',
+        previewBody: 'Enemies 6\nBlue x2, Green x1, Red x3',
       },
     });
     expect(commands[1]).toMatchObject({
@@ -73,7 +73,9 @@ describe('StageFlowCoordinator', () => {
         totalWaves: 2,
         stageManaged: true,
         allowRestart: false,
+        slotPawns: Array.from({ length: 8 }, () => ({ pawnId: null, tier: null })),
         slotPawnIds: Array(8).fill(null),
+        slotPawnTiers: Array(8).fill(null),
       },
     });
   });

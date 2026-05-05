@@ -101,6 +101,7 @@ describe('createCombatRuntime', () => {
       null,
       null,
     ]);
+    expect(runtime.slots.map((slot) => slot.pawnTier)).toEqual([1, null, 1, null, null, null, null, null]);
   });
 
   it('centralizes note packet updates with capacity clamping and fresh visual ids', () => {
@@ -174,6 +175,7 @@ describe('createCombatRuntime', () => {
       layout.record.slots.map((slot) => ({
         slotIndex: slot.index,
         pawnId: activePreset?.slots[slot.index] ?? null,
+        pawnTier: activePreset?.slots[slot.index] ? 1 : null,
         worldPosition: {
           x:
             layout.record.centerX
@@ -186,6 +188,15 @@ describe('createCombatRuntime', () => {
         activationVisualState: 'idle',
       })),
     );
+  });
+
+  it('stores provided pawn tiers alongside stage loadout ids', () => {
+    const runtime = createCombatRuntime(Math.random, {
+      slotPawnIds: ['pawn-red-generator', null, 'pawn-blue-finisher', null, null, null, null, null],
+      slotPawnTiers: [2, null, 3, null, null, null, null, null],
+    });
+
+    expect(runtime.slots.map((slot) => slot.pawnTier)).toEqual([2, null, 3, null, null, null, null, null]);
   });
 
   it('advances from preview to running after the config-driven preview delay', () => {
@@ -343,8 +354,10 @@ describe('createCombatRuntime', () => {
 
     expect(runtime.effects.transientIds).toContain('slot-activated:0');
     expect(runtime.slots[0]?.activationVisualState).toBe('active');
+    const weaknessDamage = Math.round(CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 1.5);
+
     expect(nearestEnemy.currentHp).toBe(
-      nearestEnemy.maxHp - CombatBalanceConfig.GENERATOR_BASE_DAMAGE,
+      Math.max(0, nearestEnemy.maxHp - weaknessDamage),
     );
     expect(fartherEnemy.currentHp).toBe(fartherEnemy.maxHp);
     expect(runtime.notePacket).toEqual({
@@ -358,10 +371,10 @@ describe('createCombatRuntime', () => {
         enemyId: nearestEnemy.runtimeId,
         slotIndex: 0,
         attackerColor: 'red',
-        damage: CombatBalanceConfig.GENERATOR_BASE_DAMAGE,
+        damage: weaknessDamage,
         currentHp: nearestEnemy.currentHp,
         maxHp: nearestEnemy.maxHp,
-        wasWeaknessHit: false,
+        wasWeaknessHit: true,
       },
     });
     expect(runtime.effects.pendingEvents).toContainEqual({
@@ -772,7 +785,7 @@ describe('createCombatRuntime', () => {
     expect(runtime.state).toBe('defeat');
   });
 
-  it('applies a 1.5x weakness multiplier when a red generator attacks a green enemy', () => {
+  it('applies a 1.5x weakness multiplier when a red generator attacks a red enemy', () => {
     const runtime = createCombatRuntime();
 
     runtime.spawn.pendingEnemyRuntimeIds = [];
@@ -802,16 +815,16 @@ describe('createCombatRuntime', () => {
     generatorSlot.pawnId = 'pawn-red-generator';
     generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
 
-    // enemy[0] is green (weak to red) — should take weakness damage
-    targetEnemy.color = 'green';
+    // enemy[0] is red (weak to red) — should take weakness damage
+    targetEnemy.color = 'red';
     targetEnemy.spawned = true;
     targetEnemy.state = 'moving';
     targetEnemy.currentHp = targetEnemy.maxHp;
     targetEnemy.x = 120;
     targetEnemy.y = 100;
 
-    // enemy[1] is red (no weakness advantage) — should take normal damage
-    otherEnemy.color = 'red';
+    // enemy[1] is green (no weakness advantage) — should take normal damage
+    otherEnemy.color = 'green';
     otherEnemy.spawned = true;
     otherEnemy.state = 'moving';
     otherEnemy.currentHp = otherEnemy.maxHp;
@@ -826,11 +839,11 @@ describe('createCombatRuntime', () => {
 
     advanceCombatRuntime(runtime, 1000);
 
-    // red > green => weakness multiplier 1.5x applied
+    // red vs red => weakness multiplier 1.5x applied
     expect(targetEnemy.currentHp).toBe(
       targetEnemy.maxHp - Math.round(CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 1.5),
     );
-    // no weakness for same-color matchup
+    // other enemy was not targeted
     expect(otherEnemy.currentHp).toBe(otherEnemy.maxHp);
     // event payload must include the weakness flag
     const hitPayload = runtime.effects.pendingEvents.find(
@@ -840,7 +853,7 @@ describe('createCombatRuntime', () => {
     expect(hitPayload.wasWeaknessHit).toBe(true);
   });
 
-  it('applies a 1.5x weakness multiplier to finisher damage when attacker color has advantage', () => {
+  it('applies a 1.5x weakness multiplier to finisher damage when colors match', () => {
     const runtime = createCombatRuntime();
 
     runtime.spawn.pendingEnemyRuntimeIds = [];
@@ -872,16 +885,16 @@ describe('createCombatRuntime', () => {
     finisherSlot.worldPosition = { x: 100, y: 100 };
     finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
 
-    // enemy[0] is green (weak to red) — should take weakness damage
-    targetEnemy.color = 'green';
+    // enemy[0] is red (weak to red) — should take weakness damage
+    targetEnemy.color = 'red';
     targetEnemy.spawned = true;
     targetEnemy.state = 'moving';
     targetEnemy.currentHp = targetEnemy.maxHp;
     targetEnemy.x = 120;
     targetEnemy.y = 100;
 
-    // enemy[1] is red (no weakness) — should take normal finisher damage
-    otherEnemy.color = 'red';
+    // enemy[1] is green (no weakness) — should take normal finisher damage
+    otherEnemy.color = 'green';
     otherEnemy.spawned = true;
     otherEnemy.state = 'moving';
     otherEnemy.currentHp = otherEnemy.maxHp;
@@ -914,7 +927,7 @@ describe('createCombatRuntime', () => {
     expect(hitPayload.wasWeaknessHit).toBe(true);
   });
 
-  it('applies no multiplier for disadvantaged and same-color matchups', () => {
+  it('applies no multiplier for different-color matchups', () => {
     const runtime = createCombatRuntime();
 
     runtime.spawn.pendingEnemyRuntimeIds = [];
@@ -942,8 +955,8 @@ describe('createCombatRuntime', () => {
     generatorSlot.pawnId = 'pawn-green-generator';
     generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
 
-    // green vs red = disadvantaged (red > green, not green > red)
-    targetEnemy.color = 'red';
+    // green vs red = different colors, so no weakness multiplier
+    targetEnemy.color = 'blue';
     targetEnemy.spawned = true;
     targetEnemy.state = 'moving';
     targetEnemy.currentHp = targetEnemy.maxHp;
@@ -958,7 +971,7 @@ describe('createCombatRuntime', () => {
 
     advanceCombatRuntime(runtime, 1000);
 
-    // disadvantaged: no weakness multiplier, plain baseDamage
+    // different colors: no weakness multiplier, plain baseDamage
     expect(targetEnemy.currentHp).toBe(targetEnemy.maxHp - CombatBalanceConfig.GENERATOR_BASE_DAMAGE);
 
     const hitPayload = runtime.effects.pendingEvents.find(
@@ -966,6 +979,114 @@ describe('createCombatRuntime', () => {
     )?.payload as { damage: number; wasWeaknessHit: boolean };
     expect(hitPayload.damage).toBe(CombatBalanceConfig.GENERATOR_BASE_DAMAGE);
     expect(hitPayload.wasWeaknessHit).toBe(false);
+  });
+
+  it('scales generator damage by pawn tier before weakness is applied', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.pawnTier = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const generatorSlot = runtime.slots[0];
+    const targetEnemy = runtime.enemies[0];
+
+    expect(generatorSlot).toBeDefined();
+    expect(targetEnemy).toBeDefined();
+
+    if (!generatorSlot || !targetEnemy) {
+      return;
+    }
+
+    generatorSlot.pawnId = 'pawn-red-generator';
+    generatorSlot.pawnTier = 2;
+    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    targetEnemy.color = 'green';
+    targetEnemy.spawned = true;
+    targetEnemy.state = 'moving';
+    targetEnemy.currentHp = targetEnemy.maxHp;
+    targetEnemy.x = 120;
+    targetEnemy.y = 100;
+
+    for (const enemy of runtime.enemies.slice(1)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(targetEnemy.currentHp).toBe(
+      Math.max(0, targetEnemy.maxHp - CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 3),
+    );
+  });
+
+  it('scales finisher damage by pawn tier before note and weakness multipliers are applied', () => {
+    const runtime = createCombatRuntime();
+
+    runtime.spawn.pendingEnemyRuntimeIds = [];
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = 10;
+    runtime.record.previousAngle = 10;
+    runtime.record.rotationSpeedDegPerSecond = 20;
+    setCombatNotePacket(runtime, 'blue', 3);
+
+    for (const slot of runtime.slots) {
+      slot.pawnId = null;
+      slot.pawnTier = null;
+      slot.worldPosition = { x: 100, y: 100 };
+      slot.sectorCenterAngleDeg = null;
+    }
+
+    const finisherSlot = runtime.slots[0];
+    const targetEnemy = runtime.enemies[0];
+
+    expect(finisherSlot).toBeDefined();
+    expect(targetEnemy).toBeDefined();
+
+    if (!finisherSlot || !targetEnemy) {
+      return;
+    }
+
+    finisherSlot.pawnId = 'pawn-blue-finisher';
+    finisherSlot.pawnTier = 3;
+    finisherSlot.worldPosition = { x: 100, y: 100 };
+    finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+    targetEnemy.color = 'blue';
+    targetEnemy.spawned = true;
+    targetEnemy.state = 'moving';
+    targetEnemy.currentHp = 999;
+    targetEnemy.maxHp = 999;
+    targetEnemy.x = 120;
+    targetEnemy.y = 100;
+
+    for (const enemy of runtime.enemies.slice(1)) {
+      enemy.spawned = false;
+      enemy.state = 'dead';
+      enemy.currentHp = 0;
+    }
+
+    advanceCombatRuntime(runtime, 1000);
+
+    const expectedDamage = Math.round(
+      CombatBalanceConfig.FINISHER_BASE_DAMAGE
+        * 8
+        * CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[3]
+        * CombatBalanceConfig.WEAKNESS_MULTIPLIER,
+    );
+
+    expect(targetEnemy.currentHp).toBe(999 - expectedDamage);
   });
 
   it('activates sub-waves by absolute startTimeMs from wave start, not by completion order', () => {
@@ -1008,15 +1129,17 @@ describe('createCombatRuntime', () => {
     advanceCombatRuntime(runtime, 1);
 
     expect(runtime.wave.activeSubWaves).toHaveLength(2);
-    expect(runtime.wave.pendingSubWaves).toHaveLength(1);
+    expect(runtime.wave.pendingSubWaves).toHaveLength(
+      Math.max(0, (initialWave?.subWaves.length ?? 0) - 2),
+    );
     expect(runtime.wave.spawnBags.has(secondSubWave?.id ?? '')).toBe(true);
     expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(4);
 
     advanceCombatRuntime(runtime, (secondSubWave?.spawnIntervalMs ?? 1) - 1);
-    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(5);
+    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(4);
 
     advanceCombatRuntime(runtime, 1);
-    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(6);
+    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(5);
   });
 
   it('bootstraps enemy spawns into the top lane with config-driven x range and anti-clumping', () => {
@@ -1132,8 +1255,6 @@ describe('createCombatRuntime', () => {
     const spawnedAfterFirst = runtime.enemies.filter((e) => e.spawned);
     expect(spawnedAfterFirst).toHaveLength(3);
 
-    expect(runtime.wave.enemiesRemaining).toBe(
-      firstSubWaveEnemyCount + secondSubWaveEnemyCount + 6,
-    );
+    expect(runtime.wave.enemiesRemaining).toBe(firstSubWaveEnemyCount + secondSubWaveEnemyCount);
   });
 });

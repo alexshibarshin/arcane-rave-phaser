@@ -11,6 +11,7 @@ import {
   rerollStageShop,
   type StageBuildState,
 } from './StageBuild';
+import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
 
 export type StagePhase = 'build' | 'combat' | 'stage_complete' | 'stage_failed';
 export type StageCombatOutcome = 'victory' | 'defeat';
@@ -152,6 +153,17 @@ export function mergeStagePawnSlots(
 
 export function getStageCombatLoadout(runtime: StageRuntime): Array<string | null> {
   return getStageBuildSlotPawnIds(runtime.build);
+}
+
+export function getStageCombatLoadoutSlots(runtime: StageRuntime): CombatLoadoutSlot[] {
+  return runtime.build.slots.map((slot) => ({
+    pawnId: slot?.pawnId ?? null,
+    tier: slot?.tier ?? null,
+  }));
+}
+
+export function getStageCombatLoadoutTiers(runtime: StageRuntime): Array<number | null> {
+  return runtime.build.slots.map((slot) => slot?.tier ?? null);
 }
 
 export function getStageShopRerollCost(runtime: StageRuntime): number {

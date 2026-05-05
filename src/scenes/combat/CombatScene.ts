@@ -8,6 +8,7 @@ import { GameScene } from '@scenes/GameScene';
 import { restartCombatScenes } from '@combat/CombatSceneLifecycle';
 import {
   createCombatRuntime,
+  type CombatLoadoutSlot,
   type CombatRuntime,
 } from '@combat/CombatRuntime';
 import { publishCombatStateTransition } from '@combat/CombatHudEvents';
@@ -30,7 +31,9 @@ interface CombatSceneInitData {
   totalWaves?: number;
   stageManaged?: boolean;
   allowRestart?: boolean;
+  slotPawns?: CombatLoadoutSlot[];
   slotPawnIds?: Array<string | null>;
+  slotPawnTiers?: Array<number | null>;
 }
 
 export class CombatScene extends GameScene {
@@ -39,7 +42,9 @@ export class CombatScene extends GameScene {
   private totalWaves = 1;
   private stageManaged = false;
   private allowRestart = true;
+  private slotPawns?: CombatLoadoutSlot[];
   private slotPawnIds?: Array<string | null>;
+  private slotPawnTiers?: Array<number | null>;
   private synergySystem?: SynergyVisualSystem;
   private viewGraph?: CombatSceneViewGraph;
   private presentationRuntime?: CombatPresentationRuntime;
@@ -161,7 +166,9 @@ export class CombatScene extends GameScene {
     this.totalWaves = data.totalWaves ?? 1;
     this.stageManaged = data.stageManaged ?? false;
     this.allowRestart = data.allowRestart ?? true;
+    this.slotPawns = data.slotPawns ? data.slotPawns.map((slot) => ({ ...slot })) : undefined;
     this.slotPawnIds = data.slotPawnIds ? [...data.slotPawnIds] : undefined;
+    this.slotPawnTiers = data.slotPawnTiers ? [...data.slotPawnTiers] : undefined;
   }
 
   create(): void {
@@ -189,13 +196,22 @@ export class CombatScene extends GameScene {
     this.runtime = createCombatRuntime(Math.random, {
       waveIndex: this.waveIndex,
       totalWaves: this.totalWaves,
+      slotPawns: this.slotPawns,
       slotPawnIds: this.slotPawnIds,
+      slotPawnTiers: this.slotPawnTiers,
     });
-    this.slotPawnIds = resolveCombatSceneSlotPawnIds(this.slotPawnIds, this.runtime);
+    this.slotPawnIds = resolveCombatSceneSlotPawnIds(
+      this.slotPawnIds ?? this.slotPawns?.map((slot) => slot.pawnId ?? null),
+      this.runtime,
+    );
 
     this.viewGraph = createCombatSceneViewGraph({
       scene: this,
       waveIndex: this.waveIndex,
+      slotPawns: this.runtime.slots.map((slot) => ({
+        pawnId: slot.pawnId,
+        tier: slot.pawnTier,
+      })),
       slotPawnIds: this.slotPawnIds,
     });
     this.presentationRuntime = createCombatPresentationRuntime({
@@ -295,5 +311,7 @@ export class CombatScene extends GameScene {
     this.stageManaged = false;
     this.allowRestart = true;
     this.slotPawnIds = undefined;
+    this.slotPawns = undefined;
+    this.slotPawnTiers = undefined;
   }
 }

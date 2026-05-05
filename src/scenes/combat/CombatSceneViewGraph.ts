@@ -73,6 +73,7 @@ export interface CombatSceneViewGraph {
 interface CreateCombatSceneViewGraphOptions {
   scene: Phaser.Scene;
   waveIndex?: number;
+  slotPawns?: Array<{ pawnId: string | null; tier: number | null }>;
   slotPawnIds?: Array<string | null>;
 }
 
@@ -84,6 +85,7 @@ export function createCombatSceneViewGraph(
 
   const renderModel = createCombatRenderModel({
     waveIndex: options.waveIndex,
+    slotPawns: options.slotPawns,
     slotPawnIds: options.slotPawnIds,
   });
 

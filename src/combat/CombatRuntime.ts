@@ -27,6 +27,7 @@ export type CombatEnemyState = 'moving' | 'attacking' | 'dead';
 export interface CombatSlotRuntime {
   slotIndex: number;
   pawnId: string | null;
+  pawnTier: number | null;
   worldPosition: { x: number; y: number } | null;
   sectorCenterAngleDeg: number | null;
   activationVisualState: 'idle' | 'pending' | 'active';
@@ -108,10 +109,17 @@ interface CombatRuntimeAdvanceOptions {
   random?: () => number;
 }
 
+export interface CombatLoadoutSlot {
+  pawnId: string | null;
+  tier: number | null;
+}
+
 export interface CreateCombatRuntimeOptions {
   waveIndex?: number;
   totalWaves?: number;
+  slotPawns?: CombatLoadoutSlot[];
   slotPawnIds?: Array<string | null>;
+  slotPawnTiers?: Array<number | null>;
 }
 
 export function createCombatRuntime(
@@ -127,7 +135,7 @@ export function createCombatRuntime(
   const slotPreset =
     CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
     ?? null;
-  const slotPawnIds = options.slotPawnIds ?? slotPreset?.slots ?? [];
+  const slotPawns = resolveCombatLoadoutSlots(options, slotPreset?.slots ?? []);
   const enemies = createCombatEnemyRuntimes(initialWave as CombatWaveDefinition);
 
   const runtime: CombatRuntime = {
@@ -153,7 +161,11 @@ export function createCombatRuntime(
     },
     slots: layout.record.slots.map((slot) => ({
       slotIndex: slot.index,
-      pawnId: slotPawnIds[slot.index] ?? null,
+      pawnId: slotPawns[slot.index]?.pawnId ?? null,
+      pawnTier: resolveInitialSlotPawnTier(
+        slotPawns[slot.index]?.pawnId ?? null,
+        slotPawns[slot.index]?.tier ?? null,
+      ),
       worldPosition: getSlotWorldPosition(
         layout.record.centerX,
         layout.record.centerY,
@@ -183,6 +195,37 @@ export function createCombatRuntime(
   initializeCombatWaveRuntime(runtime, random);
 
   return runtime;
+}
+
+function resolveCombatLoadoutSlots(
+  options: CreateCombatRuntimeOptions,
+  fallbackPawnIds: Array<string | null>,
+): CombatLoadoutSlot[] {
+  if (options.slotPawns) {
+    return options.slotPawns.map((slot) => ({
+      pawnId: slot?.pawnId ?? null,
+      tier: slot?.pawnId === null ? null : Math.max(1, slot?.tier ?? 1),
+    }));
+  }
+
+  const slotPawnIds = options.slotPawnIds ?? fallbackPawnIds;
+  const slotPawnTiers = options.slotPawnTiers ?? [];
+
+  return slotPawnIds.map((pawnId, index) => ({
+    pawnId: pawnId ?? null,
+    tier: pawnId === null ? null : Math.max(1, slotPawnTiers[index] ?? 1),
+  }));
+}
+
+function resolveInitialSlotPawnTier(
+  pawnId: string | null,
+  pawnTier: number | null,
+): number | null {
+  if (pawnId === null) {
+    return null;
+  }
+
+  return Math.max(1, pawnTier ?? 1);
 }
 
 export function advanceCombatRuntime(

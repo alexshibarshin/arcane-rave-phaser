@@ -204,6 +204,7 @@ export interface CombatRenderModel {
 
 export interface CreateCombatRenderModelOptions {
   waveIndex?: number;
+  slotPawns?: Array<{ pawnId: string | null; tier: number | null }>;
   slotPawnIds?: Array<string | null>;
 }
 
@@ -224,7 +225,7 @@ export function createCombatRenderModel(
   const activePreset = CombatContentConfig.SLOT_PRESETS.find(
     (preset) => preset.id === activeWave?.slotPresetId,
   );
-  const slotPawnIds = options.slotPawnIds ?? activePreset?.slots ?? [];
+  const slotPawns = resolveRenderSlotPawns(options, activePreset?.slots ?? []);
 
   return {
     background: {
@@ -264,11 +265,13 @@ export function createCombatRenderModel(
           layout.record.radius * CombatVisualConfig.SLOT.OUTER_ZONE_OFFSET_RATIO,
         ),
         pawn: createSlotPawnRenderModel(
-          slotPawnIds[slot.index] ?? null,
+          slotPawns[slot.index]?.pawnId ?? null,
+          slotPawns[slot.index]?.tier ?? null,
           pawnDefinitionsById,
         ),
         presentation: createSlotPresentationModel(
-          slotPawnIds[slot.index] ?? null,
+          slotPawns[slot.index]?.pawnId ?? null,
+          slotPawns[slot.index]?.tier ?? null,
           pawnDefinitionsById,
         ),
       })),
@@ -351,6 +354,25 @@ export function createCombatRenderModel(
   };
 }
 
+function resolveRenderSlotPawns(
+  options: CreateCombatRenderModelOptions,
+  fallbackPawnIds: Array<string | null>,
+): Array<{ pawnId: string | null; tier: number | null }> {
+  if (options.slotPawns) {
+    return options.slotPawns.map((slot) => ({
+      pawnId: slot?.pawnId ?? null,
+      tier: slot?.pawnId === null ? null : Math.max(1, slot?.tier ?? 1),
+    }));
+  }
+
+  const slotPawnIds = options.slotPawnIds ?? fallbackPawnIds;
+
+  return slotPawnIds.map((pawnId) => ({
+    pawnId: pawnId ?? null,
+    tier: pawnId === null ? null : 1,
+  }));
+}
+
 function createEnemyRenderModel(
   enemyRuntime: ReturnType<typeof createCombatEnemyRuntimes>[number],
   definition: CombatEnemyDefinition,
@@ -403,6 +425,7 @@ function createEnemyRenderModel(
 
 function createSlotPawnRenderModel(
   pawnId: string | null,
+  pawnTier: number | null,
   pawnDefinitionsById: ReadonlyMap<string, CombatPawnDefinition>,
 ): CombatRenderPawnModel | null {
   if (pawnId === null) {
@@ -422,13 +445,14 @@ function createSlotPawnRenderModel(
     constructFamily: pawnDefinition.visualFamilyKey,
     silhouetteKey: pawnDefinition.visualSilhouetteKey,
     pedestalStyleKey: pawnDefinition.pedestalStyleKey,
-    tierStars: pawnDefinition.type === 'generator' ? 1 : 2,
+    tierStars: normalizePawnTier(pawnId, pawnTier),
     ruleLabel: pawnDefinition.type === 'generator' ? '+♪♪' : '♪♪♪ > ♪',
   };
 }
 
 function createSlotPresentationModel(
   pawnId: string | null,
+  pawnTier: number | null,
   pawnDefinitionsById: ReadonlyMap<string, CombatPawnDefinition>,
 ): CombatSlotPresentationModel {
   const pawnDefinition = pawnId === null ? null : pawnDefinitionsById.get(pawnId) ?? null;
@@ -476,11 +500,19 @@ function createSlotPresentationModel(
         color: accentColor,
       },
       tierStars: {
-        count: pawnDefinition.type === 'generator' ? 1 : 2,
+        count: normalizePawnTier(pawnId, pawnTier),
         color: 0xffd166,
       },
     },
   };
+}
+
+function normalizePawnTier(pawnId: string | null, pawnTier: number | null): number {
+  if (pawnId === null) {
+    return 0;
+  }
+
+  return Math.max(1, pawnTier ?? 1);
 }
 
 function getNoteColorValue(color: NoteColor): number {

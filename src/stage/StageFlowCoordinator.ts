@@ -5,11 +5,14 @@ import type { EventMap } from '@events/EventBus';
 import {
   canStageStartWave,
   getStageCombatLoadout,
+  getStageCombatLoadoutSlots,
+  getStageCombatLoadoutTiers,
   requestStageWaveStart,
   resolveStageCombatOutcome,
   type StageCombatOutcome,
   type StageRuntime,
 } from '@stage/StageRuntime';
+import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
 import { createStageWavePreview } from '@stage/StageWavePreview';
 
 export interface StageFlowCoordinationState {
@@ -46,7 +49,9 @@ export type StageFlowCommand =
         totalWaves: number;
         stageManaged: true;
         allowRestart: false;
+        slotPawns: CombatLoadoutSlot[];
         slotPawnIds: Array<string | null>;
+        slotPawnTiers: Array<number | null>;
       };
     }
   | {
@@ -174,7 +179,9 @@ function createLaunchCombatCommand(runtime: StageRuntime): Extract<
       totalWaves: runtime.totalWaves,
       stageManaged: true,
       allowRestart: false,
+      slotPawns: getStageCombatLoadoutSlots(runtime),
       slotPawnIds: getStageCombatLoadout(runtime),
+      slotPawnTiers: getStageCombatLoadoutTiers(runtime),
     },
   };
 }

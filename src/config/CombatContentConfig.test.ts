@@ -6,7 +6,7 @@ import {
 } from '@config/CombatContentConfig';
 
 describe('CombatContentConfig', () => {
-  it('defines a complete non-self weakness cycle across all note colors', () => {
+  it('defines same-color weakness targets across all note colors', () => {
     const noteColors = new Set(CombatContentConfig.NOTE_COLORS);
     const weaknessTargets = Object.values(CombatContentConfig.WEAKNESS_ADVANTAGE);
 
@@ -14,7 +14,7 @@ describe('CombatContentConfig', () => {
     expect(new Set(weaknessTargets)).toEqual(noteColors);
 
     for (const color of CombatContentConfig.NOTE_COLORS) {
-      expect(CombatContentConfig.WEAKNESS_ADVANTAGE[color]).not.toBe(color);
+      expect(CombatContentConfig.WEAKNESS_ADVANTAGE[color]).toBe(color);
       expect(noteColors.has(CombatContentConfig.WEAKNESS_ADVANTAGE[color])).toBe(true);
     }
   });

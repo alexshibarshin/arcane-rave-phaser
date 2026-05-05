@@ -63,9 +63,9 @@ const combatContentConfig = {
   NOTE_COLORS,
   PAWN_TYPES,
   WEAKNESS_ADVANTAGE: {
-    red: 'green',
-    green: 'blue',
-    blue: 'red',
+    red: 'red',
+    green: 'green',
+    blue: 'blue',
   } as const,
   PAWN_DEFINITIONS: [
     {
