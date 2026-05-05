@@ -3,7 +3,9 @@ import {
   canStageStartWave,
   createStageRuntime,
   getStageCombatLoadout,
+  getStageShopRerollCost,
   purchaseStagePawnIntoSlot,
+  rerollStageShopOffers,
   requestStageWaveStart,
   resolveStageCombatOutcome,
 } from '@stage/StageRuntime';
@@ -26,6 +28,7 @@ describe('StageRuntime', () => {
           'pawn-red-generator',
         ],
         shopPurchaseCounts: {},
+        rerollCount: 0,
       },
     });
     expect(canStageStartWave(runtime)).toBe(true);
@@ -52,9 +55,9 @@ describe('StageRuntime', () => {
 
     expect(nextPhase).toBe('build');
     expect(runtime.currentWaveIndex).toBe(1);
-    expect(runtime.coins).toBe(6);
+    expect(runtime.coins).toBe(4);
     expect(runtime.lastCombatOutcome).toBe('victory');
-    expect(runtime.build.slots[0]).toBe('pawn-red-generator');
+    expect(runtime.build.slots[0]).toEqual({ pawnId: 'pawn-red-generator', tier: 1 });
     expect(runtime.build.shopOffers).toEqual([
       'pawn-red-finisher',
       'pawn-red-finisher',
@@ -69,6 +72,21 @@ describe('StageRuntime', () => {
 
     expect(getStageCombatLoadout(runtime)[0]).toBe('pawn-red-generator');
     expect(getStageCombatLoadout(runtime).slice(1).every((slot) => slot === null)).toBe(true);
+  });
+
+  it('rerolls the shop, spends coins, and increases reroll cost inside the build phase', () => {
+    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 }, () => 0);
+
+    expect(getStageShopRerollCost(runtime)).toBe(1);
+    expect(rerollStageShopOffers(runtime, () => 0.5)).toBe(true);
+    expect(runtime.coins).toBe(5);
+    expect(runtime.build.shopOffers).toEqual([
+      'pawn-red-finisher',
+      'pawn-red-finisher',
+      'pawn-red-finisher',
+    ]);
+    expect(runtime.build.rerollCount).toBe(1);
+    expect(getStageShopRerollCost(runtime)).toBe(2);
   });
 
   it('completes the stage after final-wave victory', () => {

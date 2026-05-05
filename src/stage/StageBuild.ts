@@ -1,10 +1,16 @@
 import { CombatContentConfig } from '@config/CombatContentConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 
+export interface StagePawnInstance {
+  pawnId: string;
+  tier: number;
+}
+
 export interface StageBuildState {
-  slots: Array<string | null>;
+  slots: Array<StagePawnInstance | null>;
   shopOffers: string[];
   shopPurchaseCounts: Record<string, number>;
+  rerollCount: number;
 }
 
 export function createStageBuildState(random: () => number = Math.random): StageBuildState {
@@ -12,6 +18,7 @@ export function createStageBuildState(random: () => number = Math.random): Stage
     slots: Array.from({ length: CombatContentConfig.SLOT_COUNT }, () => null),
     shopOffers: drawStageShopOffers(random),
     shopPurchaseCounts: {},
+    rerollCount: 0,
   };
 }
 
@@ -41,7 +48,39 @@ export function purchaseStagePawn(
     return false;
   }
 
-  build.slots[slotIndex] = offer;
+  build.slots[slotIndex] = createStagePawnInstance(offer);
+  build.shopOffers.splice(offerIndex, 1);
+  build.shopPurchaseCounts[offer] = (build.shopPurchaseCounts[offer] ?? 0) + 1;
+  return true;
+}
+
+export function purchaseStagePawnMerge(
+  build: StageBuildState,
+  coins: number,
+  offerIndex: number,
+  slotIndex: number,
+  random: () => number = Math.random,
+): boolean {
+  if (coins < StageFlowConfig.SHOP_PURCHASE_COST || !isValidSlotIndex(slotIndex)) {
+    return false;
+  }
+
+  const offer = build.shopOffers[offerIndex];
+  if (!offer) {
+    return false;
+  }
+
+  const targetPawn = build.slots[slotIndex];
+  const purchasedPawn = createStagePawnInstance(offer);
+
+  if (!targetPawn || !canMergeStagePawns(purchasedPawn, targetPawn)) {
+    return false;
+  }
+
+  build.slots[slotIndex] = {
+    pawnId: drawRandomPawnId(random),
+    tier: Math.min(targetPawn.tier + 1, StageFlowConfig.MAX_PAWN_TIER),
+  };
   build.shopOffers.splice(offerIndex, 1);
   build.shopPurchaseCounts[offer] = (build.shopPurchaseCounts[offer] ?? 0) + 1;
   return true;
@@ -70,6 +109,71 @@ export function moveStagePawn(
   build.slots[fromSlotIndex] = toPawn;
   build.slots[toSlotIndex] = fromPawn;
   return true;
+}
+
+export function mergeStagePawn(
+  build: StageBuildState,
+  fromSlotIndex: number,
+  toSlotIndex: number,
+  random: () => number = Math.random,
+): boolean {
+  if (!isValidSlotIndex(fromSlotIndex) || !isValidSlotIndex(toSlotIndex) || fromSlotIndex === toSlotIndex) {
+    return false;
+  }
+
+  const fromPawn = build.slots[fromSlotIndex];
+  const toPawn = build.slots[toSlotIndex];
+
+  if (!fromPawn || !toPawn || !canMergeStagePawns(fromPawn, toPawn)) {
+    return false;
+  }
+
+  build.slots[fromSlotIndex] = null;
+  build.slots[toSlotIndex] = {
+    pawnId: drawRandomPawnId(random),
+    tier: Math.min(toPawn.tier + 1, StageFlowConfig.MAX_PAWN_TIER),
+  };
+  return true;
+}
+
+export function getStageBuildSlotPawnIds(
+  build: StageBuildState,
+): Array<string | null> {
+  return build.slots.map((slot) => slot?.pawnId ?? null);
+}
+
+export function rerollStageShop(
+  build: StageBuildState,
+  coins: number,
+  random: () => number = Math.random,
+): boolean {
+  if (coins < getStageRerollCost(build)) {
+    return false;
+  }
+
+  build.shopOffers = drawStageShopOffers(random);
+  build.rerollCount += 1;
+  return true;
+}
+
+export function getStageRerollCost(build: StageBuildState): number {
+  return StageFlowConfig.SHOP_REROLL_BASE_COST + build.rerollCount;
+}
+
+function canMergeStagePawns(left: StagePawnInstance, right: StagePawnInstance): boolean {
+  return left.pawnId === right.pawnId && left.tier === right.tier && left.tier < StageFlowConfig.MAX_PAWN_TIER;
+}
+
+function createStagePawnInstance(pawnId: string): StagePawnInstance {
+  return {
+    pawnId,
+    tier: 1,
+  };
+}
+
+function drawRandomPawnId(random: () => number): string {
+  const index = Math.floor(random() * CombatContentConfig.PAWN_DEFINITIONS.length);
+  return CombatContentConfig.PAWN_DEFINITIONS[index]?.id ?? CombatContentConfig.PAWN_DEFINITIONS[0]!.id;
 }
 
 function isValidSlotIndex(slotIndex: number): boolean {

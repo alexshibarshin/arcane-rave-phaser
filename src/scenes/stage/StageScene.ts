@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CombatContentConfig, type CombatPawnDefinition } from '@config/CombatContentConfig';
+import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
@@ -7,10 +8,15 @@ import { SceneKeys } from '@config/GameConfig';
 import { emit, off, on } from '@events/EventBus';
 import {
   createStageRuntime,
+  getStageShopRerollCost,
+  mergeStagePawnSlots,
+  purchaseStagePawnIntoMergeSlot,
   purchaseStagePawnIntoSlot,
   repositionStagePawn,
+  rerollStageShopOffers,
   type StageRuntime,
 } from '@stage/StageRuntime';
+import { getStageBuildSlotPawnIds, type StagePawnInstance } from '@stage/StageBuild';
 import { createStageWavePreview } from '@stage/StageWavePreview';
 import {
   createStageFlowCoordinationState,
@@ -49,6 +55,7 @@ type DragPayload =
       kind: 'slot-pawn';
       slotIndex: number;
       pawnId: string;
+      tier: number;
       homeX: number;
       homeY: number;
     };
@@ -69,6 +76,7 @@ export class StageScene extends Phaser.Scene {
   private recordInnerLabelLayer?: Phaser.GameObjects.Container;
   private shopPanel?: Phaser.GameObjects.Container;
   private shopCardsLayer?: Phaser.GameObjects.Container;
+  private rerollButton?: Phaser.GameObjects.Text;
   private readonly slotViews: StageRecordSlotView[] = [];
   private readonly shopCardViews: StageShopCardView[] = [];
   private activeDropSlotIndex: number | null = null;
@@ -121,20 +129,20 @@ export class StageScene extends Phaser.Scene {
     this.createSynergySystem();
     this.shopPanel = this.createShopPanel();
 
-    this.phaseLabel = this.add.text(52, 100, '', {
+    this.phaseLabel = this.add.text(52, 50, '', {
       color: '#8ef7ff',
       fontFamily: 'monospace',
       fontSize: '22px',
     });
 
-    this.coinsLabel = this.add.text(width - 52, 100, '', {
+    this.coinsLabel = this.add.text(width - 52, 50, '', {
       color: '#ffe08e',
       fontFamily: 'monospace',
       fontSize: '22px',
       align: 'right',
     }).setOrigin(1, 0);
 
-    this.waveLabel = this.add.text(width / 2, 132, '', {
+    this.waveLabel = this.add.text(width / 2, 60, '', {
       color: '#f5f7ff',
       fontFamily: 'monospace',
       fontSize: '34px',
@@ -338,8 +346,19 @@ export class StageScene extends Phaser.Scene {
       },
     );
 
+    this.rerollButton = this.add.text(x + width - 122, y + 32, '', {
+      color: '#071019',
+      backgroundColor: '#ffe08e',
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      align: 'center',
+      padding: { left: 12, right: 12, top: 8, bottom: 8 },
+    }).setOrigin(0.5, 0);
+    this.rerollButton.setInteractive({ useHandCursor: true });
+    this.rerollButton.on('pointerdown', this.handleRerollPressed);
+
     this.shopCardsLayer = this.add.container(0, 0);
-    container.add([background, title, subtitle, this.shopCardsLayer]);
+    container.add([background, title, subtitle, this.rerollButton, this.shopCardsLayer]);
     return container;
   }
 
@@ -355,7 +374,7 @@ export class StageScene extends Phaser.Scene {
       depth: 30,
     });
     this.synergySystem.create();
-    this.synergySystem.updateBuildState(this.runtime.build.slots);
+    this.synergySystem.updateBuildState(getStageBuildSlotPawnIds(this.runtime.build));
   }
 
   private bindDragEvents(): void {
@@ -415,16 +434,24 @@ export class StageScene extends Phaser.Scene {
 
         if (payload.kind === 'shop-offer' && targetSlotIndex !== null) {
           applied = purchaseStagePawnIntoSlot(this.runtime, payload.offerIndex, targetSlotIndex);
+          if (!applied) {
+            applied = purchaseStagePawnIntoMergeSlot(this.runtime, payload.offerIndex, targetSlotIndex);
+          }
           errorMsg = applied
             ? null
-            : `Need ${StageFlowConfig.SHOP_PURCHASE_COST} coins and an empty slot to buy.`;
+            : `Need ${StageFlowConfig.SHOP_PURCHASE_COST} coins and either an empty slot or a matching same-tier pawn.`;
         }
 
         if (payload.kind === 'slot-pawn' && targetSlotIndex !== null) {
-          applied = repositionStagePawn(this.runtime, payload.slotIndex, targetSlotIndex);
-          errorMsg = applied
-            ? null
-            : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
+          applied = mergeStagePawnSlots(this.runtime, payload.slotIndex, targetSlotIndex);
+          errorMsg = applied ? null : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
+
+          if (!applied) {
+            applied = repositionStagePawn(this.runtime, payload.slotIndex, targetSlotIndex);
+            errorMsg = applied
+              ? null
+              : 'Need matching duplicate to merge, or 1 coin and a different destination slot to move.';
+          }
         }
 
         this.transientStatusText = errorMsg;
@@ -447,7 +474,7 @@ export class StageScene extends Phaser.Scene {
     this.refreshRecordPawnViews();
     this.refreshShopCards();
     this.syncPresentation();
-    this.synergySystem?.updateBuildState(this.runtime.build.slots);
+    this.synergySystem?.updateBuildState(getStageBuildSlotPawnIds(this.runtime.build));
   }
 
   private refreshRecordPawnViews(): void {
@@ -459,12 +486,12 @@ export class StageScene extends Phaser.Scene {
     });
 
     for (const slotView of this.slotViews) {
-      const pawnId = this.runtime.build.slots[slotView.slotIndex];
-      if (!pawnId) {
+      const pawnInstance = this.runtime.build.slots[slotView.slotIndex];
+      if (!pawnInstance) {
         continue;
       }
 
-      const pawnDefinition = findPawnDefinition(pawnId);
+      const pawnDefinition = findPawnDefinition(pawnInstance.pawnId);
       if (!pawnDefinition || !this.recordPawnLayer || !this.recordInnerLabelLayer) {
         continue;
       }
@@ -474,6 +501,7 @@ export class StageScene extends Phaser.Scene {
         slotView.anchorY,
         slotView.slotIndex,
         pawnDefinition,
+        pawnInstance,
       );
       slotView.pawnContainer = pawnContainer;
       this.recordPawnLayer.add(pawnContainer);
@@ -495,6 +523,7 @@ export class StageScene extends Phaser.Scene {
     y: number,
     slotIndex: number,
     pawn: CombatPawnDefinition,
+    pawnInstance: StagePawnInstance,
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
     const accent = getPawnAccentColor(pawn.color);
@@ -534,7 +563,15 @@ export class StageScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5, 0.5);
 
-    container.add([graphics, typeLabel, colorLabel]);
+    const stars = this.add.text(0, CombatVisualConfig.SLOT.STAR_OFFSET_Y, '★'.repeat(pawnInstance.tier), {
+      color: '#ffd166',
+      fontFamily: 'monospace',
+      fontSize: `${CombatVisualConfig.TIER_STAR_FONT_SIZE_PX}px`,
+      align: 'center',
+    }).setOrigin(0.5, 0.5);
+    stars.setStroke('#7a4f00', 5);
+
+    container.add([graphics, stars, typeLabel, colorLabel]);
     container.setSize(92, 92);
     container.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, 84, 84),
@@ -545,6 +582,7 @@ export class StageScene extends Phaser.Scene {
       kind: 'slot-pawn',
       slotIndex,
       pawnId: pawn.id,
+      tier: pawnInstance.tier,
       homeX: x,
       homeY: y,
     } satisfies DragPayload);
@@ -623,12 +661,9 @@ export class StageScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5, 0.5);
 
-    const subtitle = this.add.text(0, top + 102, getPawnShopSubtitle(pawn), {
-      color: '#8fb8d3',
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
+    const ruleLabel = createRuleLabelContainer(this, pawn, accent);
+    ruleLabel.x = 0;
+    ruleLabel.y = top + 102;
 
     const price = this.add.text(0, top + 128, `${StageFlowConfig.SHOP_PURCHASE_COST} coins`, {
       color: '#ffe08e',
@@ -637,7 +672,7 @@ export class StageScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5, 0.5);
 
-    container.add([graphics, badge, title, subtitle, price]);
+    container.add([graphics, badge, title, ruleLabel, price]);
     container.setSize(width, height);
     container.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, width, height),
@@ -665,6 +700,24 @@ export class StageScene extends Phaser.Scene {
 
   private readonly handleStartWavePressed = (): void => {
     emit('stage:start-wave-requested');
+  };
+
+  private readonly handleRerollPressed = (): void => {
+    if (this.runtime.phase !== 'build' || this.stageFlowCoordination.isTransitioning) {
+      return;
+    }
+
+    const rerollCost = getStageShopRerollCost(this.runtime);
+    const applied = rerollStageShopOffers(this.runtime);
+    this.transientStatusText = applied ? null : `Need ${rerollCost} coins to reroll.`;
+
+    if (applied) {
+      this.refreshBuildUI();
+      this.publishSnapshot();
+      return;
+    }
+
+    this.syncPresentation();
   };
 
   private readonly handleStartWaveRequested = (): void => {
@@ -821,9 +874,16 @@ export class StageScene extends Phaser.Scene {
     this.startWaveButton?.setVisible(canStartWave);
     this.startWaveButton?.setAlpha(canStartWave ? 1 : 0.45);
     this.startWaveButton?.disableInteractive();
+    this.rerollButton?.setText(`Reroll ${getStageShopRerollCost(this.runtime)}c`);
+    this.rerollButton?.setAlpha(this.runtime.coins >= getStageShopRerollCost(this.runtime) ? 1 : 0.45);
+    this.rerollButton?.disableInteractive();
 
     if (canStartWave && !this.stageFlowCoordination.isTransitioning) {
       this.startWaveButton?.setInteractive({ useHandCursor: true });
+    }
+
+    if (this.runtime.phase === 'build' && !this.stageFlowCoordination.isTransitioning) {
+      this.rerollButton?.setInteractive({ useHandCursor: true });
     }
 
     const buildVisible = this.runtime.phase !== 'combat';
@@ -1000,6 +1060,7 @@ export class StageScene extends Phaser.Scene {
     off('stage:start-wave-requested', this.handleStartWaveRequested);
     off('combat:ended', this.handleCombatEnded);
     this.startWaveButton?.off('pointerdown', this.handleStartWavePressed);
+    this.rerollButton?.off('pointerdown', this.handleRerollPressed);
     this.input.off(Phaser.Input.Events.DRAG_START);
     this.input.off(Phaser.Input.Events.DRAG);
     this.input.off(Phaser.Input.Events.DRAG_END);
@@ -1022,7 +1083,7 @@ function getPhaseLabel(phase: StageRuntime['phase']): string {
 
 function getStatusLabel(runtime: StageRuntime): string {
   if (runtime.phase === 'build') {
-    return 'Drag shop cards onto empty slots. Drag placed pawns to move or swap them on the record.';
+    return 'Drag shop cards onto empty slots or matching same-tier pawns to merge. Drag placed pawns to move, swap, or merge. Use reroll to refresh the shop.';
   }
 
   if (runtime.phase === 'combat') {
@@ -1066,14 +1127,6 @@ function getPawnAccentColor(color: CombatPawnDefinition['color']): number {
 function formatPawnTitle(pawn: CombatPawnDefinition): string {
   const typeLabel = pawn.type === 'generator' ? 'Generator' : 'Finisher';
   return `${capitalize(pawn.color)} ${typeLabel}`;
-}
-
-function getPawnShopSubtitle(pawn: CombatPawnDefinition): string {
-  if (pawn.type === 'generator') {
-    return 'Creates 2 notes';
-  }
-
-  return `Consumes ${pawn.color} notes`;
 }
 
 function capitalize(value: string): string {

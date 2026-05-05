@@ -97,7 +97,7 @@ describe('StageFlowCoordinator', () => {
     ]);
     expect(runtime.phase).toBe('build');
     expect(runtime.currentWaveIndex).toBe(1);
-    expect(runtime.coins).toBe(9);
+    expect(runtime.coins).toBe(StageFlowConfig.INITIAL_COINS + StageFlowConfig.WAVE_CLEAR_REWARD_COINS);
     expect(runtime.lastCombatOutcome).toBe('victory');
     expect(coordination).toEqual<StageFlowCoordinationState>({
       isTransitioning: false,

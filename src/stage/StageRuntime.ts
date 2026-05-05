@@ -2,8 +2,13 @@ import { StageFlowConfig } from '@config/StageFlowConfig';
 import {
   drawStageShopOffers,
   createStageBuildState,
+  getStageRerollCost,
+  getStageBuildSlotPawnIds,
+  mergeStagePawn,
   moveStagePawn,
   purchaseStagePawn,
+  purchaseStagePawnMerge,
+  rerollStageShop,
   type StageBuildState,
 } from './StageBuild';
 
@@ -86,6 +91,7 @@ export function resolveStageCombatOutcome(
   runtime.currentWaveIndex += 1;
   runtime.phase = 'build';
   runtime.build.shopOffers = drawStageShopOffers(options.random ?? Math.random);
+  runtime.build.rerollCount = 0;
   return runtime.phase;
 }
 
@@ -119,6 +125,50 @@ export function repositionStagePawn(
   return true;
 }
 
+export function purchaseStagePawnIntoMergeSlot(
+  runtime: StageRuntime,
+  offerIndex: number,
+  slotIndex: number,
+  random: () => number = Math.random,
+): boolean {
+  const merged = purchaseStagePawnMerge(runtime.build, runtime.coins, offerIndex, slotIndex, random);
+
+  if (!merged) {
+    return false;
+  }
+
+  runtime.coins -= StageFlowConfig.SHOP_PURCHASE_COST;
+  return true;
+}
+
+export function mergeStagePawnSlots(
+  runtime: StageRuntime,
+  fromSlotIndex: number,
+  toSlotIndex: number,
+  random: () => number = Math.random,
+): boolean {
+  return mergeStagePawn(runtime.build, fromSlotIndex, toSlotIndex, random);
+}
+
 export function getStageCombatLoadout(runtime: StageRuntime): Array<string | null> {
-  return [...runtime.build.slots];
+  return getStageBuildSlotPawnIds(runtime.build);
+}
+
+export function getStageShopRerollCost(runtime: StageRuntime): number {
+  return getStageRerollCost(runtime.build);
+}
+
+export function rerollStageShopOffers(
+  runtime: StageRuntime,
+  random: () => number = Math.random,
+): boolean {
+  const rerollCost = getStageShopRerollCost(runtime);
+  const rerolled = rerollStageShop(runtime.build, runtime.coins, random);
+
+  if (!rerolled) {
+    return false;
+  }
+
+  runtime.coins -= rerollCost;
+  return true;
 }
