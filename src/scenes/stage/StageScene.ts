@@ -6,16 +6,19 @@ import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { emit, off, on } from '@events/EventBus';
 import {
-  canStageStartWave,
   createStageRuntime,
-  getStageCombatLoadout,
   purchaseStagePawnIntoSlot,
   repositionStagePawn,
-  requestStageWaveStart,
-  resolveStageCombatOutcome,
   type StageRuntime,
 } from '@stage/StageRuntime';
 import { createStageWavePreview } from '@stage/StageWavePreview';
+import {
+  createStageFlowCoordinationState,
+  dispatchStageFlowIntent,
+  type StageFlowCommand,
+  type StageFlowCoordinationState,
+  type StageFlowIntent,
+} from '@stage/StageFlowCoordinator';
 import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 
 interface StageRecordSlotView {
@@ -69,8 +72,8 @@ export class StageScene extends Phaser.Scene {
   private readonly slotViews: StageRecordSlotView[] = [];
   private readonly shopCardViews: StageShopCardView[] = [];
   private activeDropSlotIndex: number | null = null;
-  private isTransitioning = false;
   private transientStatusText: string | null = null;
+  private readonly stageFlowCoordination: StageFlowCoordinationState = createStageFlowCoordinationState();
   private synergySystem?: SynergyVisualSystem;
 
   constructor() {
@@ -90,9 +93,7 @@ export class StageScene extends Phaser.Scene {
     on('combat:ended', this.handleCombatEnded);
 
     this.refreshBuildUI();
-    this.publishSnapshot();
-    this.syncPresentation();
-    this.playBuildPhaseIntro(false);
+    this.runStageFlowIntent({ type: 'stage:initialized' });
     emit('scene:ready', { key: this.scene.key });
     emit('stage:scene-ready', { key: this.scene.key, phase: this.runtime.phase });
     emit('game:ready');
@@ -366,7 +367,7 @@ export class StageScene extends Phaser.Scene {
         }
 
         const payload = gameObject.getData('dragPayload') as DragPayload | undefined;
-        if (!payload || this.runtime.phase !== 'build' || this.isTransitioning) {
+        if (!payload || this.runtime.phase !== 'build' || this.stageFlowCoordination.isTransitioning) {
           return;
         }
 
@@ -667,50 +668,19 @@ export class StageScene extends Phaser.Scene {
   };
 
   private readonly handleStartWaveRequested = (): void => {
-    if (this.isTransitioning || !requestStageWaveStart(this.runtime)) {
-      return;
-    }
-
-    this.isTransitioning = true;
-    this.transientStatusText = null;
-    emit('stage:phase-changed', { phase: this.runtime.phase });
-    this.publishSnapshot();
-    this.syncPresentation();
-    this.playCombatPhaseOutro();
+    this.runStageFlowIntent({ type: 'stage:start-wave-requested' });
   };
 
   private readonly handleCombatEnded = (payload: { outcome: 'victory' | 'defeat' }): void => {
-    if (this.runtime.phase !== 'combat') {
-      return;
-    }
-
-    if (this.scene.isActive(SceneKeys.HUD)) {
-      this.scene.stop(SceneKeys.HUD);
-    }
-
-    if (this.scene.isActive(SceneKeys.COMBAT)) {
-      this.scene.stop(SceneKeys.COMBAT);
-    }
-
-    const previousPhase = this.runtime.phase;
-    resolveStageCombatOutcome(this.runtime, {
+    this.runStageFlowIntent({
+      type: 'stage:combat-ended',
       outcome: payload.outcome,
-      rewardCoins: StageFlowConfig.WAVE_CLEAR_REWARD_COINS,
     });
-
-    if (this.runtime.phase !== previousPhase) {
-      emit('stage:phase-changed', { phase: this.runtime.phase });
-    }
-
-    this.transientStatusText = null;
-    this.refreshBuildUI();
-    this.publishSnapshot();
-    this.playBuildPhaseIntro(true);
   };
 
-  private playCombatPhaseOutro(): void {
+  private playCombatPhaseOutro(onComplete: () => void): void {
     if (!this.recordContainer || !this.shopPanel || !this.previewCard) {
-      this.launchCombatScene();
+      onComplete();
       return;
     }
 
@@ -747,20 +717,20 @@ export class StageScene extends Phaser.Scene {
       duration: StagePresentationConfig.BUILD_TO_COMBAT_TWEEN_MS,
       ease: 'Cubic.easeIn',
       onComplete: () => {
-        this.launchCombatScene();
+        onComplete();
       },
     });
   }
 
-  private launchCombatScene(): void {
-    this.scene.launch(SceneKeys.COMBAT, {
-      waveIndex: this.runtime.currentWaveIndex,
-      totalWaves: this.runtime.totalWaves,
-      stageManaged: true,
-      allowRestart: false,
-      slotPawnIds: getStageCombatLoadout(this.runtime),
-    });
-    this.isTransitioning = false;
+  private launchCombatScene(payload: {
+    waveIndex: number;
+    totalWaves: number;
+    stageManaged: true;
+    allowRestart: false;
+    slotPawnIds: Array<string | null>;
+  }): void {
+    this.scene.launch(SceneKeys.COMBAT, payload);
+    this.stageFlowCoordination.isTransitioning = false;
   }
 
   private playBuildPhaseIntro(fromCombat: boolean): void {
@@ -826,7 +796,7 @@ export class StageScene extends Phaser.Scene {
 
   private syncPresentation(): void {
     const currentWave = Math.min(this.runtime.currentWaveIndex + 1, Math.max(1, this.runtime.totalWaves));
-    const canStartWave = canStageStartWave(this.runtime);
+    const canStartWave = this.canStageStartWave();
     const wave = canStartWave ? getCombatWaveDefinition(this.runtime.currentWaveIndex) : null;
     const preview = wave
       ? createStageWavePreview(wave, currentWave, this.runtime.totalWaves)
@@ -852,7 +822,7 @@ export class StageScene extends Phaser.Scene {
     this.startWaveButton?.setAlpha(canStartWave ? 1 : 0.45);
     this.startWaveButton?.disableInteractive();
 
-    if (canStartWave && !this.isTransitioning) {
+    if (canStartWave && !this.stageFlowCoordination.isTransitioning) {
       this.startWaveButton?.setInteractive({ useHandCursor: true });
     }
 
@@ -865,7 +835,7 @@ export class StageScene extends Phaser.Scene {
   }
 
   private publishSnapshot(): void {
-    const canStartWave = canStageStartWave(this.runtime);
+    const canStartWave = this.canStageStartWave();
     const currentWave = Math.min(this.runtime.currentWaveIndex + 1, Math.max(1, this.runtime.totalWaves));
     const wave = canStartWave ? getCombatWaveDefinition(this.runtime.currentWaveIndex) : null;
     const preview = wave
@@ -881,6 +851,60 @@ export class StageScene extends Phaser.Scene {
       previewTitle: preview.bodyLines[0] ?? '',
       previewBody: preview.bodyLines.slice(1).join('\n'),
     });
+  }
+
+  private canStageStartWave(): boolean {
+    return this.runtime.phase === 'build' && this.runtime.currentWaveIndex < this.runtime.totalWaves;
+  }
+
+  private runStageFlowIntent(intent: StageFlowIntent): void {
+    const commands = dispatchStageFlowIntent(this.runtime, this.stageFlowCoordination, intent);
+    this.executeStageFlowCommands(commands);
+  }
+
+  private executeStageFlowCommands(commands: StageFlowCommand[]): void {
+    for (let index = 0; index < commands.length; index += 1) {
+      const command = commands[index]!;
+      switch (command.type) {
+        case 'stage:publish-snapshot':
+          emit('stage:snapshot-updated', command.payload);
+          this.syncPresentation();
+          break;
+        case 'stage:publish-phase-changed':
+          emit('stage:phase-changed', command.payload);
+          break;
+        case 'stage:play-build-phase-intro':
+          this.playBuildPhaseIntro(command.payload.fromCombat);
+          break;
+        case 'stage:play-combat-phase-outro':
+          this.transientStatusText = null;
+          this.playCombatPhaseOutro(() => {
+            const remainingCommands = commands.slice(index + 1);
+            if (remainingCommands.length > 0) {
+              this.executeStageFlowCommands(remainingCommands);
+            }
+          });
+          return;
+        case 'stage:launch-combat-phase':
+          this.launchCombatScene(command.payload);
+          break;
+        case 'stage:stop-combat-phase-scenes':
+          this.stopCombatPhaseScenes(command.payload.sceneKeys);
+          break;
+        case 'stage:refresh-build-phase':
+          this.transientStatusText = null;
+          this.refreshBuildUI();
+          break;
+      }
+    }
+  }
+
+  private stopCombatPhaseScenes(sceneKeys: readonly [typeof SceneKeys.HUD, typeof SceneKeys.COMBAT]): void {
+    for (const sceneKey of sceneKeys) {
+      if (this.scene.isActive(sceneKey)) {
+        this.scene.stop(sceneKey);
+      }
+    }
   }
 
   private updateActiveDropSlot(worldX: number, worldY: number): void {
