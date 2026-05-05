@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CombatContentConfig, type CombatPawnDefinition } from '@config/CombatContentConfig';
+import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
@@ -329,13 +330,20 @@ export class StageScene extends Phaser.Scene {
 
     const centerGlow = this.add.graphics();
     centerGlow.fillStyle(0x8ef7ff, 0.22);
-    centerGlow.fillCircle(0, 0, 32);
+    centerGlow.fillCircle(0, 0, 40);
     centerGlow.lineStyle(2, 0x8ef7ff, 0.7);
-    centerGlow.strokeCircle(0, 0, 48);
+    centerGlow.strokeCircle(0, 0, 58);
+
+    const centerCapibara = this.add.image(0, 0, CombatLayoutConfig.BASE_SPRITE_TEXTURE_KEY);
+    centerCapibara.setDisplaySize(
+      StagePresentationConfig.BUILD_RECORD_CENTER_CAPIBARA_SIZE,
+      StagePresentationConfig.BUILD_RECORD_CENTER_CAPIBARA_SIZE,
+    );
+    centerCapibara.setOrigin(0.5, 0.5);
 
     this.recordPawnLayer = this.add.container(0, 0);
     this.recordInnerLabelLayer = this.add.container(0, 0);
-    container.add([this.recordInnerLabelLayer, this.recordPawnLayer, needle, centerGlow]);
+    container.add([this.recordInnerLabelLayer, this.recordPawnLayer, centerGlow, centerCapibara, needle]);
 
     return container;
   }

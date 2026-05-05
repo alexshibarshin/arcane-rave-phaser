@@ -34,6 +34,7 @@ export interface CombatNotePacketView {
   anchorX: number;
   anchorY: number;
   depth: number;
+  anchorDecor: Phaser.GameObjects.Graphics;
   glyphs: Map<string, Phaser.GameObjects.Image>;
 }
 
@@ -171,8 +172,10 @@ export function createCombatSceneViewGraph(
       transientLayer.destroy();
       damageNumberLayer.destroy();
       record.container.destroy();
+      base.root.destroy();
       hpBar.fill.destroy();
       hpBar.label.destroy();
+      notePacketView.anchorDecor.destroy();
     },
   };
 }
@@ -352,33 +355,25 @@ function renderTimeControlBackplates(
 function renderBase(
   scene: Phaser.Scene,
   model: CombatRenderModel,
-): { vfxAnchor: { x: number; y: number } } {
-  const graphics = scene.add.graphics();
-  const x = model.base.x - model.base.width / 2;
-  const y = model.base.y - model.base.height / 2;
+): { root: Phaser.GameObjects.Image; vfxAnchor: { x: number; y: number } } {
+  const sprite = scene.add.image(
+    model.base.x,
+    model.base.y + CombatLayoutConfig.BASE_SPRITE_OFFSET_Y,
+    CombatLayoutConfig.BASE_SPRITE_TEXTURE_KEY,
+  );
 
-  graphics.setDepth(model.base.depth);
-  graphics.fillStyle(0x31203a, 1);
-  graphics.fillRoundedRect(x, y, model.base.width, model.base.height, 28);
-  graphics.fillStyle(0x5de2e7, 0.18);
-  graphics.fillRoundedRect(x + 18, y + 18, model.base.width - 36, 56, 18);
-  graphics.fillStyle(0xf4b942, 1);
-  graphics.fillCircle(model.base.x, model.base.y - 24, 22);
-  graphics.lineStyle(3, 0xffde7a, 0.8);
-  graphics.strokeCircle(model.base.x, model.base.y - 24, 34);
-
-  const label = scene.add.text(model.base.x, model.base.y + 42, 'BASE', {
-    color: '#f7f1ff',
-    fontFamily: 'monospace',
-    fontSize: '20px',
-  });
-  label.setOrigin(0.5, 0.5);
-  label.setDepth(model.base.depth);
+  sprite.setDepth(model.base.depth);
+  sprite.setDisplaySize(
+    CombatLayoutConfig.BASE_SPRITE_DISPLAY_WIDTH,
+    CombatLayoutConfig.BASE_SPRITE_DISPLAY_HEIGHT,
+  );
+  sprite.setOrigin(0.5, 0.5);
 
   return {
+    root: sprite,
     vfxAnchor: {
       x: model.base.x,
-      y: model.base.y - 24,
+      y: model.base.y + CombatLayoutConfig.BASE_VFX_ANCHOR_OFFSET_Y,
     },
   };
 }
@@ -388,22 +383,27 @@ function renderNeedle(
   model: CombatRenderModel,
 ): void {
   const graphics = scene.add.graphics();
+  const markerHalfWidth = 14;
+  const markerHeight = 24;
 
   graphics.setDepth(model.needle.depth);
-  graphics.lineStyle(8, 0xb2f7ff, 0.95);
-  graphics.beginPath();
-  graphics.moveTo(model.needle.baseX, model.needle.baseY);
-  graphics.lineTo(model.needle.tipX, model.needle.tipY + 28);
-  graphics.strokePath();
-
-  graphics.fillStyle(0xffd166, 1);
+  graphics.lineStyle(2, 0xffefb3, 0.8);
+  graphics.fillStyle(0xffd166, 0.98);
   graphics.fillTriangle(
     model.needle.tipX,
-    model.needle.tipY,
-    model.needle.tipX - 12,
-    model.needle.tipY + 28,
-    model.needle.tipX + 12,
-    model.needle.tipY + 28,
+    model.needle.tipY - 6,
+    model.needle.tipX - markerHalfWidth,
+    model.needle.tipY + markerHeight - 6,
+    model.needle.tipX + markerHalfWidth,
+    model.needle.tipY + markerHeight - 6,
+  );
+  graphics.strokeTriangle(
+    model.needle.tipX,
+    model.needle.tipY - 6,
+    model.needle.tipX - markerHalfWidth,
+    model.needle.tipY + markerHeight - 6,
+    model.needle.tipX + markerHalfWidth,
+    model.needle.tipY + markerHeight - 6,
   );
 }
 
@@ -455,6 +455,7 @@ function renderNotePacketAnchor(
     anchorX: model.notePacketAnchor.x,
     anchorY: model.notePacketAnchor.y,
     depth: model.notePacketAnchor.depth,
+    anchorDecor: graphics,
     glyphs: new Map(),
   };
 }

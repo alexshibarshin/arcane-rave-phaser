@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
+import capibaraDjSpriteUrl from '../../art/capibara_dj_s.png';
 import { EntityConfig } from '@config/EntitiesConfig';
+import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { emit } from '@events/EventBus';
 
@@ -12,6 +14,12 @@ import { emit } from '@events/EventBus';
 export class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: SceneKeys.BOOT });
+  }
+
+  preload(): void {
+    if (!this.textures.exists(CombatLayoutConfig.BASE_SPRITE_TEXTURE_KEY)) {
+      this.load.image(CombatLayoutConfig.BASE_SPRITE_TEXTURE_KEY, capibaraDjSpriteUrl);
+    }
   }
 
   create(): void {
