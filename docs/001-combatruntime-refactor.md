@@ -1,976 +1,544 @@
-# ADR-001: Split CombatRuntime God Function into Focused Sub-Modules
+# ADR-001: Deepen Combat Runtime Around Real Seams
 
-**Status:** Proposed
-**Date:** 2026-05-04
-**Related:** CONTEXT.md, VISION.md
-
----
-
-## 1. Problem Statement
-
-`src/combat/CombatRuntime.ts` is a ~570-line module that serves as the single source of truth for combat simulation. Its public interface consists of just two functions:
-
-```ts
-function createCombatRuntime(random: () => number): CombatRuntime
-function advanceCombatRuntime(runtime: CombatRuntime, deltaMs: number, options?: { random?: () => number }): void
-```
-
-The `advanceCombatRuntime` function is a god function. When `runtime.state === 'running'`, it executes the following sequence:
-
-1. Advance `combatElapsedMs` and `waveElapsedMs`
-2. Activate pending sub-waves
-3. Reset slot activation effects (clears `transientIds` and `pendingEvents`, resets `activationVisualState`)
-4. Advance record rotation (`previousAngle` → `currentAngle`)
-5. Process crossed slots (detect crossings, resolve generators/finishers, emit events)
-6. Update enemy pressure (movement toward base, attack range transitions, base damage ticks)
-7. Bootstrap enemy spawns (process spawn bags, place enemies on field)
-8. Calculate enemies remaining
-9. Evaluate victory/defeat
-
-Each of these steps is implemented as a top-level function inside `CombatRuntime.ts`, and they are all tightly coupled through shared mutation of the `CombatRuntime` object. The file also contains numerous pure helper functions (`getDistance`, `resolveWeakness`, `collectCrossingsForSlot`, `getFinisherConsumedNotesMultiplier`, etc.).
-
-### Friction
-
-- **Poor locality.** A change to finisher logic requires understanding the entire `advanceCombatRuntime` flow, including record rotation, spawn timing, and enemy movement.
-- **No test seam.** To test, for example, that a finisher correctly consumes N notes and applies the multiplier, you must construct a full `CombatRuntime`, call `advanceCombatRuntime`, and inspect `runtime.effects.pendingEvents`. You cannot test finisher logic in isolation.
-- **Hard to reason about.** The module has ~570 lines with ~20 top-level functions. Understanding any single behaviour requires reading the whole file.
-- **AI-navigability.** A future agent looking for "how do generators work?" must scan the entire file.
+**Status:** Proposed (revised after code review)  
+**Date:** 2026-05-05  
+**Related:** [CONTEXT.md](../CONTEXT.md), [VISION.md](../VISION.md)
 
 ---
 
-## 2. Design Decisions
+## 1. Review Summary
 
-### 2.1. Shared state via mutation (Decision: keep)
+The previous draft of this ADR is stale.
 
-All sub-modules will receive a `CombatRuntime` reference and mutate it directly. No deep copying.
+It described `src/combat/CombatRuntime.ts` as a ~570-line god function and proposed a broad split into many small files. Since then, the codebase changed:
 
-**Rationale:** `CombatRuntime` is a large object. Deep copying every frame would be expensive and unnecessary for a single-threaded game loop. Mutation is acceptable because the game loop is sequential — there is no concurrency.
+- `src/combat/CombatRuntime.ts` is now ~935 lines, not ~570.
+- `src/scenes/combat/CombatScene.ts` is now ~1384 lines and depends on the combat runtime as a stable source of truth.
+- New adjacent modules already exist:
+  - `src/combat/CombatHudBridge.ts`
+  - `src/combat/CombatHudEvents.ts`
+  - `src/combat/CombatVfxEventBridge.ts`
+  - `src/combat/CombatSceneLifecycle.ts`
+  - `src/combat/CombatRenderModel.ts`
+  - `src/combat/CombatEnemyRuntimeFactory.ts`
 
-### 2.2. Order of operations preserved (Decision: keep)
+This matters because the old plan aimed at a future architecture that no longer matches the code around the runtime.
 
-The call order in `advanceCombatRuntime` remains:
+### Current friction
 
-```
-resetSlotActivationEffects → advanceRotation → resolveActivations → advanceEnemyMovement → processEnemyAttacks → processSpawns → calculateEnemiesRemaining → evaluateOutcome
-```
+#### 1.1. `CombatRuntime.ts` is still a shallow module
 
-**Rationale:** This order is part of the game's temporal contract. Changing it would alter gameplay timing (e.g., if spawns happened before slot activations, new enemies would appear on the same tick they were spawned, changing the feel of pressure).
+The module owns too many rules at one seam:
 
-### 2.3. Pure function for slot crossing detection (Decision: extract)
+- runtime factory
+- stage preview timing
+- record rotation and slot crossing detection
+- generator and finisher resolution
+- note packet mutation
+- enemy damage and death
+- enemy movement and base attacks
+- sub-wave activation and spawn bag processing
+- victory / defeat evaluation
+- the shape of `effects.pendingEvents`
 
-`detectSlotCrossings` will be a **pure function** with no side effects:
+The interface is still small in exported symbols, but the caller and the tests must understand too many internal invariants. That reduces **leverage** and **locality**.
 
-```ts
-interface SlotCrossing {
-  slotIndex: number;
-  crossingAngle: number;
-}
+#### 1.2. The event contract is spread across multiple modules
 
-export function detectSlotCrossings(
-  slot: CombatSlotRuntime,
-  previousAngle: number,
-  currentAngle: number,
-): SlotCrossing[];
-```
+Today the combat event shape lives in several places:
 
-**Rationale:** Slot crossing detection is a mathematical problem (angle arithmetic). It has no dependencies on game state beyond the slot's own data. Making it pure makes it trivially testable and clearly separates the "what crossed" question from the "what happens because it crossed" question.
+- `EventMap` in `src/events/EventBus.ts`
+- the inline union in `runtime.effects.pendingEvents`
+- `CombatHudEventMap` in `src/combat/CombatHudBridge.ts`
+- `CombatVfxEvent` in `src/combat/CombatVfxSystem.ts`
 
-### 2.4. Pawn definition lookup stays inline (Decision: keep)
+This is architectural friction. A new combat event requires edits in multiple files, and the runtime event seam is not explicit.
 
-`processCrossedSlots` currently creates a `Map<id, pawnDefinition>` from `CombatContentConfig.PAWN_DEFINITIONS` inside the function. This stays as-is.
+#### 1.3. The old split was too file-oriented
 
-**Rationale:** There are only 6 pawn definitions. Creating a Map of 6 entries per frame is negligible. Premature optimization would add complexity without benefit.
+The previous ADR proposed modules like `CombatEnemyMovement.ts` and `CombatEnemyAttacks.ts`.
 
-### 2.5. Random dependency stays as-is (Decision: keep)
+After review, that split fails the **deletion test**. Enemy movement and enemy attacks share one concept: enemy pressure on the `base` during the `combat phase`. Splitting them would mostly move coupling across files instead of concentrating it.
 
-The `random` parameter stays in `advanceCombatRuntime`'s `options` and is passed through to `processSpawns`.
+The same applies to a thin `CombatRuntimeAdvance.ts`. A pipeline file with one exported function and no real behaviour would be a shallow module.
 
-**Rationale:** Random is only needed by spawn processing. Extracting it to a separate module would be over-engineering.
+#### 1.4. The runtime now has real downstream adapters
 
-### 2.6. `calculateEnemiesRemaining` stays in CombatRuntime.ts (Decision: keep)
+`CombatStateSystem`, `CombatHudEvents`, `CombatHudBridge`, `CombatVfxEventBridge`, `HUDScene`, and `CombatScene` already treat the runtime as the source of truth for the `combat phase`.
 
-This is a small utility function (~15 lines) that is called once per frame. It stays in `CombatRuntime.ts` next to `advanceCombatRuntime`.
-
-### 2.7. Note packet mutation stays inside CombatActivation (Decision: keep for now)
-
-`applyGeneratorPacketMutation` and `applyFinisherPacketMutation` stay inside the `CombatActivation` module.
-
-**Rationale:** The user explicitly requested this. Note packet rules are tightly coupled to activation logic. They can be extracted later if they grow independently.
+That means this refactor must preserve the outer interface and deepen the implementation behind it, rather than forcing a broad scene rewrite in the same pass.
 
 ---
 
-## 3. Target Module Structure
+## 2. Goal
 
-### 3.1. New files
+Deepen the combat runtime so that the `combat phase` rules are concentrated into a small number of real modules, each with high **locality** and clear **leverage**, while preserving:
 
-```
+- `CombatRuntime` as the single mutable source of truth
+- the fixed update order inside the combat loop
+- the existing EventBus-based adapters for HUD and VFX
+- current gameplay behaviour
+
+This ADR is not about abstracting everything behind new interfaces. It is about moving real rule clusters behind better seams.
+
+---
+
+## 3. Decisions
+
+### 3.1. Keep one mutable `CombatRuntime`
+
+The runtime remains the authoritative state for the `combat phase`. We will not introduce immutable snapshots or deep-copy updates.
+
+Reason:
+
+- Phaser loop is sequential
+- the current tests already treat runtime as the source of truth
+- copying this state each frame would reduce clarity and add cost without adding leverage
+
+### 3.2. Preserve frame order exactly
+
+The runtime pipeline keeps its temporal contract:
+
+1. advance preview or running clocks
+2. activate pending sub-waves
+3. reset frame-local combat effects
+4. advance record rotation and collect slot crossings
+5. resolve crossed slot activations
+6. advance enemy pressure on the `base`
+7. spawn enemies from active sub-waves
+8. recalculate enemies remaining
+9. evaluate victory / defeat
+
+If we change this order, we change gameplay feel.
+
+### 3.3. Add a real seam for combat runtime events
+
+The runtime-owned event union becomes a named module instead of an inline type buried in `CombatRuntime.ts`.
+
+This is a real seam because multiple adapters already depend on it:
+
+- HUD publishing
+- VFX publishing
+- scene feedback
+- tests
+
+This seam should own:
+
+- the `CombatRuntimeEvent` union
+- helper functions for pushing typed events
+- frame-local event queue reset helpers
+
+### 3.4. Prefer deeper rule modules over micro-files
+
+We will not split only by verb. We will split by rule cluster.
+
+Examples:
+
+- enemy movement + enemy attack cadence belong together in one module
+- note packet mutation + pawn activation belong together in one module
+- sub-wave activation + spawn bag draining belong together in one module
+
+### 3.5. Keep EventBus as an outer adapter
+
+This ADR does not replace EventBus with a new adapter.
+
+Reason:
+
+- there is only one real outer adapter today
+- no second adapter exists yet
+- adding a new seam here would be hypothetical, not real
+
+### 3.6. `CombatScene` deepening is out of scope for this ADR
+
+`CombatScene.ts` is large and deserves its own refactor, but this document focuses on the combat runtime and its immediate seams.
+
+We should avoid coupling the runtime refactor to a large scene rewrite.
+
+---
+
+## 4. Target Module Structure
+
+The target is not "many small files." The target is "a few deeper modules."
+
+```text
 src/combat/
-├── CombatRuntime.ts              ← REWRITTEN (type + factory + state setters only)
-├── CombatRuntimeAdvance.ts       ← NEW (thin pipeline)
-├── CombatRotation.ts             ← NEW (record rotation + crossing detection)
-├── CombatActivation.ts           ← NEW (pawn resolution + packet mutation)
-├── CombatEnemyMovement.ts        ← NEW (enemy movement + state transitions)
-├── CombatEnemyAttacks.ts         ← NEW (base damage ticks)
-├── CombatSpawnManager.ts         ← NEW (spawn bag processing)
-└── CombatOutcome.ts              ← NEW (victory/defeat evaluation)
+├── CombatRuntime.ts
+├── CombatRuntimeEvents.ts
+├── CombatRotation.ts
+├── CombatActivation.ts
+├── CombatEnemyPressure.ts
+├── CombatWaveRuntime.ts
+└── CombatOutcome.ts
 ```
 
-### 3.2. File responsibilities
+### 4.1. `CombatRuntime.ts`
 
-| File | Responsibility | Public API |
-|------|---------------|------------|
-| `CombatRuntime.ts` | Type definitions, `createCombatRuntime()`, `setCombatState()`, `setCombatNotePacket()`, `resetSlotActivationEffects()`, `calculateEnemiesRemaining()` | Types + factory + setters |
-| `CombatRuntimeAdvance.ts` | Thin pipeline orchestrating sub-modules | `advanceCombatRuntime()` |
-| `CombatRotation.ts` | Record angle advancement, slot crossing detection | `advanceRotation()`, `detectSlotCrossings()` |
-| `CombatActivation.ts` | Pawn activation resolution, note packet mutation, event emission | `resolveActivations()` |
-| `CombatEnemyMovement.ts` | Enemy movement toward base, moving→attacking transitions | `advanceEnemyMovement()` |
-| `CombatEnemyAttacks.ts` | Periodic base damage ticks from attacking enemies | `processEnemyAttacks()` |
-| `CombatSpawnManager.ts` | Spawn bag processing, enemy placement | `processSpawns()` |
-| `CombatOutcome.ts` | Victory/defeat condition evaluation | `evaluateOutcome()` |
+Owns the public combat runtime interface:
 
----
+- runtime types
+- `createCombatRuntime()`
+- `advanceCombatRuntime()`
+- `setCombatState()`
+- `setCombatNotePacket()`
 
-## 4. Detailed Module Specifications
+Also owns only the minimum orchestration needed to preserve one public seam for callers.
 
-### 4.1. CombatRuntime.ts (rewritten)
+This stays the caller-facing module because deleting it would leak combat loop ordering into callers and tests.
 
-**What stays:** All type definitions (`CombatState`, `NoteColor`, `CombatEnemyState`, `CombatSlotRuntime`, `CombatNotePacketRuntime`, `CombatEnemyRuntime`, `CombatSubWaveSpawnBag`, `CombatWaveRuntime`, `CombatRuntime`).
+### 4.2. `CombatRuntimeEvents.ts`
 
-**What stays:** `createCombatRuntime()` function (the factory that builds the initial state).
+Owns the runtime event seam:
 
-**What stays:** `setCombatState(runtime, nextState)` — toggles state, sets outcome flags.
+- `CombatRuntimeEvent`
+- `resetCombatFrameEffects(runtime)`
+- typed helpers such as:
+  - `pushCombatSlotActivated(...)`
+  - `pushCombatEnemyHit(...)`
+  - `pushCombatEnemyDied(...)`
+  - `pushCombatNotePacketChanged(...)`
+  - `pushCombatBaseDamaged(...)`
 
-**What stays:** `setCombatNotePacket(runtime, color, count)` — clamps count to capacity, emits warning for out-of-bounds.
+Benefits:
 
-**What moves in:** `resetSlotActivationEffects(runtime)` — clears `transientIds`, `pendingEvents`, resets all slot `activationVisualState` to `'idle'`.
+- one place to extend combat events
+- better test surface
+- less duplicated event-shape knowledge across modules
 
-**What moves in:** `calculateEnemiesRemaining(runtime)` — counts living enemies + pending in bags + pending in sub-waves.
+### 4.3. `CombatRotation.ts`
 
-**What moves out:** Everything else — rotation, activation, enemy logic, spawning, outcome evaluation.
+Owns:
 
-**New public API:**
+- record angle advancement
+- slot crossing detection
+- ordering of crossings inside one frame
+
+Public interface:
+
 ```ts
-export type CombatState = 'preview' | 'running' | 'paused' | 'victory' | 'defeat';
-export type NoteColor = (typeof CombatContentConfig.NOTE_COLORS)[number];
-export type CombatEnemyState = 'moving' | 'attacking' | 'dead';
-
-export interface CombatSlotRuntime { ... }
-export interface CombatNotePacketRuntime { ... }
-export interface CombatEnemyRuntime { ... }
-export interface CombatSubWaveSpawnBag { ... }
-export interface CombatWaveRuntime { ... }
-export interface CombatRuntime { ... }
-
-export function createCombatRuntime(random: () => number = Math.random): CombatRuntime;
-export function setCombatState(runtime: CombatRuntime, nextState: CombatState): boolean;
-export function setCombatNotePacket(runtime: CombatRuntime, color: NoteColor | null, count: number): void;
-export function resetSlotActivationEffects(runtime: CombatRuntime): void;
-export function calculateEnemiesRemaining(runtime: CombatRuntime): number;
-```
-
-**Internal (non-exported) helpers that stay:**
-- `getSlotWorldPosition(centerX, centerY, angleDeg, radius)` — used by `createCombatRuntime` to compute initial slot positions
-- `shuffleArray<T>(array, random)` — used by `activateSubWave`
-- `activateSubWave(runtime, subWave, random)` — internal to factory
-- `activatePendingSubWaves(runtime, random)` — internal to factory
-
-**Code that moves out:**
-- `advanceCombatRuntime()` → `CombatRuntimeAdvance.ts`
-- `advanceRotation()` + `collectCrossingsForSlot()` → `CombatRotation.ts`
-- `resolveGeneratorSlotActivation()` + `resolveFinisherSlotActivation()` + `applyGeneratorPacketMutation()` + `applyFinisherPacketMutation()` + `getFinisherConsumedNotes()` + `getFinisherConsumedNotesMultiplier()` + `pushNotePacketChangedEvent()` + `pushGeneratorNotesEmittedEvent()` + `selectNearestLivingEnemy()` → `CombatActivation.ts`
-- `updateEnemyPressure()` → `CombatEnemyMovement.ts`
-- `updateEnemyBaseAttacks()` → `CombatEnemyAttacks.ts`
-- `bootstrapEnemySpawns()` + `selectEnemySpawnX()` → `CombatSpawnManager.ts`
-- `evaluateVictory()` → `CombatOutcome.ts`
-- `clampEnemyToAttackRange()` → `CombatEnemyMovement.ts`
-- `getDistance()` → moved to wherever it's needed (or a shared utils module if used by multiple new files)
-- `resolveWeakness()` → moved to `CombatActivation.ts`
-
-### 4.2. CombatRuntimeAdvance.ts (new)
-
-**Responsibility:** Thin pipeline that calls sub-modules in the correct order.
-
-**Public API:**
-```ts
-export function advanceCombatRuntime(
-  runtime: CombatRuntime,
-  deltaMs: number,
-  options?: { random?: () => number },
-): void;
-```
-
-**Implementation:**
-```ts
-import { advanceRotation } from './CombatRotation.js';
-import { resolveActivations } from './CombatActivation.js';
-import { advanceEnemyMovement } from './CombatEnemyMovement.js';
-import { processEnemyAttacks } from './CombatEnemyAttacks.js';
-import { processSpawns } from './CombatSpawnManager.js';
-import { evaluateOutcome } from './CombatOutcome.js';
-import { resetSlotActivationEffects, calculateEnemiesRemaining } from './CombatRuntime.js';
-
-export function advanceCombatRuntime(
-  runtime: CombatRuntime,
-  deltaMs: number,
-  options: { random?: () => number } = {},
-): void {
-  // Handle non-running states
-  if (runtime.state === 'preview') {
-    runtime.combatElapsedMs += deltaMs;
-    runtime.preview.elapsedMs = Math.min(
-      runtime.preview.elapsedMs + deltaMs,
-      runtime.preview.durationMs,
-    );
-    if (runtime.preview.elapsedMs >= runtime.preview.durationMs) {
-      setCombatState(runtime, 'running');
-    }
-    return;
-  }
-
-  if (runtime.state !== 'running') {
-    return;
-  }
-
-  // Phase 1: Reset per-frame state
-  resetSlotActivationEffects(runtime);
-
-  // Phase 2: Rotate record and detect crossings
-  const crossings = advanceRotation(runtime, deltaMs);
-
-  // Phase 3: Resolve pawn activations
-  resolveActivations(runtime, crossings);
-
-  // Phase 4: Advance enemy movement
-  advanceEnemyMovement(runtime, deltaMs);
-
-  // Phase 5: Process base damage ticks
-  processEnemyAttacks(runtime, deltaMs);
-
-  // Phase 6: Process spawns
-  processSpawns(runtime, deltaMs, options.random ?? Math.random);
-
-  // Phase 7: Calculate enemies remaining
-  runtime.wave.enemiesRemaining = calculateEnemiesRemaining(runtime);
-
-  // Phase 8: Evaluate outcome
-  evaluateOutcome(runtime);
-}
-```
-
-**Dependencies:** Imports from `CombatRuntime.ts`, `CombatRotation.ts`, `CombatActivation.ts`, `CombatEnemyMovement.ts`, `CombatEnemyAttacks.ts`, `CombatSpawnManager.ts`, `CombatOutcome.ts`.
-
-### 4.3. CombatRotation.ts (new)
-
-**Responsibility:** Record angle advancement and slot crossing detection.
-
-**Imports:** `CombatBalanceConfig`, `COMBAT_SLOT_COUNT`, `COMBAT_NEEDLE_ANGLE_DEGREES` from `./CombatLayout.js` (or wherever these constants live).
-
-**Public API:**
-```ts
-export interface SlotCrossing {
+export interface CombatSlotCrossing {
   slotIndex: number;
   crossingAngle: number;
 }
 
-export function advanceRotation(
+export function advanceCombatRotation(
   runtime: CombatRuntime,
   deltaMs: number,
-): SlotCrossing[];
+): CombatSlotCrossing[];
 
-export function detectSlotCrossings(
+export function detectCombatSlotCrossings(
   slot: CombatSlotRuntime,
   previousAngle: number,
   currentAngle: number,
-): SlotCrossing[];
+): CombatSlotCrossing[];
 ```
 
-**`advanceRotation` implementation logic:**
-1. Save `runtime.record.currentAngle` to `runtime.record.previousAngle`
-2. Compute `angleChange = runtime.record.rotationSpeedDegPerSecond * (deltaMs / 1000)`
-3. Set `runtime.record.currentAngle -= angleChange`
-4. Collect crossings by calling `detectSlotCrossings` for each slot
-5. Return the sorted crossings (sorted by `crossingAngle` descending, as the original code does)
+This is a deep module because crossing logic is mathematical and independent, and the pure function gives high leverage to tests.
 
-**`detectSlotCrossings` implementation logic (pure function):**
-1. If `sectorCenterAngleDeg === null` or `currentAngle >= previousAngle`, return `[]`
-2. Compute `baseCrossingAngle = COMBAT_NEEDLE_ANGLE_DEGREES - sectorCenterAngleDeg`
-3. Compute `firstCycle = Math.floor((currentAngle - baseCrossingAngle) / 360)`
-4. Compute `lastCycle = Math.floor((previousAngle - baseCrossingAngle) / 360)`
-5. For each `cycle` from `firstCycle` to `lastCycle` inclusive:
-   - Compute `crossingAngle = baseCrossingAngle + cycle * 360`
-   - If `crossingAngle <= previousAngle && crossingAngle > currentAngle`, add `{ slotIndex, crossingAngle }` to results
-6. Return results
+### 4.4. `CombatActivation.ts`
 
-**Key invariant:** The crossing detection must handle the case where the record rotates more than 360° in a single frame (multiple crossings).
+Owns one rule cluster:
 
-### 4.4. CombatActivation.ts (new)
+- crossed `slot` activation
+- pawn definition lookup
+- generator damage
+- finisher damage
+- weakness resolution
+- target selection
+- note packet mutation
+- event emission related to activation
 
-**Responsibility:** Resolve pawn activations for crossed slots, mutate note packet, emit events.
+Public interface:
 
-**Imports:**
-- `CombatContentConfig` (for `PAWN_DEFINITIONS`, `WEAKNESS_ADVANTAGE`)
-- `CombatBalanceConfig` (for `NOTE_PACKET_CAPACITY`, `FINISHER_CONSUMED_NOTES_MULTIPLIER`, `WEAKNESS_MULTIPLIER`)
-- `CombatRuntime` types from `./CombatRuntime.js`
-
-**Public API:**
 ```ts
-export function resolveActivations(
+export function resolveCombatActivations(
   runtime: CombatRuntime,
-  crossings: SlotCrossing[],
+  crossings: CombatSlotCrossing[],
 ): void;
 ```
 
-**`resolveActivations` implementation logic:**
-1. Build `pawnDefinitionsById: Map<string, CombatPawnDefinition>` from `CombatContentConfig.PAWN_DEFINITIONS`
-2. For each crossing (sorted by `crossingAngle` descending):
-   a. Get the slot: `const slot = runtime.slots[crossing.slotIndex]`
-   b. Skip if slot is null
-   c. Set `slot.activationVisualState = 'active'`
-   d. Add `runtime.effects.transientIds.push(\`slot-activated:\${slot.slotIndex}\`)`
-   e. Push `combat:slot-activated` event to `runtime.effects.pendingEvents`
-   f. If `slot.pawnId === null`, continue (empty slot)
-   g. Get pawn definition: `const pawn = pawnDefinitionsById.get(slot.pawnId)`
-   h. If pawn is null, continue
-   i. Push `combat:pawn-resolved` event with `{ slotIndex, pawnId: pawn.id, pawnType: pawn.type }`
-   j. If `pawn.type === 'generator'`: call `resolveGeneratorActivation(runtime, slot, pawn)`
-   k. If `pawn.type === 'finisher'`: call `resolveFinisherActivation(runtime, slot, pawn as CombatFinisherPawnDefinition)`
+This is where the `record` interacts with `pawn`, `enemy`, `note packet`, and `weakness`.
 
-**`resolveGeneratorActivation` implementation logic:**
-1. Call `selectNearestLivingEnemy(runtime, slot.worldPosition)` → `target`
-2. If `target` exists:
-   a. Call `resolveWeakness(pawn.color, target.color)` → `weaknessMultiplier`
-   b. Compute `damage = Math.round(pawn.baseDamage * weaknessMultiplier)`
-   c. Set `target.currentHp = Math.max(0, target.currentHp - damage)`
-   d. Push `combat:enemy-hit` event
-   e. If `target.currentHp <= 0 && target.state !== 'dead'`:
-      - Set `target.state = 'dead'`
-      - Decrement `runtime.wave.enemiesRemaining`
-      - Push `combat:enemy-died` event
-3. Call `applyGeneratorPacketMutation(runtime, slot, pawn.id, pawn.color)`
+That is one real concept, so it should stay together.
 
-**`resolveFinisherActivation` implementation logic:**
-1. Call `getFinisherConsumedNotes(runtime, pawn.color)` → `consumedNotes`
-2. Call `getFinisherConsumedNotesMultiplier(consumedNotes)` → `consumedMultiplier`
-3. Compute `baseDamage = Math.round(pawn.baseDamage * consumedMultiplier)`
-4. Call `selectNearestLivingEnemy(runtime, slot.worldPosition)` → `target`
-5. If `target` exists:
-   a. Call `resolveWeakness(pawn.color, target.color)` → `weaknessMultiplier`
-   b. Compute `damage = Math.round(baseDamage * weaknessMultiplier)`
-   c. Set `target.currentHp = Math.max(0, target.currentHp - damage)`
-   d. Push `combat:enemy-hit` event
-   e. If `target.currentHp <= 0 && target.state !== 'dead'`:
-      - Set `target.state = 'dead'`
-      - Decrement `runtime.wave.enemiesRemaining`
-      - Push `combat:enemy-died` event
-6. Push `combat:finisher-consumed-notes` event
-7. Call `applyFinisherPacketMutation(runtime, slot, pawn)`
+### 4.5. `CombatEnemyPressure.ts`
 
-**`selectNearestLivingEnemy` implementation logic:**
-1. If `origin === null`, return `null`
-2. Initialize `nearestEnemy = null`, `nearestDistance = Infinity`
-3. For each enemy in `runtime.enemies`:
-   - Skip if `!enemy.spawned || enemy.state === 'dead' || enemy.currentHp <= 0`
-   - Compute `distance = hypot(enemy.x - origin.x, enemy.y - origin.y)`
-   - If `distance < nearestDistance`: set `nearestEnemy = enemy`, `nearestDistance = distance`
-4. Return `nearestEnemy`
+Owns one rule cluster:
 
-**`resolveWeakness` implementation logic:**
-1. Get `weakTarget = CombatContentConfig.WEAKNESS_ADVANTANCE[attackerColor]`
-2. Return `weakTarget === targetColor ? CombatBalanceConfig.WEAKNESS_MULTIPLIER : 1`
+- enemy movement toward the `base`
+- transition from `moving` to `attacking`
+- attack cadence while in range
+- base damage application
+- defeat trigger
+- clamping enemies onto attack range
 
-**`applyGeneratorPacketMutation` implementation logic:**
-1. Save `previousColor = runtime.notePacket.color`, `previousCount = runtime.notePacket.count`
-2. If `previousColor === null || previousCount <= 0`:
-   - Call `setCombatNotePacket(runtime, color, 2)`
-   - Push `combat:generator-notes-emitted` event with `count: 2`
-   - Push `combat:note-packet-changed` event
-   - Return
-3. If `previousColor === color`:
-   - Compute `nextCount = min(previousCount + 2, NOTE_PACKET_CAPACITY)`
-   - Compute `emittedNotes = max(0, nextCount - previousCount)`
-   - Call `setCombatNotePacket(runtime, color, nextCount)`
-   - Push `combat:generator-notes-emitted` event with `count: emittedNotes`
-   - Push `combat:note-packet-changed` event
-   - Return
-4. (Color mismatch — packet break)
-   - Push `combat:note-packet-color-broke` event with `{ previousColor, nextColor: color }`
-   - Call `setCombatNotePacket(runtime, color, 2)`
-   - Push `combat:generator-notes-emitted` event with `count: 2`
-   - Push `combat:note-packet-changed` event
+Public interface:
 
-**`applyFinisherPacketMutation` implementation logic:**
-1. If `runtime.notePacket.color !== null && runtime.notePacket.color !== pawn.color`:
-   - Push `combat:note-packet-color-broke` event with `{ previousColor: runtime.notePacket.color, nextColor: pawn.outputNoteColor }`
-2. Call `setCombatNotePacket(runtime, pawn.outputNoteColor, 1)`
-3. Push `combat:finisher-output-note-emitted` event with `{ slotIndex, pawnId: pawn.id, color: pawn.outputNoteColor, count: 1 }`
-4. Push `combat:note-packet-changed` event
-
-**`getFinisherConsumedNotes` implementation logic:**
-1. If `runtime.notePacket.color !== pawn.color || runtime.notePacket.count <= 0`, return `0`
-2. Return `min(runtime.notePacket.count, NOTE_PACKET_CAPACITY)`
-
-**`getFinisherConsumedNotesMultiplier` implementation logic:**
-1. Normalize: `normalized = max(0, min(consumedNotes, FINISHER_CONSUMED_NOTES_MULTIPLIER.length - 1))`
-2. Return `FINISHER_CONSUMED_NOTES_MULTIPLIER[normalized] ?? 0.75`
-
-**Helper — `pushNotePacketChangedEvent`:**
 ```ts
-runtime.effects.pendingEvents.push({
-  event: 'combat:note-packet-changed',
-  payload: { color: runtime.notePacket.color, count: runtime.notePacket.count },
-});
-```
-
-**Helper — `pushGeneratorNotesEmittedEvent`:**
-```ts
-runtime.effects.pendingEvents.push({
-  event: 'combat:generator-notes-emitted',
-  payload: { slotIndex, pawnId, color, count },
-});
-```
-
-### 4.5. CombatEnemyMovement.ts (new)
-
-**Responsibility:** Enemy movement toward base and moving→attacking state transitions.
-
-**Imports:**
-- `CombatLayoutConfig` (for `ENEMY_ZONE_TOP`, `ENEMY_ZONE_BOTTOM`, etc.)
-- `CombatContentConfig` (for `ENEMY_DEFINITIONS`)
-- `CombatRuntime` types from `./CombatRuntime.js`
-
-**Public API:**
-```ts
-export function advanceEnemyMovement(
+export function advanceCombatEnemyPressure(
   runtime: CombatRuntime,
   deltaMs: number,
 ): void;
 ```
 
-**`advanceEnemyMovement` implementation logic:**
-1. Build `enemyDefinitionsById: Map<string, CombatEnemyDefinition>` from `CombatContentConfig.ENEMY_DEFINITIONS`
-2. Get layout from `createCombatLayoutPlan()` (or inline the base position values)
-3. For each enemy in `runtime.enemies`:
-   a. Skip if `!enemy.spawned`
-   b. Get definition: `const def = enemyDefinitionsById.get(enemy.definitionId)`
-   c. Skip if definition is null
-   d. If `enemy.state === 'attacking'`:
-      - Continue (base attacks are handled in `CombatEnemyAttacks`)
-   e. If `enemy.state !== 'moving'`, continue
-   f. Compute `distanceToBase = hypot(enemy.x - base.x, enemy.y - base.y)`
-   g. If `distanceToBase <= def.attackRangePx`:
-      - Clamp enemy position to attack range: `enemy.y = clampEnemyToAttackRange(enemy.x, base.x, base.y, def.attackRangePx)`
-      - Set `enemy.state = 'attacking'`
-      - Set `enemy.nextAttackAtMs = runtime.combatElapsedMs + def.attackCooldownMs`
-      - Continue
-   h. Compute step: `stepPx = def.moveSpeedPxPerSec * (deltaMs / 1000)`
-   i. Compute `nextY = enemy.y + stepPx`
-   j. Compute `nextDistanceToBase = hypot(enemy.x - base.x, nextY - base.y)`
-   k. If `nextDistanceToBase <= def.attackRangePx`:
-      - Clamp: `enemy.y = clampEnemyToAttackRange(enemy.x, base.x, base.y, def.attackRangePx)`
-      - Set `enemy.state = 'attacking'`
-      - Set `enemy.nextAttackAtMs = runtime.combatElapsedMs + def.attackCooldownMs`
-      - Continue
-   l. Otherwise: `enemy.y = nextY`
+This replaces the old idea of splitting movement and attacks into separate modules.
 
-**`clampEnemyToAttackRange` implementation logic:**
-1. Compute `deltaX = enemyX - baseX`
-2. Compute `maxDeltaY = sqrt(max(attackRangePx² - deltaX², 0))`
-3. Return `baseY - maxDeltaY`
+### 4.6. `CombatWaveRuntime.ts`
 
-### 4.6. CombatEnemyAttacks.ts (new)
+Owns one rule cluster:
 
-**Responsibility:** Periodic base damage ticks from enemies in the 'attacking' state.
+- pending sub-wave activation
+- spawn bag allocation
+- enemy spawn timing
+- spawn position selection
+- enemies remaining calculation
 
-**Imports:**
-- `CombatContentConfig` (for enemy definition attack cooldown/damage)
-- `CombatBalanceConfig` (for `BASE_HP`)
-- `CombatRuntime` types from `./CombatRuntime.js`
+Public interface:
 
-**Public API:**
 ```ts
-export function processEnemyAttacks(
+export function activatePendingCombatSubWaves(
   runtime: CombatRuntime,
-  deltaMs: number,
-): void;
-```
-
-**`processEnemyAttacks` implementation logic:**
-1. Build `enemyDefinitionsById: Map<string, CombatEnemyDefinition>` from `CombatContentConfig.ENEMY_DEFINITIONS`
-2. For each enemy in `runtime.enemies`:
-   a. Skip if `enemy.state !== 'attacking'`
-   b. Get definition: `const def = enemyDefinitionsById.get(enemy.definitionId)`
-   c. Skip if definition is null
-   d. If `enemy.nextAttackAtMs <= 0`:
-      - Set `enemy.nextAttackAtMs = def.attackCooldownMs`
-      - Continue
-   e. While `runtime.combatElapsedMs >= enemy.nextAttackAtMs`:
-      - Set `runtime.baseHp = max(0, runtime.baseHp - def.attackDamage)`
-      - Push `combat:base-damaged` event with `{ current: runtime.baseHp, max: BASE_HP }`
-      - Push `combat:hud-base-hp-updated` event with `{ current: runtime.baseHp, max: BASE_HP }`
-      - If `runtime.baseHp <= 0`:
-        - Call `setCombatState(runtime, 'defeat')`
-        - `return` (exit the function early)
-      - Set `enemy.nextAttackAtMs += def.attackCooldownMs`
-
-**Important:** The early `return` on defeat is critical — it prevents processing further enemies in the same tick after the base has fallen.
-
-### 4.7. CombatSpawnManager.ts (new)
-
-**Responsibility:** Spawn bag processing and enemy placement on the field.
-
-**Imports:**
-- `CombatLayoutConfig` (for `ENEMY_SPAWN_Y`, `ENEMY_SPAWN_X_MIN`, `ENEMY_SPAWN_X_MAX`)
-- `CombatBalanceConfig` (for `ENEMY_SPAWN_MIN_GAP_PX`, `ENEMY_SPAWN_ATTEMPTS`)
-- `CombatRuntime` types from `./CombatRuntime.js`
-
-**Public API:**
-```ts
-export function processSpawns(
-  runtime: CombatRuntime,
-  deltaMs: number,
   random: () => number,
 ): void;
+
+export function spawnCombatEnemies(
+  runtime: CombatRuntime,
+  random: () => number,
+): void;
+
+export function calculateCombatEnemiesRemaining(
+  runtime: CombatRuntime,
+): number;
 ```
 
-**`processSpawns` implementation logic:**
-1. For each `subWave` in `runtime.wave.activeSubWaves`:
-   a. Get `bag = runtime.wave.spawnBags.get(subWave.id)`
-   b. Skip if bag is null
-   c. While `bag.enemyRuntimeIds.length > 0 && runtime.waveElapsedMs >= bag.nextSpawnAtMs`:
-      - `const enemyRuntimeId = bag.enemyRuntimeIds.shift()`
-      - Find enemy: `const enemy = runtime.enemies.find(e => e.runtimeId === enemyRuntimeId)`
-      - Skip if enemy is null
-      - Set `enemy.spawned = true`
-      - Set `enemy.state = 'moving'`
-      - Set `enemy.nextAttackAtMs = 0`
-      - Set `enemy.x = selectEnemySpawnX(random, runtime.spawn.lastSpawnX)`
-      - Set `enemy.y = CombatLayoutConfig.ENEMY_SPAWN_Y`
-      - Set `runtime.spawn.lastSpawnX = enemy.x`
-      - Set `bag.nextSpawnAtMs += bag.intervalMs`
+This keeps all `wave` and spawn timing knowledge behind one seam.
 
-**`selectEnemySpawnX` implementation logic:**
-1. Set `fallbackX = CombatLayoutConfig.ENEMY_SPAWN_X_MIN`
-2. For `attempt` from 0 to `ENEMY_SPAWN_ATTEMPTS - 1`:
-   a. Compute `candidateX = round(ENEMY_SPAWN_X_MIN + random() * (ENEMY_SPAWN_X_MAX - ENEMY_SPAWN_X_MIN))`
-   b. Set `fallbackX = candidateX`
-   c. If `lastSpawnX === null || abs(candidateX - lastSpawnX) >= ENEMY_SPAWN_MIN_GAP_PX`:
-      - Return `candidateX`
-3. Return `fallbackX`
+### 4.7. `CombatOutcome.ts`
 
-### 4.8. CombatOutcome.ts (new)
+Owns:
 
-**Responsibility:** Victory and defeat condition evaluation.
+- victory evaluation
+- defeat evaluation helpers only if they are not already fully concentrated in `CombatEnemyPressure.ts`
 
-**Imports:**
-- `CombatRuntime` types from `./CombatRuntime.js`
-- `setCombatState` from `./CombatRuntime.js`
+Public interface:
 
-**Public API:**
 ```ts
-export function evaluateOutcome(runtime: CombatRuntime): void;
+export function evaluateCombatOutcome(runtime: CombatRuntime): void;
 ```
 
-**`evaluateOutcome` implementation logic:**
-1. If `runtime.state !== 'running'`, return (only evaluate during running state)
-2. Check **victory** conditions:
-   a. `allSubWavesActivated = runtime.wave.pendingSubWaves.length === 0`
-   b. `allBagsEmpty = all spawnBags have empty enemyRuntimeIds`
-   c. `noLivingEnemies = all enemies are either not spawned or are dead`
-   d. If all three are true: call `setCombatState(runtime, 'victory')`
-3. Check **defeat** conditions:
-   a. If `runtime.baseHp <= 0`: call `setCombatState(runtime, 'defeat')`
-
-**Note:** Defeat is also checked inside `processEnemyAttacks` (early return path). This check in `evaluateOutcome` is a safety net for cases where base HP reaches 0 through other means (e.g., future mechanics).
+This module should stay small, but it is still a useful seam because outcome rules are explicit game rules.
 
 ---
 
-## 5. Import Graph After Refactoring
+## 5. What Changes Compared To The Previous Draft
 
-```
-CombatRuntime.ts
-├── CombatContentConfig
-├── CombatBalanceConfig
-├── CombatLayoutConfig
-├── CombatLayout (for COMBAT_SLOT_COUNT, COMBAT_NEEDLE_ANGLE_DEGREES, createCombatLayoutPlan)
-└── CombatEnemyRuntimeFactory (for createCombatEnemyRuntimes)
+### Removed from the plan
 
-CombatRuntimeAdvance.ts
-├── CombatRuntime (setCombatState, resetSlotActivationEffects, calculateEnemiesRemaining)
-├── CombatRotation (advanceRotation)
-├── CombatActivation (resolveActivations)
-├── CombatEnemyMovement (advanceEnemyMovement)
-├── CombatEnemyAttacks (processEnemyAttacks)
-├── CombatSpawnManager (processSpawns)
-└── CombatOutcome (evaluateOutcome)
+- `CombatRuntimeAdvance.ts`
+- `CombatEnemyMovement.ts`
+- `CombatEnemyAttacks.ts`
+- `CombatSpawnManager.ts`
 
-CombatRotation.ts
-├── CombatRuntime (CombatSlotRuntime, CombatRuntime)
-└── CombatLayout (COMBAT_SLOT_COUNT, COMBAT_NEEDLE_ANGLE_DEGREES)
+Reason:
 
-CombatActivation.ts
-├── CombatRuntime (CombatRuntime, CombatSlotRuntime, CombatFinisherPawnDefinition, NoteColor, setCombatNotePacket)
-├── CombatContentConfig (PAWN_DEFINITIONS, WEAKNESS_ADVANTAGE)
-└── CombatBalanceConfig (NOTE_PACKET_CAPACITY, FINISHER_CONSUMED_NOTES_MULTIPLIER, WEAKNESS_MULTIPLIER)
+- they would be too shallow
+- they would increase file count faster than they increase leverage
+- they would spread one rule cluster across several seams
 
-CombatEnemyMovement.ts
-├── CombatRuntime (CombatRuntime, CombatEnemyRuntime)
-├── CombatLayoutConfig (ENEMY_ZONE_TOP, ENEMY_ZONE_BOTTOM)
-├── CombatContentConfig (ENEMY_DEFINITIONS)
-└── CombatLayout (createCombatLayoutPlan or base position constants)
+### Added to the plan
 
-CombatEnemyAttacks.ts
-├── CombatRuntime (CombatRuntime, setCombatState)
-├── CombatContentConfig (ENEMY_DEFINITIONS)
-└── CombatBalanceConfig (BASE_HP)
+- `CombatRuntimeEvents.ts`
+- `CombatWaveRuntime.ts`
+- explicit acknowledgement of existing downstream adapters
 
-CombatSpawnManager.ts
-├── CombatRuntime (CombatRuntime, CombatSubWaveSpawnBag)
-├── CombatLayoutConfig (ENEMY_SPAWN_Y, ENEMY_SPAWN_X_MIN, ENEMY_SPAWN_X_MAX)
-└── CombatBalanceConfig (ENEMY_SPAWN_MIN_GAP_PX, ENEMY_SPAWN_ATTEMPTS)
+Reason:
 
-CombatOutcome.ts
-├── CombatRuntime (CombatRuntime, setCombatState)
-```
-
-**No circular dependencies.** `CombatRuntimeAdvance.ts` is the only file that imports from all sub-modules. All sub-modules only import from `CombatRuntime.ts` (for types and `setCombatState`) and config/layout files.
+- the event seam is now one of the main sources of friction
+- sub-wave activation and spawning are one rule cluster in the current code
+- the runtime refactor must fit the current architecture, not the older draft
 
 ---
 
-## 6. Implementation Steps
+## 6. Migration Plan
 
-### Step 1: Create `CombatRotation.ts`
+### Phase 0. Lock behaviour with characterization tests
 
-**What to do:**
-1. Create `src/combat/CombatRotation.ts`
-2. Move `COMBAT_SLOT_COUNT`, `COMBAT_NEEDLE_ANGLE_DEGREES` imports from `./CombatLayout.js` (they already live there)
-3. Move `collectCrossingsForSlot` → rename to `detectSlotCrossings`, make it a pure function with explicit parameters
-4. Create `advanceRotation` that:
-   - Saves `currentAngle` to `previousAngle`
-   - Computes new `currentAngle`
-   - Calls `detectSlotCrossings` for each slot
-   - Returns sorted crossings (descending by `crossingAngle`)
-5. Export both functions
+Before moving logic, keep and extend the existing runtime tests around:
 
-**Verification:** Run `npx tsc --noEmit`. Check that no other file references `collectCrossingsForSlot`.
+- preview to running transition
+- multi-crossing frames
+- generator packet mutation
+- finisher packet mutation
+- weakness damage
+- enemy attack cadence through pause / resume
+- sub-wave activation timing
+- spawn gap randomness rules
+- victory and defeat conditions
 
-### Step 2: Create `CombatOutcome.ts`
+Goal:
 
-**What to do:**
-1. Create `src/combat/CombatOutcome.ts`
-2. Move `evaluateVictory` logic → rename to `evaluateOutcome`, add defeat check
-3. Export `evaluateOutcome`
+- protect gameplay timing while modules move
 
-**Verification:** Run `npx tsc --noEmit`.
+### Phase 1. Extract `CombatRuntimeEvents.ts`
 
-### Step 3: Create `CombatSpawnManager.ts`
+Move first:
 
-**What to do:**
-1. Create `src/combat/CombatSpawnManager.ts`
-2. Move `bootstrapEnemySpawns` → rename to `processSpawns`
-3. Move `selectEnemySpawnX`
-4. Export both functions
+- the `pendingEvents` union type
+- event push helpers
+- frame-local effect reset
 
-**Verification:** Run `npx tsc --noEmit`.
+Expected result:
 
-### Step 4: Create `CombatEnemyMovement.ts`
+- `CombatRuntime.ts` no longer owns inline event-shape noise
+- tests can assert against one named event type
+- HUD and VFX adapters can converge on the same event vocabulary
 
-**What to do:**
-1. Create `src/combat/CombatEnemyMovement.ts`
-2. Move `updateEnemyPressure` → rename to `advanceEnemyMovement`, remove the `updateEnemyBaseAttacks` call from inside it
-3. Move `clampEnemyToAttackRange`
-4. Remove the base attack loop from `advanceEnemyMovement` (that moves to `CombatEnemyAttacks`)
-5. Export `advanceEnemyMovement`
+### Phase 2. Extract `CombatRotation.ts`
 
-**Verification:** Run `npx tsc --noEmit`.
+Move:
 
-### Step 5: Create `CombatEnemyAttacks.ts`
+- `collectCrossingsForSlot`
+- record angle advancement
+- crossing sorting
 
-**What to do:**
-1. Create `src/combat/CombatEnemyAttacks.ts`
-2. Move `updateEnemyBaseAttacks` → rename to `processEnemyAttacks`
-3. Expand it to iterate over ALL attacking enemies (the original only handled one enemy at a time)
-4. Export `processEnemyAttacks`
+Keep pure tests for:
 
-**Verification:** Run `npx tsc --noEmit`.
+- one crossing
+- multiple crossings in one frame
+- no crossing on reverse / paused paths
 
-### Step 6: Create `CombatActivation.ts`
+Expected result:
 
-**What to do:**
-1. Create `src/combat/CombatActivation.ts`
-2. Move all activation-related functions:
-   - `processCrossedSlots` → rename to `resolveActivations` (accepts crossings as parameter)
-   - `resolveGeneratorSlotActivation` → `resolveGeneratorActivation`
-   - `resolveFinisherSlotActivation` → `resolveFinisherActivation`
-   - `applyGeneratorPacketMutation` → `applyGeneratorPacketMutation`
-   - `applyFinisherPacketMutation` → `applyFinisherPacketMutation`
-   - `getFinisherConsumedNotes` → `getFinisherConsumedNotes`
-   - `getFinisherConsumedNotesMultiplier` → `getFinisherConsumedNotesMultiplier`
-   - `selectNearestLivingEnemy` → `selectNearestLivingEnemy`
-   - `resolveWeakness` → `resolveWeakness`
-   - `pushNotePacketChangedEvent` → `pushNotePacketChangedEvent`
-   - `pushGeneratorNotesEmittedEvent` → `pushGeneratorNotesEmittedEvent`
-3. All functions receive `runtime` as a parameter (no module-level state)
-4. Export `resolveActivations`
+- better locality for `record` and `needle` math
 
-**Verification:** Run `npx tsc --noEmit`.
+### Phase 3. Extract `CombatActivation.ts`
 
-### Step 7: Rewrite `CombatRuntime.ts`
+Move:
 
-**What to do:**
-1. Keep all type definitions exactly as they are
-2. Keep `createCombatRuntime` exactly as it is
-3. Keep `setCombatState` exactly as it is
-4. Keep `setCombatNotePacket` exactly as it is
-5. Keep `getSlotWorldPosition`, `shuffleArray`, `activateSubWave`, `activatePendingSubWaves` as internal helpers
-6. Remove `advanceCombatRuntime` (moves to `CombatRuntimeAdvance.ts`)
-7. Remove `advanceRotation`, `collectCrossingsForSlot` (moves to `CombatRotation.ts`)
-8. Remove all activation functions (move to `CombatActivation.ts`)
-9. Remove `updateEnemyPressure`, `updateEnemyBaseAttacks`, `clampEnemyToAttackRange` (move to `CombatEnemyMovement.ts` / `CombatEnemyAttacks.ts`)
-10. Remove `bootstrapEnemySpawns`, `selectEnemySpawnX` (move to `CombatSpawnManager.ts`)
-11. Remove `evaluateVictory` (move to `CombatOutcome.ts`)
-12. Remove `getDistance` — either inline it where needed or add to a shared utils file
-13. Add `resetSlotActivationEffects` (extracted from current `advanceCombatRuntime`)
-14. Add `calculateEnemiesRemaining` (extracted from current `advanceCombatRuntime`)
-15. Remove `activatePendingSubWaves` call from `createCombatRuntime` — wait, this IS used in the factory. Keep it.
+- `processCrossedSlots`
+- nearest enemy selection
+- weakness resolution
+- generator logic
+- finisher logic
+- note packet mutation helpers
 
-**Verification:** Run `npx tsc --noEmit`. The file should be significantly shorter (~150-200 lines).
+Important:
 
-### Step 8: Create `CombatRuntimeAdvance.ts`
+- do not split packet mutation into its own module yet
+- there is still only one real caller cluster: pawn activation
 
-**What to do:**
-1. Create `src/combat/CombatRuntimeAdvance.ts`
-2. Implement the thin pipeline as specified in Section 4.2
-3. Import all sub-module functions
-4. Export `advanceCombatRuntime`
+Expected result:
 
-**Verification:** Run `npx tsc --noEmit`.
+- tests for `generator` and `finisher` rules stop depending on unrelated spawn and pressure code
 
-### Step 9: Update all import sites
+### Phase 4. Extract `CombatEnemyPressure.ts`
 
-**What to do:**
-1. Find all files that import `advanceCombatRuntime` from `./CombatRuntime.js`
-2. Update imports to `./CombatRuntimeAdvance.js`
-3. Find all files that import `CombatRuntime` type — these stay as `./CombatRuntime.js`
-4. Verify no remaining references to removed functions
+Move:
 
-**Verification:** Run `npx tsc --noEmit`. Run `npm run build`.
+- `updateEnemyPressure`
+- `updateEnemyBaseAttacks`
+- `clampEnemyToAttackRange`
+- any enemy-definition lookups used only for pressure
 
-### Step 10: Run tests
+Expected result:
 
-**What to do:**
-1. Run `npm run test:run` (or whatever test command the project uses)
-2. Fix any failing tests
-3. The existing tests should still pass — the refactoring is purely internal
+- all `enemy -> base` pressure logic concentrated in one place
+- easier to change pressure pacing without touching `record` or `note packet` rules
+
+### Phase 5. Extract `CombatWaveRuntime.ts`
+
+Move:
+
+- `activateSubWave`
+- `activatePendingSubWaves`
+- `bootstrapEnemySpawns`
+- `selectEnemySpawnX`
+- `calculateEnemiesRemaining`
+- local shuffle helper if still only used here
+
+Expected result:
+
+- all `wave` timing and enemy entry rules behind one seam
+
+### Phase 6. Extract `CombatOutcome.ts`
+
+Move:
+
+- `evaluateVictory`
+- optional shared outcome helpers if needed after earlier phases
+
+Expected result:
+
+- end-of-wave rules become explicit and easy to review
+
+### Phase 7. Shrink `CombatRuntime.ts` to orchestration plus public commands
+
+Target responsibilities left in `CombatRuntime.ts`:
+
+- types
+- runtime factory
+- public commands
+- top-level frame order
+
+Everything else should be implementation detail behind deeper modules.
 
 ---
 
-## 7. Files That Import CombatRuntime (Update Needed)
+## 7. Non-Goals
 
-These files currently import from `CombatRuntime.ts` and need their imports updated:
-
-| File | Current Import | Change |
-|------|---------------|--------|
-| `src/events/EventBus.ts` | `type { CombatState, NoteColor }` from `@combat/CombatRuntime` | No change (types only) |
-| `src/systems/CombatStateSystem.ts` | `advanceCombatRuntime, type CombatRuntime` from `@combat/CombatRuntime` | Change `advanceCombatRuntime` import to `@combat/CombatRuntimeAdvance` |
-| `src/scenes/combat/CombatScene.ts` | `createCombatRuntime, type CombatRuntime, CombatRuntime` from `@combat/CombatRuntime` | Change `advanceCombatRuntime` if imported; `createCombatRuntime` stays |
-| `src/combat/CombatHudEvents.ts` | `type { CombatRuntime, CombatState }` from `./CombatRuntime` | No change (types only) |
-| `src/combat/CombatHudBridge.ts` | `type { CombatRuntime, CombatState }` from `./CombatRuntime` | No change (types only) |
-| `src/combat/CombatVfxSystem.ts` | `type { NoteColor }` from `./CombatRuntime` | No change (type only) |
-| `src/combat/CombatRenderModel.ts` | No direct CombatRuntime import | No change |
-| `src/combat/CombatSceneLifecycle.ts` | No CombatRuntime import | No change |
-| `src/combat/CombatLayout.ts` | No CombatRuntime import | No change |
-| `src/combat/CombatEnemyRuntimeFactory.ts` | `type { CombatEnemyRuntime }` from `./CombatRuntime` | No change (type only) |
-| `src/combat/CombatNoteGlyph.ts` | No CombatRuntime import | No change |
-| `src/combat/CombatVfxTextures.ts` | No CombatRuntime import | No change |
-| `src/combat/CombatBaseHpBar.ts` | No CombatRuntime import | No change |
-| `src/combat/CombatNotePacketView.ts` | No CombatRuntime import | No change |
-| `src/combat/CombatVfxEventBridge.ts` | No CombatRuntime import | No change |
-| `src/combat/CombatLayout.test.ts` | `type { CombatRuntime }` from `./CombatRuntime` | No change (type only) |
-| `src/combat/CombatRuntime.test.ts` | `advanceCombatRuntime, createCombatRuntime, type CombatRuntime` from `./CombatRuntime` | Change `advanceCombatRuntime` import to `./CombatRuntimeAdvance` |
-| `src/combat/CombatSceneLifecycle.test.ts` | `getCombatPresentationDelta` from `./CombatSceneLifecycle` | No change |
-| `src/combat/CombatHudBridge.test.ts` | `createCombatHudBridgeEvents, createCombatStateTransitionEvents` from `./CombatHudBridge` | No change |
-| `src/combat/CombatNotePacketView.test.ts` | `createCombatNotePacketViewModel` from `./CombatNotePacketView` | No change |
-| `src/combat/CombatVfxSystem.test.ts` | `CombatVfxSystem` from `./CombatVfxSystem` | No change |
-| `src/combat/CombatControlIntent.ts` | No CombatRuntime import | No change |
-| `src/combat/CombatControlIntent.test.ts` | `resolveCombatControlIntent` from `./CombatControlIntent` | No change |
-| `src/combat/CombatRenderModel.test.ts` | `createCombatRenderModel` from `./CombatRenderModel` | No change |
-| `src/combat/CombatBaseHpBar.test.ts` | `getCombatBaseHpBarFillMetrics` from `./CombatBaseHpBar` | No change |
-| `src/combat/CombatRuntime.test.ts` | `advanceCombatRuntime, createCombatRuntime, type CombatRuntime, setCombatState, setCombatNotePacket` from `./CombatRuntime` | Change `advanceCombatRuntime` import to `./CombatRuntimeAdvance` |
-
-**Key change:** Only `advanceCombatRuntime` moves. Everything else (`createCombatRuntime`, `setCombatState`, `setCombatNotePacket`, types) stays in `CombatRuntime.ts`.
+- Replacing EventBus
+- Refactoring `CombatScene.ts` in the same ADR
+- Reworking `HUDScene.ts`
+- Changing gameplay timing
+- Introducing polymorphic adapters where we only have one implementation
 
 ---
 
-## 8. Testing Strategy
+## 8. Expected Benefits
 
-### 8.1. Existing tests
+### Locality
 
-The project has existing tests in `src/combat/`:
-- `CombatRuntime.test.ts` — tests `advanceCombatRuntime` and `createCombatRuntime`
-- `CombatLayout.test.ts` — tests layout calculations
-- `CombatSceneLifecycle.test.ts` — tests scene lifecycle
-- `CombatHudBridge.test.ts` — tests HUD event generation
-- `CombatNotePacketView.test.ts` — tests note packet view model
-- `CombatVfxSystem.test.ts` — tests VFX system
-- `CombatControlIntent.test.ts` — tests control intent resolution
-- `CombatRenderModel.test.ts` — tests render model generation
-- `CombatBaseHpBar.test.ts` — tests HP bar fill metrics
+- `record` math lives together
+- `pawn` activation rules live together
+- `enemy` pressure on the `base` lives together
+- `wave` timing lives together
+- combat event shape lives together
 
-These tests should continue to pass after the refactoring. The public API (`createCombatRuntime`, `advanceCombatRuntime`, types) is unchanged.
+### Leverage
 
-### 8.2. New tests to add (optional, after refactoring)
+- tests can target smaller rule clusters through clearer seams
+- future feature work can find the right module faster
+- AI agents can navigate the `combat phase` by concept instead of scanning one giant file
 
-After the refactoring, new focused tests can be added:
+### Safer follow-up refactors
 
-**CombatRotation.test.ts:**
-- `detectSlotCrossings returns empty when no crossing`
-- `detectSlotCrossings returns one crossing when slot passes needle`
-- `detectSlotCrossings returns two crossings when record rotates more than 360°`
-- `detectSlotCrossings returns empty when sectorCenterAngleDeg is null`
-- `detectSlotCrossings returns empty when currentAngle >= previousAngle`
-
-**CombatActivation.test.ts:**
-- `resolveActivations emits slot-activated event for crossed slot`
-- `resolveActivations emits pawn-resolved event with correct pawnType`
-- `resolveActivations skips empty slots (pawnId === null)`
-- `resolveGeneratorActivation emits generator-notes-emitted with count 2`
-- `resolveGeneratorActivation emits enemy-hit when nearest enemy exists`
-- `resolveGeneratorActivation applies weakness multiplier`
-- `resolveGeneratorActivation does not emit events when no living enemy`
-- `resolveFinisherActivation emits finisher-consumed-notes with correct consumed count`
-- `resolveFinisherActivation applies consumed notes multiplier to damage`
-- `resolveFinisherActivation emits finisher-output-note-emitted`
-- `applyGeneratorPacketMutation creates new packet when previous is empty`
-- `applyGeneratorPacketMutation extends packet when same color`
-- `applyGeneratorPacketMutation clamps to capacity 5`
-- `applyGeneratorPacketMutation breaks color and emits note-packet-color-broke`
-- `applyFinisherPacketMutation breaks color when different`
-- `applyFinisherPacketMutation sets output note color`
-- `getFinisherConsumedNotes returns 0 when color mismatch`
-- `getFinisherConsumedNotesMultiplier returns correct multiplier for 0-5 notes`
-
-**CombatEnemyMovement.test.ts:**
-- `advanceEnemyMovement moves enemy toward base at correct speed`
-- `advanceEnemyMovement transitions to attacking when within range`
-- `advanceEnemyMovement does not move dead enemies`
-- `advanceEnemyMovement does not move unspawned enemies`
-- `clampEnemyToAttackRange clamps Y to maintain attack range distance`
-
-**CombatEnemyAttacks.test.ts:**
-- `processEnemyAttacks deals damage to base at correct intervals`
-- `processEnemyAttacks emits base-damaged event`
-- `processEnemyAttacks sets state to defeat when base HP reaches 0`
-- `processEnemyAttacks handles multiple attacking enemies`
-
-**CombatSpawnManager.test.ts:**
-- `processSpawns spawns enemies at correct time`
-- `processSpawns places enemies at ENEMY_SPAWN_Y`
-- `processSpawns respects ENEMY_SPAWN_MIN_GAP_PX`
-- `processSpawns shifts enemyRuntimeIds from bag`
-
-**CombatOutcome.test.ts:**
-- `evaluateOutcome does nothing when state is not running`
-- `evaluateOutcome sets victory when all conditions met`
-- `evaluateOutcome does not set victory when enemies remain`
-- `evaluateOutcome does not set victory when bags are not empty`
-- `evaluateOutcome does not set victory when pending sub-waves exist`
-
-### 8.3. Test verification command
-
-After all steps are complete, run:
-```bash
-npx tsc --noEmit
-npm test
-```
+After this ADR lands, a separate ADR can deepen `CombatScene.ts` without first untangling combat simulation logic again.
 
 ---
 
-## 9. Edge Cases and Gotchas
+## 9. Acceptance Criteria
 
-### 9.1. Multiple slot crossings in one frame
+This refactor is complete when:
 
-When the record rotates fast (e.g., during FastForward), multiple slots can cross the needle in one frame. The `detectSlotCrossings` function must correctly compute all crossing angles, and `resolveActivations` must process them in the correct order (descending by `crossingAngle`, which means the slot that crossed most recently is processed first).
-
-### 9.2. Record angle wrapping
-
-The record angle decreases over time (counter-clockwise rotation). It can go negative and keep decreasing. The crossing detection math must handle this correctly — it uses floor division by 360, which works for negative numbers in JavaScript (unlike some other languages).
-
-### 9.3. Defeat early return
-
-`processEnemyAttacks` has an early `return` when the base reaches 0 HP. This is critical: if the base dies during enemy 1's attack tick, we must NOT process enemy 2's attack in the same frame. The `evaluateOutcome` function also checks for defeat as a safety net.
-
-### 9.4. Spawn bag empty check
-
-`processSpawns` uses `bag.enemyRuntimeIds.shift()` in a while loop. The while condition checks `bag.enemyRuntimeIds.length > 0`, so this is safe — we never shift from an empty array.
-
-### 9.5. Note packet clamping
-
-`setCombatNotePacket` clamps the count to `[0, NOTE_PACKET_CAPACITY]`. If count exceeds capacity, excess notes are silently dropped. The function also emits a console warning. This behavior must be preserved exactly.
-
-### 9.6. Preview state transition
-
-When the preview timer expires, `advanceCombatRuntime` calls `setCombatState(runtime, 'running')`. This happens inside the preview branch, BEFORE any sub-module calls. The sub-modules will NOT be called in preview state.
-
-### 9.7. `resetSlotActivationEffects` must be called BEFORE `advanceRotation`
-
-The reset clears `transientIds` and `pendingEvents` for the new frame. If it were called after activation, the events from the current frame would be lost. This ordering is critical.
-
-### 9.8. `calculateEnemiesRemaining` is called AFTER `processSpawns`
-
-Spawning new enemies increases the count. If `calculateEnemiesRemaining` were called before `processSpawns`, it would return a stale count.
-
-### 9.9. `getDistance` utility
-
-The `getDistance` function is used in multiple places. After the refactor, it will be needed in:
-- `CombatActivation.ts` (in `selectNearestLivingEnemy`)
-- `CombatEnemyMovement.ts` (in `advanceEnemyMovement`)
-
-Consider creating a small `src/combat/utils.ts` with `getDistance`, or duplicating it in both files. Duplicating is acceptable for a 3-line function.
-
-### 9.10. `createCombatLayoutPlan` import
-
-`CombatEnemyMovement.ts` needs the base position. Currently, `updateEnemyPressure` calls `createCombatLayoutPlan()`. After the split, `advanceEnemyMovement` needs the same. Import `createCombatLayoutPlan` from `./CombatLayout.js` in `CombatEnemyMovement.ts`.
+- `CombatRuntime.ts` no longer contains the full implementations of activation, enemy pressure, wave spawning, and crossing math
+- combat runtime events are defined in one named module
+- all current combat tests pass
+- no gameplay timing changes are introduced
+- callers still use the same top-level runtime seam:
+  - `createCombatRuntime()`
+  - `advanceCombatRuntime()`
+  - `setCombatState()`
+  - `setCombatNotePacket()`
 
 ---
 
-## 10. Verification Checklist
+## 10. Follow-Up ADR
 
-After completing all steps, verify:
+After this work, open a separate ADR for deepening `src/scenes/combat/CombatScene.ts`.
 
-- [ ] `npx tsc --noEmit` passes with zero errors
-- [ ] `npm run build` succeeds
-- [ ] `npm run test:run` passes all existing tests
-- [ ] No circular dependencies (check with `madge --circular src/` if available)
-- [ ] `CombatRuntime.ts` is ~150-200 lines (down from ~570)
-- [ ] `CombatRuntimeAdvance.ts` is ~40 lines (thin pipeline)
-- [ ] All imports resolve correctly
-- [ ] No references to removed functions (`collectCrossingsForSlot`, `bootstrapEnemySpawns`, `updateEnemyPressure`, `updateEnemyBaseAttacks`, `evaluateVictory`, `clampEnemyToAttackRange`, `selectEnemySpawnX`, `getDistance` as a top-level function in CombatRuntime)
-- [ ] The game runs correctly in the browser (open `index.html` and verify combat works)
+That follow-up should evaluate seams around:
 
----
-
-## 11. What This Does NOT Change
-
-- **`CombatRuntime` type** — unchanged, same shape, same fields
-- **`createCombatRuntime`** — unchanged, same initial state
-- **`setCombatState`** — unchanged
-- **`setCombatNotePacket`** — unchanged
-- **Game behavior** — identical. This is a pure refactoring.
-- **Event names and payloads** — unchanged
-- **Config files** — unchanged
-- **Scene files** — unchanged (only the import path for `advanceCombatRuntime`)
-- **Test assertions** — unchanged (same public API)
-
----
-
-## 12. Future Deepening (Out of Scope)
-
-These are opportunities identified during this design but explicitly scoped out:
-
-- Extract note packet mutation into its own module (`CombatNotePacket.ts`)
-- Extract pawn definition lookup into a cache module
-- Replace `EventBus` global singleton with a testable interface
-- Split `CombatScene` god scene into `CombatLayoutPresenter` + `CombatVfxPresenter`
-- Replace `CombatVfxSystem` switch with a dispatch table
-
-These can be addressed in future ADRs.
+- static combat layout rendering
+- enemy view orchestration
+- VFX snapshot presentation
+- combat result presentation
+- scene-local animation state
