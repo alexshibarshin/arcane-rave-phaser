@@ -51,8 +51,11 @@ export interface CombatSceneViewGraph {
     slotViews: Map<number, CombatSlotView>;
   };
   base: {
+    root: Phaser.GameObjects.Image;
+    restX: number;
+    restY: number;
+    vfxAnchorOffsetY: number;
     hpBar: CombatBaseHpBarView;
-    vfxAnchor: { x: number; y: number };
   };
   notePacket: {
     view: CombatNotePacketView;
@@ -117,8 +120,11 @@ export function createCombatSceneViewGraph(
   return {
     record,
     base: {
+      root: base.root,
+      restX: base.restX,
+      restY: base.restY,
+      vfxAnchorOffsetY: base.vfxAnchorOffsetY,
       hpBar,
-      vfxAnchor: base.vfxAnchor,
     },
     notePacket: {
       view: notePacketView,
@@ -156,7 +162,10 @@ export function createCombatSceneViewGraph(
         };
       },
       getBaseAnchor() {
-        return base.vfxAnchor;
+        return {
+          x: base.root.x,
+          y: base.root.y + base.vfxAnchorOffsetY,
+        };
       },
     },
     enemies,
@@ -355,10 +364,16 @@ function renderTimeControlBackplates(
 function renderBase(
   scene: Phaser.Scene,
   model: CombatRenderModel,
-): { root: Phaser.GameObjects.Image; vfxAnchor: { x: number; y: number } } {
+): {
+  root: Phaser.GameObjects.Image;
+  restX: number;
+  restY: number;
+  vfxAnchorOffsetY: number;
+} {
+  const restY = model.base.y + CombatLayoutConfig.BASE_SPRITE_OFFSET_Y;
   const sprite = scene.add.image(
     model.base.x,
-    model.base.y + CombatLayoutConfig.BASE_SPRITE_OFFSET_Y,
+    restY,
     CombatLayoutConfig.BASE_SPRITE_TEXTURE_KEY,
   );
 
@@ -371,10 +386,10 @@ function renderBase(
 
   return {
     root: sprite,
-    vfxAnchor: {
-      x: model.base.x,
-      y: model.base.y + CombatLayoutConfig.BASE_VFX_ANCHOR_OFFSET_Y,
-    },
+    restX: model.base.x,
+    restY,
+    vfxAnchorOffsetY:
+      CombatLayoutConfig.BASE_VFX_ANCHOR_OFFSET_Y - CombatLayoutConfig.BASE_SPRITE_OFFSET_Y,
   };
 }
 
