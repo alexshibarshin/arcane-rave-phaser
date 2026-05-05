@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { createStageRuntime, requestStageWaveStart } from '@stage/StageRuntime';
@@ -73,6 +74,8 @@ describe('StageFlowCoordinator', () => {
         totalWaves: 2,
         stageManaged: true,
         allowRestart: false,
+        chronoCurrent: CombatTimeControlConfig.CHRONO_START,
+        chronoMax: CombatTimeControlConfig.CHRONO_MAX,
         slotPawns: Array.from({ length: 8 }, () => ({ pawnId: null, tier: null })),
         slotPawnIds: Array(8).fill(null),
         slotPawnTiers: Array(8).fill(null),
@@ -88,6 +91,7 @@ describe('StageFlowCoordinator', () => {
     const commands = dispatchStageFlowIntent(runtime, coordination, {
       type: 'stage:combat-ended',
       outcome: 'victory',
+      chronoRemaining: 55,
     });
 
     expect(getCommandTypes(commands)).toEqual([
@@ -100,6 +104,9 @@ describe('StageFlowCoordinator', () => {
     expect(runtime.phase).toBe('build');
     expect(runtime.currentWaveIndex).toBe(1);
     expect(runtime.coins).toBe(StageFlowConfig.INITIAL_COINS + StageFlowConfig.WAVE_CLEAR_REWARD_COINS);
+    expect(runtime.chrono.current).toBe(
+      Math.min(CombatTimeControlConfig.CHRONO_MAX, 55 + CombatTimeControlConfig.CHRONO_WAVE_RECOVERY),
+    );
     expect(runtime.lastCombatOutcome).toBe('victory');
     expect(coordination).toEqual<StageFlowCoordinationState>({
       isTransitioning: false,
@@ -140,6 +147,7 @@ describe('StageFlowCoordinator', () => {
       dispatchStageFlowIntent(runtime, coordination, {
         type: 'stage:combat-ended',
         outcome: 'defeat',
+        chronoRemaining: 12,
       }),
     ).toEqual([]);
     expect(runtime.phase).toBe('build');

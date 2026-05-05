@@ -1,3 +1,4 @@
+import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import {
   drawStageShopOffers,
@@ -21,6 +22,10 @@ export interface StageRuntime {
   currentWaveIndex: number;
   totalWaves: number;
   coins: number;
+  chrono: {
+    current: number;
+    max: number;
+  };
   lastCombatOutcome: StageCombatOutcome | null;
   build: StageBuildState;
 }
@@ -33,6 +38,7 @@ export interface CreateStageRuntimeOptions {
 export interface ResolveStageCombatOutcomeOptions {
   outcome: StageCombatOutcome;
   rewardCoins: number;
+  chronoRemaining: number;
   random?: () => number;
 }
 
@@ -48,6 +54,10 @@ export function createStageRuntime(
     currentWaveIndex: 0,
     totalWaves,
     coins: initialCoins,
+    chrono: {
+      current: CombatTimeControlConfig.CHRONO_START,
+      max: CombatTimeControlConfig.CHRONO_MAX,
+    },
     lastCombatOutcome: null,
     build: createStageBuildState(random),
   };
@@ -72,6 +82,10 @@ export function resolveStageCombatOutcome(
   options: ResolveStageCombatOutcomeOptions,
 ): StagePhase {
   runtime.lastCombatOutcome = options.outcome;
+  runtime.chrono.current = clampChrono(
+    options.chronoRemaining + CombatTimeControlConfig.CHRONO_WAVE_RECOVERY,
+    runtime.chrono.max,
+  );
 
   if (runtime.phase !== 'combat') {
     return runtime.phase;
@@ -199,4 +213,8 @@ function grantStageMergeReward(runtime: StageRuntime): void {
   }
 
   runtime.coins += StageFlowConfig.MERGE_REWARD_COINS;
+}
+
+function clampChrono(value: number, max: number): number {
+  return Math.min(max, Math.max(0, value));
 }

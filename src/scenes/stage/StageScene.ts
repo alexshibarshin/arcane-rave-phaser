@@ -749,10 +749,13 @@ export class StageScene extends Phaser.Scene {
     this.runStageFlowIntent({ type: 'stage:start-wave-requested' });
   };
 
-  private readonly handleCombatEnded = (payload: { outcome: 'victory' | 'defeat' }): void => {
+  private readonly handleCombatEnded = (
+    payload: { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number },
+  ): void => {
     this.runStageFlowIntent({
       type: 'stage:combat-ended',
       outcome: payload.outcome,
+      chronoRemaining: payload.chronoCurrent,
     });
   };
 
@@ -805,6 +808,8 @@ export class StageScene extends Phaser.Scene {
     totalWaves: number;
     stageManaged: true;
     allowRestart: false;
+    chronoCurrent: number;
+    chronoMax: number;
     slotPawns: Array<{ pawnId: string | null; tier: number | null }>;
     slotPawnIds: Array<string | null>;
     slotPawnTiers: Array<number | null>;

@@ -25,6 +25,16 @@ export function advanceCombatRotation(
     .sort((left, right) => right.crossingAngle - left.crossingAngle);
 }
 
+export function rewindCombatRotation(
+  runtime: CombatRuntime,
+  deltaMs: number,
+  speedMultiplier: number,
+): void {
+  runtime.record.previousAngle = runtime.record.currentAngle;
+  runtime.record.currentAngle +=
+    runtime.record.rotationSpeedDegPerSecond * speedMultiplier * (deltaMs / 1000);
+}
+
 export function detectCombatSlotCrossings(
   slot: CombatSlotRuntime,
   previousAngle: number,

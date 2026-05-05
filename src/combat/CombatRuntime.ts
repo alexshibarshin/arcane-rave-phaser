@@ -1,12 +1,13 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatContentConfig } from '@config/CombatContentConfig';
+import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { resolveCombatActivations } from './CombatActivation';
 import { advanceCombatEnemyPressure } from './CombatEnemyPressure';
 import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 import { evaluateCombatOutcome } from './CombatOutcome';
-import { advanceCombatRotation } from './CombatRotation';
+import { advanceCombatRotation, rewindCombatRotation } from './CombatRotation';
 import {
   initializeCombatWaveRuntime,
   activatePendingCombatSubWaves,
@@ -23,6 +24,7 @@ import type { CombatSubWaveConfig, CombatWaveDefinition } from '@config/CombatWa
 export type CombatState = 'preview' | 'running' | 'paused' | 'victory' | 'defeat';
 export type NoteColor = (typeof CombatContentConfig.NOTE_COLORS)[number];
 export type CombatEnemyState = 'moving' | 'attacking' | 'dead';
+export type CombatTimeControlMode = 'idle' | 'rewind' | 'fast-forward';
 
 export interface CombatSlotRuntime {
   slotIndex: number;
@@ -84,6 +86,15 @@ export interface CombatRuntime {
     elapsedMs: number;
     durationMs: number;
   };
+  time: {
+    chrono: {
+      current: number;
+      max: number;
+    };
+    requestedMode: CombatTimeControlMode;
+    activeMode: CombatTimeControlMode;
+    activeIntensity: number;
+  };
   baseHp: number;
   record: {
     currentAngle: number;
@@ -120,6 +131,8 @@ export interface CreateCombatRuntimeOptions {
   slotPawns?: CombatLoadoutSlot[];
   slotPawnIds?: Array<string | null>;
   slotPawnTiers?: Array<number | null>;
+  chronoCurrent?: number;
+  chronoMax?: number;
 }
 
 export function createCombatRuntime(
@@ -137,6 +150,12 @@ export function createCombatRuntime(
     ?? null;
   const slotPawns = resolveCombatLoadoutSlots(options, slotPreset?.slots ?? []);
   const enemies = createCombatEnemyRuntimes(initialWave as CombatWaveDefinition);
+  const chronoMax = Math.max(0, options.chronoMax ?? CombatTimeControlConfig.CHRONO_MAX);
+  const chronoCurrent = PhaserMathClamp(
+    options.chronoCurrent ?? CombatTimeControlConfig.CHRONO_START,
+    0,
+    chronoMax,
+  );
 
   const runtime: CombatRuntime = {
     state: 'preview',
@@ -151,6 +170,15 @@ export function createCombatRuntime(
     preview: {
       elapsedMs: 0,
       durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
+    },
+    time: {
+      chrono: {
+        current: chronoCurrent,
+        max: chronoMax,
+      },
+      requestedMode: 'idle',
+      activeMode: 'idle',
+      activeIntensity: 0,
     },
     baseHp: CombatBalanceConfig.BASE_HP,
     record: {
@@ -238,7 +266,8 @@ export function advanceCombatRuntime(
     runtime.waveElapsedMs += deltaMs;
     activatePendingCombatSubWaves(runtime, options.random ?? Math.random);
     resetCombatFrameEffects(runtime);
-    const crossings = advanceCombatRotation(runtime, deltaMs);
+    const forwardDeltaMs = advanceCombatTimeControl(runtime, deltaMs);
+    const crossings = forwardDeltaMs > 0 ? advanceCombatRotation(runtime, forwardDeltaMs) : [];
     resolveCombatActivations(runtime, crossings);
     advanceCombatEnemyPressure(runtime, deltaMs);
     spawnCombatEnemies(runtime, options.random ?? Math.random);
@@ -261,6 +290,21 @@ export function advanceCombatRuntime(
   if (runtime.preview.elapsedMs >= runtime.preview.durationMs) {
     setCombatState(runtime, 'running');
   }
+}
+
+export function setCombatTimeControlMode(
+  runtime: CombatRuntime,
+  mode: CombatTimeControlMode,
+): void {
+  runtime.time.requestedMode = mode;
+}
+
+export function restoreCombatChrono(runtime: CombatRuntime, amount: number): void {
+  runtime.time.chrono.current = PhaserMathClamp(
+    runtime.time.chrono.current + Math.max(0, amount),
+    0,
+    runtime.time.chrono.max,
+  );
 }
 
 export function setCombatState(runtime: CombatRuntime, nextState: CombatState): boolean {
@@ -314,4 +358,60 @@ function getSlotWorldPosition(
     x: centerX + Math.cos(radians) * radius,
     y: centerY + Math.sin(radians) * radius,
   };
+}
+
+function advanceCombatTimeControl(runtime: CombatRuntime, deltaMs: number): number {
+  const requestedMode = runtime.time.requestedMode;
+  const seconds = deltaMs / 1000;
+
+  runtime.time.activeMode = 'idle';
+  runtime.time.activeIntensity = 0;
+
+  if (requestedMode === 'idle') {
+    restoreCombatChrono(runtime, CombatTimeControlConfig.CHRONO_IDLE_REGEN_PER_SECOND * seconds);
+    return deltaMs;
+  }
+
+  const drainPerSecond =
+    requestedMode === 'rewind'
+      ? CombatTimeControlConfig.REWIND_CHRONO_DRAIN_PER_SECOND
+      : CombatTimeControlConfig.FAST_FORWARD_CHRONO_DRAIN_PER_SECOND;
+  const requestedCost = drainPerSecond * seconds;
+
+  if (requestedCost <= 0 || runtime.time.chrono.current <= 0) {
+    runtime.time.requestedMode = 'idle';
+    return deltaMs;
+  }
+
+  const intensity = PhaserMathClamp(runtime.time.chrono.current / requestedCost, 0, 1);
+  const spentChrono = requestedCost * intensity;
+  runtime.time.chrono.current = Math.max(0, runtime.time.chrono.current - spentChrono);
+  runtime.time.activeMode = requestedMode;
+  runtime.time.activeIntensity = intensity;
+
+  if (requestedMode === 'rewind') {
+    const rewindDeltaMs = deltaMs * intensity;
+
+    if (rewindDeltaMs > 0) {
+      rewindCombatRotation(
+        runtime,
+        rewindDeltaMs,
+        CombatTimeControlConfig.REWIND_ROTATION_SPEED_MULTIPLIER,
+      );
+    }
+
+    return deltaMs * (1 - intensity);
+  }
+
+  return (
+    deltaMs
+    * (
+      1
+      + (CombatTimeControlConfig.FAST_FORWARD_ROTATION_SPEED_MULTIPLIER - 1) * intensity
+    )
+  );
+}
+
+function PhaserMathClamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

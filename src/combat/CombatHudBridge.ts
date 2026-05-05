@@ -1,15 +1,21 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
-import type { CombatRuntime, CombatState } from './CombatRuntime';
+import type { CombatRuntime, CombatState, CombatTimeControlMode } from './CombatRuntime';
 
 export interface CombatHudEventMap {
   'combat:state-changed': { state: CombatState };
   'combat:pause-opened': void;
   'combat:pause-closed': void;
-  'combat:ended': { outcome: 'victory' | 'defeat' };
+  'combat:ended': { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number };
   'combat:hud-wave-updated': { current: number; total: number };
   'combat:hud-enemies-updated': { remaining: number };
   'combat:hud-base-hp-updated': { current: number; max: number };
   'combat:note-packet-changed': { color: CombatRuntime['notePacket']['color']; count: number };
+  'combat:chrono-updated': { current: number; max: number };
+  'combat:time-control-updated': {
+    requestedMode: CombatTimeControlMode;
+    activeMode: CombatTimeControlMode;
+    activeIntensity: number;
+  };
 }
 
 type EventDescriptor<K extends keyof CombatHudEventMap> = {
@@ -25,7 +31,9 @@ export type CombatHudBridgeEvent =
   | EventDescriptor<'combat:hud-wave-updated'>
   | EventDescriptor<'combat:hud-enemies-updated'>
   | EventDescriptor<'combat:hud-base-hp-updated'>
-  | EventDescriptor<'combat:note-packet-changed'>;
+  | EventDescriptor<'combat:note-packet-changed'>
+  | EventDescriptor<'combat:chrono-updated'>
+  | EventDescriptor<'combat:time-control-updated'>;
 
 export function createCombatHudBridgeEvents(
   runtime: CombatRuntime,
@@ -62,12 +70,28 @@ export function createCombatHudBridgeEvents(
         count: runtime.notePacket.count,
       },
     },
+    {
+      event: 'combat:chrono-updated',
+      payload: {
+        current: runtime.time.chrono.current,
+        max: runtime.time.chrono.max,
+      },
+    },
+    {
+      event: 'combat:time-control-updated',
+      payload: {
+        requestedMode: runtime.time.requestedMode,
+        activeMode: runtime.time.activeMode,
+        activeIntensity: runtime.time.activeIntensity,
+      },
+    },
   ];
 }
 
 export function createCombatStateTransitionEvents(
   previousState: CombatState,
   nextState: CombatState,
+  runtime?: CombatRuntime,
 ): CombatHudBridgeEvent[] {
   const events: CombatHudBridgeEvent[] = [
     {
@@ -93,7 +117,11 @@ export function createCombatStateTransitionEvents(
   if (nextState === 'victory' || nextState === 'defeat') {
     events.push({
       event: 'combat:ended',
-      payload: { outcome: nextState },
+      payload: {
+        outcome: nextState,
+        chronoCurrent: runtime?.time.chrono.current ?? 0,
+        chronoMax: runtime?.time.chrono.max ?? 0,
+      },
     });
   }
 

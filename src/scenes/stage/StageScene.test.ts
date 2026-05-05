@@ -13,6 +13,7 @@ import {
   resolveStageCombatOutcome,
 } from '@stage/StageRuntime';
 import { StageFlowConfig } from '@config/StageFlowConfig';
+import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 
 describe('StageRuntime', () => {
   it('creates a build-phase runtime for authored stages', () => {
@@ -23,6 +24,10 @@ describe('StageRuntime', () => {
       currentWaveIndex: 0,
       totalWaves: 3,
       coins: 6,
+      chrono: {
+        current: CombatTimeControlConfig.CHRONO_START,
+        max: CombatTimeControlConfig.CHRONO_MAX,
+      },
       lastCombatOutcome: null,
       build: {
         slots: Array(8).fill(null),
@@ -54,12 +59,16 @@ describe('StageRuntime', () => {
     const nextPhase = resolveStageCombatOutcome(runtime, {
       outcome: 'victory',
       rewardCoins: 3,
+      chronoRemaining: 41,
       random: () => 0.5,
     });
 
     expect(nextPhase).toBe('build');
     expect(runtime.currentWaveIndex).toBe(1);
     expect(runtime.coins).toBe(4);
+    expect(runtime.chrono.current).toBe(
+      Math.min(CombatTimeControlConfig.CHRONO_MAX, 41 + CombatTimeControlConfig.CHRONO_WAVE_RECOVERY),
+    );
     expect(runtime.lastCombatOutcome).toBe('victory');
     expect(runtime.build.slots[0]).toEqual({ pawnId: 'pawn-red-generator', tier: 1 });
     expect(runtime.build.shopOffers).toEqual([
@@ -143,12 +152,14 @@ describe('StageRuntime', () => {
     const nextPhase = resolveStageCombatOutcome(runtime, {
       outcome: 'victory',
       rewardCoins: 3,
+      chronoRemaining: CombatTimeControlConfig.CHRONO_MAX,
     });
 
     expect(nextPhase).toBe('stage_complete');
     expect(runtime.phase).toBe('stage_complete');
     expect(runtime.currentWaveIndex).toBe(0);
     expect(runtime.coins).toBe(9);
+    expect(runtime.chrono.current).toBe(CombatTimeControlConfig.CHRONO_MAX);
     expect(canStageStartWave(runtime)).toBe(false);
   });
 
@@ -159,12 +170,16 @@ describe('StageRuntime', () => {
     const nextPhase = resolveStageCombatOutcome(runtime, {
       outcome: 'defeat',
       rewardCoins: 3,
+      chronoRemaining: 12,
     });
 
     expect(nextPhase).toBe('stage_failed');
     expect(runtime.phase).toBe('stage_failed');
     expect(runtime.currentWaveIndex).toBe(0);
     expect(runtime.coins).toBe(6);
+    expect(runtime.chrono.current).toBe(
+      Math.min(CombatTimeControlConfig.CHRONO_MAX, 12 + CombatTimeControlConfig.CHRONO_WAVE_RECOVERY),
+    );
     expect(runtime.lastCombatOutcome).toBe('defeat');
     expect(canStageStartWave(runtime)).toBe(false);
   });

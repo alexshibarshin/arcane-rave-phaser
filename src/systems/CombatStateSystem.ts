@@ -29,7 +29,7 @@ export class CombatStateSystem extends SimulationSystem {
     publishPendingCombatEvents(runtime);
 
     if (runtime.state !== previousState) {
-      publishCombatStateTransition(previousState, runtime.state);
+      publishCombatStateTransition(previousState, runtime.state, runtime);
     }
   }
 }

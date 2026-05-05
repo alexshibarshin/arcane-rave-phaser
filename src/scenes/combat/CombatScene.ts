@@ -8,6 +8,7 @@ import { GameScene } from '@scenes/GameScene';
 import { restartCombatScenes } from '@combat/CombatSceneLifecycle';
 import {
   createCombatRuntime,
+  setCombatTimeControlMode,
   type CombatLoadoutSlot,
   type CombatRuntime,
 } from '@combat/CombatRuntime';
@@ -31,6 +32,8 @@ interface CombatSceneInitData {
   totalWaves?: number;
   stageManaged?: boolean;
   allowRestart?: boolean;
+  chronoCurrent?: number;
+  chronoMax?: number;
   slotPawns?: CombatLoadoutSlot[];
   slotPawnIds?: Array<string | null>;
   slotPawnTiers?: Array<number | null>;
@@ -42,6 +45,8 @@ export class CombatScene extends GameScene {
   private totalWaves = 1;
   private stageManaged = false;
   private allowRestart = true;
+  private chronoCurrent?: number;
+  private chronoMax?: number;
   private slotPawns?: CombatLoadoutSlot[];
   private slotPawnIds?: Array<string | null>;
   private slotPawnTiers?: Array<number | null>;
@@ -71,7 +76,7 @@ export class CombatScene extends GameScene {
       return;
     }
 
-    publishCombatStateTransition(previousState, 'paused');
+    publishCombatStateTransition(previousState, 'paused', runtime);
   };
 
   private readonly handleResumeRequested = (): void => {
@@ -85,7 +90,17 @@ export class CombatScene extends GameScene {
       return;
     }
 
-    publishCombatStateTransition('paused', 'running');
+    publishCombatStateTransition('paused', 'running', runtime);
+  };
+
+  private readonly handleTimeControlRequested = (
+    payload: { mode: 'idle' | 'rewind' | 'fast-forward' },
+  ): void => {
+    if (!this.runtime) {
+      return;
+    }
+
+    setCombatTimeControlMode(this.runtime, payload.mode);
   };
 
   private readonly handleSlotActivated = (payload: { slotIndex: number }): void => {
@@ -150,10 +165,12 @@ export class CombatScene extends GameScene {
     });
   };
 
-  private readonly handleCombatEnded = (payload: { outcome: 'victory' | 'defeat' }): void => {
+  private readonly handleCombatEnded = (
+    payload: { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number },
+  ): void => {
     this.presentationRuntime?.handleEvent({
       event: 'combat:ended',
-      payload,
+      payload: { outcome: payload.outcome },
     });
   };
 
@@ -166,6 +183,8 @@ export class CombatScene extends GameScene {
     this.totalWaves = data.totalWaves ?? 1;
     this.stageManaged = data.stageManaged ?? false;
     this.allowRestart = data.allowRestart ?? true;
+    this.chronoCurrent = data.chronoCurrent;
+    this.chronoMax = data.chronoMax;
     this.slotPawns = data.slotPawns ? data.slotPawns.map((slot) => ({ ...slot })) : undefined;
     this.slotPawnIds = data.slotPawnIds ? [...data.slotPawnIds] : undefined;
     this.slotPawnTiers = data.slotPawnTiers ? [...data.slotPawnTiers] : undefined;
@@ -196,6 +215,8 @@ export class CombatScene extends GameScene {
     this.runtime = createCombatRuntime(Math.random, {
       waveIndex: this.waveIndex,
       totalWaves: this.totalWaves,
+      chronoCurrent: this.chronoCurrent,
+      chronoMax: this.chronoMax,
       slotPawns: this.slotPawns,
       slotPawnIds: this.slotPawnIds,
       slotPawnTiers: this.slotPawnTiers,
@@ -224,6 +245,7 @@ export class CombatScene extends GameScene {
     on('combat:pause-requested', this.handlePauseRequested);
     on('combat:restart-requested', this.handleRestartRequested);
     on('combat:resume-requested', this.handleResumeRequested);
+    on('combat:time-control-requested', this.handleTimeControlRequested);
     on('combat:enemy-hit', this.handleEnemyHit);
     on('combat:generator-notes-emitted', this.handleGeneratorNotesEmitted);
     on('combat:finisher-consumed-notes', this.handleFinisherConsumedNotes);
@@ -292,6 +314,7 @@ export class CombatScene extends GameScene {
     off('combat:pause-requested', this.handlePauseRequested);
     off('combat:restart-requested', this.handleRestartRequested);
     off('combat:resume-requested', this.handleResumeRequested);
+    off('combat:time-control-requested', this.handleTimeControlRequested);
     off('combat:enemy-hit', this.handleEnemyHit);
     off('combat:generator-notes-emitted', this.handleGeneratorNotesEmitted);
     off('combat:finisher-consumed-notes', this.handleFinisherConsumedNotes);

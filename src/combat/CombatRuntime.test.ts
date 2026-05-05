@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
+import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { CombatWaveConfig } from '@config/CombatWaveConfig';
 import { COMBAT_NEEDLE_ANGLE_DEGREES, createCombatLayoutPlan } from './CombatLayout';
 import {
   advanceCombatRuntime,
   createCombatRuntime,
+  restoreCombatChrono,
   setCombatNotePacket,
   setCombatState,
+  setCombatTimeControlMode,
 } from './CombatRuntime';
 
 describe('createCombatRuntime', () => {
@@ -59,6 +62,15 @@ describe('createCombatRuntime', () => {
     expect(runtime.preview).toEqual({
       elapsedMs: 0,
       durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
+    });
+    expect(runtime.time).toEqual({
+      chrono: {
+        current: CombatTimeControlConfig.CHRONO_START,
+        max: CombatTimeControlConfig.CHRONO_MAX,
+      },
+      requestedMode: 'idle',
+      activeMode: 'idle',
+      activeIntensity: 0,
     });
   });
 
@@ -235,6 +247,57 @@ describe('createCombatRuntime', () => {
       CombatBalanceConfig.RECORD_START_ANGLE_DEG
         - CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND,
     );
+  });
+
+  it('fast-forwards activations while draining chrono', () => {
+    const runtime = createCombatRuntime();
+    setCombatState(runtime, 'running');
+    setCombatTimeControlMode(runtime, 'fast-forward');
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.record.currentAngle).toBeCloseTo(
+      CombatBalanceConfig.RECORD_START_ANGLE_DEG
+        - CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND
+          * CombatTimeControlConfig.FAST_FORWARD_ROTATION_SPEED_MULTIPLIER,
+    );
+    expect(runtime.time.activeMode).toBe('fast-forward');
+    expect(runtime.time.chrono.current).toBeCloseTo(
+      CombatTimeControlConfig.CHRONO_START
+        - CombatTimeControlConfig.FAST_FORWARD_CHRONO_DRAIN_PER_SECOND,
+    );
+  });
+
+  it('rewinds the record without replaying forward crossings on the rewound segment', () => {
+    const runtime = createCombatRuntime();
+    setCombatState(runtime, 'running');
+    runtime.record.currentAngle = -20;
+    runtime.record.previousAngle = -20;
+    setCombatTimeControlMode(runtime, 'rewind');
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.record.currentAngle).toBeCloseTo(
+      -20
+        + CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND
+          * CombatTimeControlConfig.REWIND_ROTATION_SPEED_MULTIPLIER,
+    );
+    expect(runtime.time.activeMode).toBe('rewind');
+    expect(runtime.effects.pendingEvents).toEqual([]);
+  });
+
+  it('regenerates chrono while waiting and clamps recovery to the resource cap', () => {
+    const runtime = createCombatRuntime();
+    setCombatState(runtime, 'running');
+    runtime.time.chrono.current = 40;
+
+    advanceCombatRuntime(runtime, 1000);
+    expect(runtime.time.chrono.current).toBeCloseTo(
+      40 + CombatTimeControlConfig.CHRONO_IDLE_REGEN_PER_SECOND,
+    );
+
+    restoreCombatChrono(runtime, 999);
+    expect(runtime.time.chrono.current).toBe(CombatTimeControlConfig.CHRONO_MAX);
   });
 
   it('resumes enemy attack cadence from the same paused state without catch-up bursts', () => {

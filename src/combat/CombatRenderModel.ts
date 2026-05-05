@@ -157,13 +157,27 @@ export interface CombatRenderModel {
     tipX: number;
     tipY: number;
   };
-  timeControls: Array<{
+  timeControls: {
     depth: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }>;
+    rewindButton: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    fastForwardButton: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    chronoBar: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  };
   hud: {
     depth: number;
     pause: {
@@ -214,7 +228,7 @@ export function createCombatRenderModel(
   const layout = createCombatLayoutPlan();
   const innerZoneRadius = layout.record.radius * CombatLayoutConfig.RECORD_INNER_ZONE_RADIUS_RATIO;
   const hpBarY = layout.base.y + layout.base.height / 2 + 24;
-  const timeControlsY = layout.record.centerY - layout.record.radius - 72;
+  const timeControlsY = layout.record.centerY - layout.record.radius - CombatLayoutConfig.TIME_CONTROL_Y_OFFSET;
   const pawnDefinitionsById = new Map(
     CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => [pawn.id, pawn]),
   );
@@ -295,22 +309,27 @@ export function createCombatRenderModel(
       depth: CombatLayoutConfig.DEPTH.BASE,
       ...layout.needle,
     },
-    timeControls: [
-      {
-        depth: CombatLayoutConfig.DEPTH.TIME_CONTROLS,
-        x: layout.record.centerX - 120,
+    timeControls: {
+      depth: CombatLayoutConfig.DEPTH.TIME_CONTROLS,
+      rewindButton: {
+        x: layout.record.centerX - CombatLayoutConfig.TIME_CONTROL_BUTTON_OFFSET_X,
         y: timeControlsY,
-        width: 84,
-        height: 40,
+        width: CombatLayoutConfig.TIME_CONTROL_BUTTON_WIDTH,
+        height: CombatLayoutConfig.TIME_CONTROL_BUTTON_HEIGHT,
       },
-      {
-        depth: CombatLayoutConfig.DEPTH.TIME_CONTROLS,
-        x: layout.record.centerX + 120,
+      fastForwardButton: {
+        x: layout.record.centerX + CombatLayoutConfig.TIME_CONTROL_BUTTON_OFFSET_X,
         y: timeControlsY,
-        width: 84,
-        height: 40,
+        width: CombatLayoutConfig.TIME_CONTROL_BUTTON_WIDTH,
+        height: CombatLayoutConfig.TIME_CONTROL_BUTTON_HEIGHT,
       },
-    ],
+      chronoBar: {
+        x: layout.record.centerX,
+        y: timeControlsY,
+        width: CombatLayoutConfig.TIME_CONTROL_BAR_WIDTH,
+        height: CombatLayoutConfig.TIME_CONTROL_BAR_HEIGHT,
+      },
+    },
     hud: {
       depth: CombatLayoutConfig.DEPTH.HUD,
       pause: {

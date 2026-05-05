@@ -302,10 +302,13 @@ function renderTimeControlBackplates(
   scene: Phaser.Scene,
   model: CombatRenderModel,
 ): void {
-  for (const backplate of model.timeControls) {
+  for (const backplate of [
+    model.timeControls.rewindButton,
+    model.timeControls.fastForwardButton,
+  ]) {
     const graphics = scene.add.graphics();
 
-    graphics.setDepth(backplate.depth);
+    graphics.setDepth(model.timeControls.depth);
     graphics.fillStyle(0x121826, 0.75);
     graphics.fillRoundedRect(
       backplate.x - backplate.width / 2,
@@ -323,6 +326,27 @@ function renderTimeControlBackplates(
       16,
     );
   }
+
+  const chronoBar = model.timeControls.chronoBar;
+  const barGraphics = scene.add.graphics();
+
+  barGraphics.setDepth(model.timeControls.depth);
+  barGraphics.fillStyle(0x121826, 0.78);
+  barGraphics.fillRoundedRect(
+    chronoBar.x - chronoBar.width / 2,
+    chronoBar.y - chronoBar.height / 2,
+    chronoBar.width,
+    chronoBar.height,
+    chronoBar.height / 2,
+  );
+  barGraphics.lineStyle(2, 0x54708f, 0.55);
+  barGraphics.strokeRoundedRect(
+    chronoBar.x - chronoBar.width / 2,
+    chronoBar.y - chronoBar.height / 2,
+    chronoBar.width,
+    chronoBar.height,
+    chronoBar.height / 2,
+  );
 }
 
 function renderBase(

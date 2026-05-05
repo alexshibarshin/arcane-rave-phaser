@@ -6,6 +6,7 @@ import {
   getCombatOverlayText,
 } from './CombatHudBridge';
 import { createCombatRuntime } from './CombatRuntime';
+import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { CombatWaveConfig } from '@config/CombatWaveConfig';
 
 describe('CombatHudBridge', () => {
@@ -33,6 +34,18 @@ describe('CombatHudBridge', () => {
         event: 'combat:note-packet-changed',
         payload: { color: null, count: 0 },
       },
+      {
+        event: 'combat:chrono-updated',
+        payload: { current: CombatTimeControlConfig.CHRONO_START, max: CombatTimeControlConfig.CHRONO_MAX },
+      },
+      {
+        event: 'combat:time-control-updated',
+        payload: {
+          requestedMode: 'idle',
+          activeMode: 'idle',
+          activeIntensity: 0,
+        },
+      },
     ]);
   });
 
@@ -59,25 +72,35 @@ describe('CombatHudBridge', () => {
       },
     ]);
 
-    expect(createCombatStateTransitionEvents('running', 'victory')).toEqual([
+    const runtime = createCombatRuntime();
+
+    expect(createCombatStateTransitionEvents('running', 'victory', runtime)).toEqual([
       {
         event: 'combat:state-changed',
         payload: { state: 'victory' },
       },
       {
         event: 'combat:ended',
-        payload: { outcome: 'victory' },
+        payload: {
+          outcome: 'victory',
+          chronoCurrent: CombatTimeControlConfig.CHRONO_START,
+          chronoMax: CombatTimeControlConfig.CHRONO_MAX,
+        },
       },
     ]);
 
-    expect(createCombatStateTransitionEvents('running', 'defeat')).toEqual([
+    expect(createCombatStateTransitionEvents('running', 'defeat', runtime)).toEqual([
       {
         event: 'combat:state-changed',
         payload: { state: 'defeat' },
       },
       {
         event: 'combat:ended',
-        payload: { outcome: 'defeat' },
+        payload: {
+          outcome: 'defeat',
+          chronoCurrent: CombatTimeControlConfig.CHRONO_START,
+          chronoMax: CombatTimeControlConfig.CHRONO_MAX,
+        },
       },
     ]);
   });

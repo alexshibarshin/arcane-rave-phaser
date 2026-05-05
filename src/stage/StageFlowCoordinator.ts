@@ -24,7 +24,7 @@ export interface StageFlowCoordinationState {
 export type StageFlowIntent =
   | { type: 'stage:initialized' }
   | { type: 'stage:start-wave-requested' }
-  | { type: 'stage:combat-ended'; outcome: StageCombatOutcome };
+  | { type: 'stage:combat-ended'; outcome: StageCombatOutcome; chronoRemaining: number };
 
 export type StageFlowCommand =
   | {
@@ -49,6 +49,8 @@ export type StageFlowCommand =
         totalWaves: number;
         stageManaged: true;
         allowRestart: false;
+        chronoCurrent: number;
+        chronoMax: number;
         slotPawns: CombatLoadoutSlot[];
         slotPawnIds: Array<string | null>;
         slotPawnTiers: Array<number | null>;
@@ -120,6 +122,7 @@ export function dispatchStageFlowIntent(
       resolveStageCombatOutcome(runtime, {
         outcome: intent.outcome,
         rewardCoins: StageFlowConfig.WAVE_CLEAR_REWARD_COINS,
+        chronoRemaining: intent.chronoRemaining,
       });
 
       coordination.isTransitioning = false;
@@ -179,6 +182,8 @@ function createLaunchCombatCommand(runtime: StageRuntime): Extract<
       totalWaves: runtime.totalWaves,
       stageManaged: true,
       allowRestart: false,
+      chronoCurrent: runtime.chrono.current,
+      chronoMax: runtime.chrono.max,
       slotPawns: getStageCombatLoadoutSlots(runtime),
       slotPawnIds: getStageCombatLoadout(runtime),
       slotPawnTiers: getStageCombatLoadoutTiers(runtime),

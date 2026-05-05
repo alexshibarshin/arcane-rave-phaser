@@ -1,5 +1,5 @@
 import { Events } from 'phaser';
-import type { CombatState, NoteColor } from '@combat/CombatRuntime';
+import type { CombatState, CombatTimeControlMode, NoteColor } from '@combat/CombatRuntime';
 import type { StagePhase } from '@stage/StageRuntime';
 
 /**
@@ -32,13 +32,20 @@ export interface EventMap {
   'combat:restart-requested': void;
   'combat:pause-requested': void;
   'combat:resume-requested': void;
+  'combat:time-control-requested': { mode: CombatTimeControlMode };
   'combat:state-changed': { state: CombatState };
   'combat:pause-opened': void;
   'combat:pause-closed': void;
-  'combat:ended': { outcome: 'victory' | 'defeat' };
+  'combat:ended': { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number };
   'combat:hud-wave-updated': { current: number; total: number };
   'combat:hud-enemies-updated': { remaining: number };
   'combat:hud-base-hp-updated': { current: number; max: number };
+  'combat:chrono-updated': { current: number; max: number };
+  'combat:time-control-updated': {
+    requestedMode: CombatTimeControlMode;
+    activeMode: CombatTimeControlMode;
+    activeIntensity: number;
+  };
   'combat:slot-activated': { slotIndex: number };
   'combat:pawn-resolved': { slotIndex: number; pawnId: string; pawnType: 'generator' | 'finisher' };
   'combat:enemy-hit': {

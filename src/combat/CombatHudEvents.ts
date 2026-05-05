@@ -14,8 +14,9 @@ export function publishCombatHudSnapshot(runtime: CombatRuntime): void {
 export function publishCombatStateTransition(
   previousState: CombatState,
   nextState: CombatState,
+  runtime?: CombatRuntime,
 ): void {
-  for (const event of createCombatStateTransitionEvents(previousState, nextState)) {
+  for (const event of createCombatStateTransitionEvents(previousState, nextState, runtime)) {
     emit(event.event, event.payload);
   }
 }
