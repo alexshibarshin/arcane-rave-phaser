@@ -19,6 +19,7 @@ import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 import type { InputSystem } from '@systems/InputSystem';
 import type { SimulationSystem } from '@systems/SimulationSystem';
 import { createCombatSceneViewGraph, type CombatSceneViewGraph } from './CombatSceneViewGraph';
+import { resolveCombatSceneSlotPawnIds } from './resolveCombatSceneSlotPawnIds';
 import {
   createCombatPresentationRuntime,
   type CombatPresentationRuntime,
@@ -190,6 +191,7 @@ export class CombatScene extends GameScene {
       totalWaves: this.totalWaves,
       slotPawnIds: this.slotPawnIds,
     });
+    this.slotPawnIds = resolveCombatSceneSlotPawnIds(this.slotPawnIds, this.runtime);
 
     this.viewGraph = createCombatSceneViewGraph({
       scene: this,
@@ -247,7 +249,7 @@ export class CombatScene extends GameScene {
       recordCenterX: this.viewGraph.record.container.x,
       recordCenterY: this.viewGraph.record.container.y,
       recordRadius: CombatLayoutConfig.RECORD_RADIUS,
-      depth: 110,
+      depth: CombatLayoutConfig.DEPTH.RECORD_DETAILS,
     });
     this.synergySystem.create();
     this.synergySystem.updateBuildState(this.slotPawnIds);

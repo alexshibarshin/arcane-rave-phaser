@@ -225,6 +225,14 @@ function syncEnemyPresentation(
   const elapsedMs = runtime.combatElapsedMs;
 
   for (const enemy of runtime.enemies) {
+    const existingView = viewGraph.enemies.getEnemyView(enemy.runtimeId);
+
+    // Once a dead enemy finishes its death presentation and its view is removed,
+    // do not materialize a fresh shell from the still-present runtime entry.
+    if (enemy.state === 'dead' && existingView === null) {
+      continue;
+    }
+
     viewGraph.enemies.syncEnemyView(enemy, {
       deltaMs,
       elapsedMs,
