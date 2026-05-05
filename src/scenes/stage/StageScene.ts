@@ -24,6 +24,7 @@ interface StageRecordSlotView {
   zone: Phaser.GameObjects.Zone;
   glow: Phaser.GameObjects.Graphics;
   pawnContainer?: Phaser.GameObjects.Container;
+  innerLabel?: Phaser.GameObjects.Container;
 }
 
 interface StageShopCardView {
@@ -50,17 +51,18 @@ type DragPayload =
 
 export class StageScene extends Phaser.Scene {
   private runtime!: StageRuntime;
-  private titleLabel?: Phaser.GameObjects.Text;
   private phaseLabel?: Phaser.GameObjects.Text;
   private coinsLabel?: Phaser.GameObjects.Text;
   private waveLabel?: Phaser.GameObjects.Text;
-  private previewTitleLabel?: Phaser.GameObjects.Text;
   private previewBodyLabel?: Phaser.GameObjects.Text;
+  private previewArchetypeLabel?: Phaser.GameObjects.Text;
+  private archetypeTooltipContainer?: Phaser.GameObjects.Container;
   private statusLabel?: Phaser.GameObjects.Text;
   private startWaveButton?: Phaser.GameObjects.Text;
   private previewCard?: Phaser.GameObjects.Container;
   private recordContainer?: Phaser.GameObjects.Container;
   private recordPawnLayer?: Phaser.GameObjects.Container;
+  private recordInnerLabelLayer?: Phaser.GameObjects.Container;
   private shopPanel?: Phaser.GameObjects.Container;
   private shopCardsLayer?: Phaser.GameObjects.Container;
   private readonly slotViews: StageRecordSlotView[] = [];
@@ -107,33 +109,24 @@ export class StageScene extends Phaser.Scene {
     backdrop.fillEllipse(width / 2, height * 0.18, width * 0.9, 220);
     backdrop.fillStyle(0x09111d, 0.9);
     backdrop.fillRoundedRect(0, height - 310, width, 310, 40);
-    this.add.rectangle(width / 2, StagePresentationConfig.HEADER_LINE_Y, width - 76, 2, 0x57d9ff, 0.46);
-
     this.previewCard = this.createPreviewCard();
     this.recordContainer = this.createBuildRecord();
     this.shopPanel = this.createShopPanel();
 
-    this.titleLabel = this.add.text(width / 2, StagePresentationConfig.HEADER_Y, 'Arcane Rave', {
-      color: '#f5f7ff',
-      fontFamily: 'monospace',
-      fontSize: '44px',
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
-    this.phaseLabel = this.add.text(52, 176, '', {
+    this.phaseLabel = this.add.text(52, 100, '', {
       color: '#8ef7ff',
       fontFamily: 'monospace',
       fontSize: '22px',
     });
 
-    this.coinsLabel = this.add.text(width - 52, 176, '', {
+    this.coinsLabel = this.add.text(width - 52, 100, '', {
       color: '#ffe08e',
       fontFamily: 'monospace',
       fontSize: '22px',
       align: 'right',
     }).setOrigin(1, 0);
 
-    this.waveLabel = this.add.text(width / 2, 204, '', {
+    this.waveLabel = this.add.text(width / 2, 132, '', {
       color: '#f5f7ff',
       fontFamily: 'monospace',
       fontSize: '34px',
@@ -178,32 +171,39 @@ export class StageScene extends Phaser.Scene {
 
     graphics.fillStyle(0x0d1725, 0.92);
     graphics.fillRoundedRect(x, y, width, height, 28);
-    graphics.fillStyle(0x14314a, 0.35);
-    graphics.fillRoundedRect(x + 14, y + 14, width - 28, 52, 18);
     graphics.lineStyle(2, 0x56d6ff, 0.5);
     graphics.strokeRoundedRect(x, y, width, height, 28);
-    graphics.lineStyle(1, 0xff7ab6, 0.45);
-    graphics.strokeRoundedRect(x + 16, y + 78, width - 32, height - 96, 20);
 
-    const eyebrow = this.add.text(x + 28, y + 28, 'NEXT WAVE PREVIEW', {
-      color: '#81cfff',
-      fontFamily: 'monospace',
-      fontSize: '18px',
-    });
-    this.previewTitleLabel = this.add.text(x + 28, y + 88, '', {
-      color: '#f5f7ff',
-      fontFamily: 'monospace',
-      fontSize: '24px',
-    });
-    this.previewBodyLabel = this.add.text(x + 28, y + 130, '', {
+    this.previewBodyLabel = this.add.text(x + 28, y + 20, '', {
       color: '#d9e9f8',
       fontFamily: 'monospace',
-      fontSize: '21px',
-      lineSpacing: 10,
-      wordWrap: { width: width - 56 },
+      fontSize: '17px',
+      lineSpacing: 6,
+      align: 'left',
     });
 
-    container.add([graphics, eyebrow, this.previewTitleLabel, this.previewBodyLabel]);
+    container.add([graphics, this.previewBodyLabel]);
+    container.setSize(width, height);
+    container.setInteractive({ useHandCursor: true });
+
+    this.previewArchetypeLabel = this.add.text(x + 28, y + 20, '', {
+      color: '#d9e9f8',
+      fontFamily: 'monospace',
+      fontSize: '15px',
+      lineSpacing: 6,
+      align: 'left',
+    }).setAlpha(0).setVisible(false);
+
+    container.add(this.previewArchetypeLabel);
+    this.archetypeTooltipContainer = container;
+
+    container.on('pointerdown', () => {
+      if (!this.previewArchetypeLabel) return;
+      const visible = this.previewArchetypeLabel.visible;
+      this.previewArchetypeLabel.setVisible(!visible);
+      this.previewArchetypeLabel.setAlpha(!visible ? 1 : 0);
+    });
+
     return container;
   }
 
@@ -293,7 +293,8 @@ export class StageScene extends Phaser.Scene {
     centerGlow.strokeCircle(0, 0, 48);
 
     this.recordPawnLayer = this.add.container(0, 0);
-    container.add([this.recordPawnLayer, needle, centerGlow]);
+    this.recordInnerLabelLayer = this.add.container(0, 0);
+    container.add([this.recordInnerLabelLayer, this.recordPawnLayer, needle, centerGlow]);
 
     return container;
   }
@@ -429,6 +430,8 @@ export class StageScene extends Phaser.Scene {
     this.slotViews.forEach((slotView) => {
       slotView.pawnContainer?.destroy();
       slotView.pawnContainer = undefined;
+      slotView.innerLabel?.destroy();
+      slotView.innerLabel = undefined;
     });
 
     for (const slotView of this.slotViews) {
@@ -438,7 +441,7 @@ export class StageScene extends Phaser.Scene {
       }
 
       const pawnDefinition = findPawnDefinition(pawnId);
-      if (!pawnDefinition || !this.recordPawnLayer) {
+      if (!pawnDefinition || !this.recordPawnLayer || !this.recordInnerLabelLayer) {
         continue;
       }
 
@@ -450,6 +453,16 @@ export class StageScene extends Phaser.Scene {
       );
       slotView.pawnContainer = pawnContainer;
       this.recordPawnLayer.add(pawnContainer);
+
+      const accent = getPawnAccentColor(pawnDefinition.color);
+      const innerLabel = createRuleLabelContainer(this, pawnDefinition, accent);
+      const innerRadius = StagePresentationConfig.BUILD_RECORD_INNER_RADIUS * 0.82;
+      const angleDeg = -90 + (360 / 8) * slotView.slotIndex;
+      const innerPos = getPolarOffset(angleDeg, innerRadius);
+      innerLabel.x = innerPos.x;
+      innerLabel.y = innerPos.y;
+      slotView.innerLabel = innerLabel;
+      this.recordInnerLabelLayer.add(innerLabel);
     }
   }
 
@@ -803,8 +816,13 @@ export class StageScene extends Phaser.Scene {
         ? `Wave ${currentWave}/${this.runtime.totalWaves}`
         : 'No Waves Configured',
     );
-    this.previewTitleLabel?.setText(preview?.title ?? 'Stage Status');
-    this.previewBodyLabel?.setText(preview?.body ?? getTerminalBody(this.runtime));
+    if (preview) {
+      this.previewBodyLabel?.setText(preview.bodyLines.join('\n'));
+      this.previewArchetypeLabel?.setText(preview.archetypeSummary);
+    } else {
+      this.previewBodyLabel?.setText(getTerminalBody(this.runtime));
+      this.previewArchetypeLabel?.setText('');
+    }
     this.statusLabel?.setText(this.transientStatusText ?? getStatusLabel(this.runtime));
 
     this.startWaveButton?.setVisible(canStartWave);
@@ -829,7 +847,7 @@ export class StageScene extends Phaser.Scene {
     const wave = canStartWave ? getCombatWaveDefinition(this.runtime.currentWaveIndex) : null;
     const preview = wave
       ? createStageWavePreview(wave, currentWave, this.runtime.totalWaves)
-      : { title: 'Stage Status', body: getTerminalBody(this.runtime) };
+      : { bodyLines: [getTerminalBody(this.runtime)], archetypeSummary: '' };
 
     emit('stage:snapshot-updated', {
       phase: this.runtime.phase,
@@ -837,8 +855,8 @@ export class StageScene extends Phaser.Scene {
       currentWave,
       totalWaves: this.runtime.totalWaves,
       canStartWave,
-      previewTitle: preview.title,
-      previewBody: preview.body,
+      previewTitle: preview.bodyLines[0] ?? '',
+      previewBody: preview.bodyLines.slice(1).join('\n'),
     });
   }
 
@@ -1025,4 +1043,56 @@ function getPolarOffset(angleDeg: number, radius: number): { x: number; y: numbe
     x: Math.cos(radians) * radius,
     y: Math.sin(radians) * radius,
   };
+}
+
+function createRuleLabelContainer(
+  scene: Phaser.Scene,
+  pawn: CombatPawnDefinition,
+  accentColor: number,
+): Phaser.GameObjects.Container {
+  const white = '#f5f7ff';
+  const accentHex = `#${accentColor.toString(16).padStart(6, '0')}`;
+
+  let glyphs: Array<{ text: string; color: string; fontSize: number }>;
+
+  if (pawn.type === 'generator') {
+    glyphs = [
+      { text: '+', color: white, fontSize: 20 },
+      { text: '♪', color: accentHex, fontSize: 20 },
+      { text: '♪', color: accentHex, fontSize: 20 },
+    ];
+  } else {
+    const outputHex = (pawn as any).outputNoteColor
+      ? `#${getPawnAccentColor((pawn as any).outputNoteColor).toString(16).padStart(6, '0')}`
+      : accentHex;
+    glyphs = [
+      { text: '♪', color: accentHex, fontSize: 20 },
+      { text: '♪', color: accentHex, fontSize: 20 },
+      { text: '♪', color: accentHex, fontSize: 20 },
+      { text: '>', color: white, fontSize: 20 },
+      { text: '♪', color: outputHex, fontSize: 20 },
+    ];
+  }
+
+  const textObjects = glyphs.map((g) => {
+    const text = scene.add.text(0, 0, g.text, {
+      color: g.color,
+      fontFamily: 'monospace',
+      fontSize: `${g.fontSize}px`,
+      fontStyle: g.text === '>' ? 'normal' : 'bold',
+    });
+    text.setOrigin(0.5, 0.5);
+    return text;
+  });
+
+  const totalWidth = textObjects.reduce((w, t) => w + t.width, 0);
+  let offsetX = -totalWidth / 2;
+
+  for (const text of textObjects) {
+    text.x = offsetX;
+    offsetX += text.width;
+  }
+
+  const container = scene.add.container(0, 0, textObjects);
+  return container;
 }

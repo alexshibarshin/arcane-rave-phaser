@@ -2,8 +2,8 @@ import { CombatContentConfig } from '@config/CombatContentConfig';
 import type { CombatWaveDefinition } from '@config/CombatWaveConfig';
 
 export interface StageWavePreviewModel {
-  title: string;
-  body: string;
+  bodyLines: string[];
+  archetypeSummary: string;
 }
 
 export function createStageWavePreview(
@@ -40,10 +40,12 @@ export function createStageWavePreview(
     .join(', ');
 
   return {
-    title: `Next Wave ${currentWave}/${totalWaves}`,
-    body: [`Enemies ${enemyCount}`, colorSummary, archetypeSummary]
-      .filter((line) => line.length > 0)
-      .join('\n'),
+    bodyLines: [
+      `Wave ${currentWave}/${totalWaves}`,
+      `Enemies ${enemyCount}`,
+      colorSummary,
+    ].filter((line) => line.length > 0),
+    archetypeSummary: archetypeSummary,
   };
 }
 
