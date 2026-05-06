@@ -1,11 +1,23 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import {
   CombatContentConfig,
+  type CombatBeamAbilityDefinition,
+  type CombatExplosionAbilityDefinition,
   type CombatFinisherPawnDefinition,
+  type CombatPawnDefinition,
+  type CombatProjectileAbilityDefinition,
+  type CombatZoneAbilityDefinition,
 } from '@config/CombatContentConfig';
+import { createBeam } from './CombatBeams';
+import { createImmediateTargetedExplosion, queueDelayedExplosion } from './CombatExplosions';
+import { applyNextSlotDamageBuff, consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
+import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from './CombatProjectiles';
 import {
-  pushCombatEnemyDied,
-  pushCombatEnemyHit,
+  createDirectionToEnemy,
+  getSlotOrigin,
+  selectFrontmostEnemy,
+} from './CombatTargeting';
+import {
   pushCombatFinisherConsumedNotes,
   pushCombatFinisherOutputNoteEmitted,
   pushCombatGeneratorNotesEmitted,
@@ -14,14 +26,14 @@ import {
   pushCombatPawnResolved,
   pushCombatSlotActivated,
 } from './CombatRuntimeEvents';
-import type { CombatSlotCrossing } from './CombatRotation';
+import { createTargetedZone } from './CombatZones';
 import {
   setCombatNotePacket,
-  type CombatEnemyRuntime,
   type CombatRuntime,
   type CombatSlotRuntime,
   type NoteColor,
 } from './CombatRuntime';
+import type { CombatSlotCrossing } from './CombatRotation';
 
 const pawnDefinitionsById = new Map(
   CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => [pawn.id, pawn]),
@@ -42,134 +54,247 @@ export function resolveCombatActivations(
     pushCombatSlotActivated(runtime, slot.slotIndex);
 
     if (slot.pawnId === null) {
+      consumePendingSlotDamageBuff(runtime, slot.slotIndex);
       continue;
     }
 
     const pawn = pawnDefinitionsById.get(slot.pawnId);
 
     if (!pawn) {
+      consumePendingSlotDamageBuff(runtime, slot.slotIndex);
       continue;
     }
+
+    const pendingBuff = readPendingSlotDamageBuff(runtime, slot.slotIndex);
+    const consumedNotes = pawn.type === 'finisher'
+      ? getFinisherConsumedNotes(runtime, pawn.color)
+      : 0;
+    const finisherDamageMultiplier = pawn.type === 'finisher'
+      ? getFinisherConsumedNotesMultiplier(consumedNotes)
+      : 1;
+    const nextSlotBuffBonusPercent = pendingBuff?.damageBonusPercent ?? 0;
+    const sourceSnapshot = {
+      damageMultiplier:
+        finisherDamageMultiplier
+        * (1 + nextSlotBuffBonusPercent)
+        * getTierDamageMultiplier(slot.pawnTier),
+      finisherConsumedNotes: consumedNotes,
+      finisherDamageMultiplier,
+      nextSlotBuffBonusPercent,
+    } as const;
 
     pushCombatPawnResolved(runtime, slot.slotIndex, pawn.id, pawn.type);
 
-    if (pawn.type === 'generator') {
-      resolveGeneratorSlotActivation(
-        runtime,
-        slot,
-        pawn.id,
-        pawn.color,
-        scalePawnDamageByTier(pawn.baseDamage, slot.pawnTier),
-      );
-      continue;
+    if (pawn.type === 'finisher') {
+      pushCombatFinisherConsumedNotes(runtime, {
+        slotIndex: slot.slotIndex,
+        pawnId: pawn.id,
+        color: pawn.color,
+        consumedNotes,
+        multiplier: finisherDamageMultiplier,
+      });
     }
 
-    resolveFinisherSlotActivation(runtime, slot, pawn);
+    resolvePawnAbility(runtime, slot, pawn, sourceSnapshot);
+    applyNoteRuleMutation(runtime, slot, pawn);
+    consumePendingSlotDamageBuff(runtime, slot.slotIndex);
   }
 }
 
-function resolveGeneratorSlotActivation(
+function resolvePawnAbility(
   runtime: CombatRuntime,
   slot: CombatSlotRuntime,
-  pawnId: string,
-  color: NoteColor,
-  baseDamage: number,
+  pawn: CombatPawnDefinition,
+  sourceSnapshot: {
+    damageMultiplier: number;
+    finisherConsumedNotes: number;
+    finisherDamageMultiplier: number;
+    nextSlotBuffBonusPercent: number;
+  },
 ): void {
-  const target = selectNearestLivingEnemy(runtime, slot.worldPosition);
+  switch (pawn.ability.primaryArchetype) {
+    case 'projectile':
+      resolveProjectileAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
+      return;
+    case 'explosion':
+      resolveExplosionAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
+      return;
+    case 'beam':
+      resolveBeamAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
+      return;
+    case 'zone':
+      resolveZoneAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
+      return;
+  }
+}
 
-  if (target) {
-    const weaknessMultiplier = resolveWeakness(color, target.color);
-    const damage = Math.round(baseDamage * weaknessMultiplier);
-    target.currentHp = Math.max(0, target.currentHp - damage);
-    pushCombatEnemyHit(runtime, {
-      enemyId: target.runtimeId,
+function resolveProjectileAbility(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatPawnDefinition,
+  ability: CombatProjectileAbilityDefinition,
+  sourceSnapshot: {
+    damageMultiplier: number;
+    finisherConsumedNotes: number;
+    finisherDamageMultiplier: number;
+    nextSlotBuffBonusPercent: number;
+  },
+): void {
+  const origin = getSlotOrigin(slot);
+  const target = selectFrontmostEnemy(runtime);
+
+  if (!origin || !target) {
+    return;
+  }
+
+  if (ability.pattern === 'single-shot') {
+    const direction = createDirectionToEnemy(origin.x, origin.y, target);
+    spawnSingleProjectile({
+      runtime,
+      pawn,
       slotIndex: slot.slotIndex,
-      attackerColor: color,
-      damage,
-      currentHp: target.currentHp,
-      maxHp: target.maxHp,
-      wasWeaknessHit: weaknessMultiplier > 1,
+      color: pawn.color,
+      originX: origin.x,
+      originY: origin.y,
+      directionX: direction.x,
+      directionY: direction.y,
+      damage: ability.damage,
+      projectileSpeedPxPerSec: ability.projectileSpeed,
+      projectileLifetimeMs: ability.projectileLifetimeMs,
+      sourceSnapshot,
     });
-
-    if (target.currentHp <= 0 && target.state !== 'dead') {
-      target.state = 'dead';
-      runtime.wave.enemiesRemaining = Math.max(0, runtime.wave.enemiesRemaining - 1);
-      pushCombatEnemyDied(runtime, target.runtimeId);
-    }
+    return;
   }
 
-  applyGeneratorPacketMutation(runtime, slot, pawnId, color);
-}
+  if (ability.pattern === 'shotgun-spread') {
+    spawnShotgunProjectiles(
+      runtime,
+      pawn,
+      slot.slotIndex,
+      sourceSnapshot,
+      ability.projectileCount ?? 1,
+      ability.coneAngleDeg ?? 0,
+      ability.projectileSpeed,
+      ability.projectileLifetimeMs,
+      ability.damage,
+    );
+    return;
+  }
 
-function resolveFinisherSlotActivation(
-  runtime: CombatRuntime,
-  slot: CombatSlotRuntime,
-  pawn: CombatFinisherPawnDefinition,
-): void {
-  const consumedNotes = getFinisherConsumedNotes(runtime, pawn.color);
-  const consumedMultiplier = getFinisherConsumedNotesMultiplier(consumedNotes);
-  const baseDamage = Math.round(
-    scalePawnDamageByTier(pawn.baseDamage, slot.pawnTier) * consumedMultiplier,
+  queueProjectileVolley(
+    runtime,
+    pawn,
+    slot.slotIndex,
+    sourceSnapshot,
+    ability.volleyShotCount ?? 1,
+    ability.volleyIntervalMs ?? 1,
+    ability.projectileSpeed,
+    ability.projectileLifetimeMs,
+    ability.damage,
   );
-  const target = selectNearestLivingEnemy(runtime, slot.worldPosition);
-  const weaknessMultiplier = target ? resolveWeakness(pawn.color, target.color) : 1;
-  const damage = Math.round(baseDamage * weaknessMultiplier);
+}
 
-  pushCombatFinisherConsumedNotes(runtime, {
-    slotIndex: slot.slotIndex,
-    pawnId: pawn.id,
-    color: pawn.color,
-    consumedNotes,
-    multiplier: consumedMultiplier,
-  });
+function resolveExplosionAbility(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatPawnDefinition,
+  ability: CombatExplosionAbilityDefinition,
+  sourceSnapshot: {
+    damageMultiplier: number;
+    finisherConsumedNotes: number;
+    finisherDamageMultiplier: number;
+    nextSlotBuffBonusPercent: number;
+  },
+): void {
+  if (ability.pattern === 'targeted-burst') {
+    createImmediateTargetedExplosion(
+      runtime,
+      pawn,
+      slot.slotIndex,
+      sourceSnapshot,
+      ability.damage,
+      ability.radius,
+      ability.targeting,
+    );
+    return;
+  }
 
-  if (target) {
-    target.currentHp = Math.max(0, target.currentHp - damage);
-    pushCombatEnemyHit(runtime, {
-      enemyId: target.runtimeId,
-      slotIndex: slot.slotIndex,
-      attackerColor: pawn.color,
-      damage,
-      currentHp: target.currentHp,
-      maxHp: target.maxHp,
-      wasWeaknessHit: weaknessMultiplier > 1,
-    });
+  queueDelayedExplosion(
+    runtime,
+    pawn,
+    slot.slotIndex,
+    sourceSnapshot,
+    ability.damage,
+    ability.radius,
+    ability.delayMs ?? 0,
+    ability.targeting,
+  );
+}
 
-    if (target.currentHp <= 0 && target.state !== 'dead') {
-      target.state = 'dead';
-      runtime.wave.enemiesRemaining = Math.max(0, runtime.wave.enemiesRemaining - 1);
-      pushCombatEnemyDied(runtime, target.runtimeId);
-    }
+function resolveBeamAbility(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatPawnDefinition,
+  ability: CombatBeamAbilityDefinition,
+  sourceSnapshot: {
+    damageMultiplier: number;
+    finisherConsumedNotes: number;
+    finisherDamageMultiplier: number;
+    nextSlotBuffBonusPercent: number;
+  },
+): void {
+  createBeam(
+    runtime,
+    pawn,
+    slot.slotIndex,
+    sourceSnapshot,
+    ability.damage,
+    ability.durationMs,
+    ability.tickIntervalMs ?? null,
+    ability.pattern === 'lock-on-beam' ? 'lock-on' : 'sweeping',
+  );
+}
+
+function resolveZoneAbility(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatPawnDefinition,
+  ability: CombatZoneAbilityDefinition,
+  sourceSnapshot: {
+    damageMultiplier: number;
+    finisherConsumedNotes: number;
+    finisherDamageMultiplier: number;
+    nextSlotBuffBonusPercent: number;
+  },
+): void {
+  createTargetedZone(
+    runtime,
+    pawn,
+    slot.slotIndex,
+    sourceSnapshot,
+    ability.damage,
+    ability.radius,
+    ability.durationMs,
+    ability.tickIntervalMs,
+    ability.targeting,
+  );
+
+  if (ability.secondaryEffect?.kind === 'next-slot-damage-buff') {
+    applyNextSlotDamageBuff(runtime, slot.slotIndex, pawn.id, ability.secondaryEffect.damageBonusPercent);
+  }
+}
+
+function applyNoteRuleMutation(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatPawnDefinition,
+): void {
+  if (pawn.type === 'generator') {
+    applyGeneratorPacketMutation(runtime, slot, pawn.id, pawn.color);
+    return;
   }
 
   applyFinisherPacketMutation(runtime, slot, pawn);
-}
-
-function selectNearestLivingEnemy(
-  runtime: CombatRuntime,
-  origin: CombatSlotRuntime['worldPosition'],
-): CombatEnemyRuntime | null {
-  if (origin === null) {
-    return null;
-  }
-
-  let nearestEnemy: CombatEnemyRuntime | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (const enemy of runtime.enemies) {
-    if (!enemy.spawned || enemy.state === 'dead' || enemy.currentHp <= 0) {
-      continue;
-    }
-
-    const distance = Math.hypot(enemy.x - origin.x, enemy.y - origin.y);
-
-    if (distance < nearestDistance) {
-      nearestEnemy = enemy;
-      nearestDistance = distance;
-    }
-  }
-
-  return nearestEnemy;
 }
 
 function applyGeneratorPacketMutation(
@@ -190,10 +315,7 @@ function applyGeneratorPacketMutation(
   }
 
   if (previousColor === color) {
-    const nextCount = Math.min(
-      previousCount + 2,
-      CombatBalanceConfig.NOTE_PACKET_CAPACITY,
-    );
+    const nextCount = Math.min(previousCount + 2, CombatBalanceConfig.NOTE_PACKET_CAPACITY);
     emittedNotes = Math.max(0, nextCount - previousCount);
 
     setCombatNotePacket(runtime, color, nextCount);
@@ -205,6 +327,20 @@ function applyGeneratorPacketMutation(
   pushCombatNotePacketColorBroke(runtime, previousColor, color);
   setCombatNotePacket(runtime, color, 2);
   pushCombatGeneratorNotesEmitted(runtime, slot, pawnId, color, emittedNotes);
+  pushCombatNotePacketChanged(runtime);
+}
+
+function applyFinisherPacketMutation(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatFinisherPawnDefinition,
+): void {
+  if (runtime.notePacket.color !== null && runtime.notePacket.color !== pawn.color) {
+    pushCombatNotePacketColorBroke(runtime, runtime.notePacket.color, pawn.outputNoteColor);
+  }
+
+  setCombatNotePacket(runtime, pawn.outputNoteColor, 1);
+  pushCombatFinisherOutputNoteEmitted(runtime, slot, pawn.id, pawn.outputNoteColor);
   pushCombatNotePacketChanged(runtime);
 }
 
@@ -225,37 +361,12 @@ function getFinisherConsumedNotesMultiplier(consumedNotes: number): number {
   return CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[normalizedConsumedNotes] ?? 0.75;
 }
 
-function applyFinisherPacketMutation(
-  runtime: CombatRuntime,
-  slot: CombatSlotRuntime,
-  pawn: CombatFinisherPawnDefinition,
-): void {
-  if (runtime.notePacket.color !== null && runtime.notePacket.color !== pawn.color) {
-    pushCombatNotePacketColorBroke(
-      runtime,
-      runtime.notePacket.color,
-      pawn.outputNoteColor,
-    );
-  }
-
-  setCombatNotePacket(runtime, pawn.outputNoteColor, 1);
-  pushCombatFinisherOutputNoteEmitted(runtime, slot, pawn.id, pawn.outputNoteColor);
-  pushCombatNotePacketChanged(runtime);
-}
-
-function resolveWeakness(attackerColor: NoteColor, targetColor: NoteColor): number {
-  const weakTarget = CombatContentConfig.WEAKNESS_ADVANTAGE[attackerColor];
-
-  return weakTarget === targetColor ? CombatBalanceConfig.WEAKNESS_MULTIPLIER : 1;
-}
-
-function scalePawnDamageByTier(baseDamage: number, pawnTier: number | null): number {
+function getTierDamageMultiplier(pawnTier: number | null): number {
   const normalizedTier = Math.max(1, pawnTier ?? 1);
   const multiplierIndex = Math.min(
     normalizedTier - 1,
     CombatBalanceConfig.PAWN_TIER_DAMAGE_MULTIPLIER.length - 1,
   );
-  const multiplier = CombatBalanceConfig.PAWN_TIER_DAMAGE_MULTIPLIER[multiplierIndex] ?? 1;
 
-  return baseDamage * multiplier;
+  return CombatBalanceConfig.PAWN_TIER_DAMAGE_MULTIPLIER[multiplierIndex] ?? 1;
 }

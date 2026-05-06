@@ -1,4 +1,7 @@
-import { CombatContentConfig } from '@config/CombatContentConfig';
+import {
+  CombatContentConfig,
+  getCombatActivePawnDeckIds,
+} from '@config/CombatContentConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 
 export interface StagePawnInstance {
@@ -23,9 +26,11 @@ export function createStageBuildState(random: () => number = Math.random): Stage
 }
 
 export function drawStageShopOffers(random: () => number = Math.random): string[] {
+  const activeDeckIds = getCombatActivePawnDeckIds();
+
   return Array.from({ length: StageFlowConfig.SHOP_OFFER_COUNT }, () => {
-    const index = Math.floor(random() * CombatContentConfig.PAWN_DEFINITIONS.length);
-    return CombatContentConfig.PAWN_DEFINITIONS[index]?.id ?? CombatContentConfig.PAWN_DEFINITIONS[0]!.id;
+    const index = Math.floor(random() * activeDeckIds.length);
+    return activeDeckIds[index] ?? activeDeckIds[0]!;
   });
 }
 
@@ -172,8 +177,9 @@ function createStagePawnInstance(pawnId: string): StagePawnInstance {
 }
 
 function drawRandomPawnId(random: () => number): string {
-  const index = Math.floor(random() * CombatContentConfig.PAWN_DEFINITIONS.length);
-  return CombatContentConfig.PAWN_DEFINITIONS[index]?.id ?? CombatContentConfig.PAWN_DEFINITIONS[0]!.id;
+  const activeDeckIds = getCombatActivePawnDeckIds();
+  const index = Math.floor(random() * activeDeckIds.length);
+  return activeDeckIds[index] ?? activeDeckIds[0]!;
 }
 
 function isValidSlotIndex(slotIndex: number): boolean {

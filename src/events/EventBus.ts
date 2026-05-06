@@ -76,6 +76,17 @@ export interface EventMap {
     color: NoteColor;
     count: 1;
   };
+  'combat:projectile-spawned': { projectileId: string; slotIndex: number; pawnId: string };
+  'combat:projectile-hit': { projectileId: string; enemyId: string; slotIndex: number; pawnId: string };
+  'combat:beam-started': { beamId: string; slotIndex: number; pawnId: string };
+  'combat:beam-ticked': { beamId: string; slotIndex: number; pawnId: string; hitCount: number };
+  'combat:zone-spawned': { zoneId: string; slotIndex: number; pawnId: string };
+  'combat:zone-ticked': { zoneId: string; slotIndex: number; pawnId: string; hitCount: number };
+  'combat:slow-applied': { enemyId: string; slowMultiplier: number; durationMs: number };
+  'combat:base-healed': { amount: number; current: number; max: number };
+  'combat:pawn-buff-applied': { slotIndex: number; sourcePawnId: string; damageBonusPercent: number };
+  'combat:pawn-buff-consumed': { slotIndex: number; sourcePawnId: string; damageBonusPercent: number };
+  'combat:delayed-explosion-spawned': { explosionId: string; slotIndex: number; pawnId: string };
   'combat:note-packet-changed': { color: NoteColor | null; count: number };
   'combat:note-packet-color-broke': { previousColor: NoteColor; nextColor: NoteColor };
   'combat:enemy-spawned': { enemyId: string };

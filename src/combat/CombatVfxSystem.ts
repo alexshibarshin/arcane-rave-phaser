@@ -414,23 +414,11 @@ export class CombatVfxSystem {
   }
 
   private handleEnemyHit(payload: Extract<CombatVfxEvent, { event: 'combat:enemy-hit' }>['payload']): void {
-    const slotAnchor = this.anchors.getSlotAnchor(payload.slotIndex);
     const enemyAnchor = this.anchors.getEnemyAnchor(payload.enemyId);
 
-    if (!slotAnchor || !enemyAnchor) {
+    if (!enemyAnchor) {
       return;
     }
-
-    this.beamHits.push({
-      id: `beam-hit:${this.nextBeamId}`,
-      color: payload.attackerColor,
-      from: { x: slotAnchor.x, y: slotAnchor.y },
-      to: enemyAnchor,
-      weakness: payload.wasWeaknessHit,
-      elapsedMs: 0,
-      durationMs: CombatVfxConfig.BEAM.DURATION_MS,
-    });
-    this.nextBeamId += 1;
 
     this.enemyHitFlashes.push({
       id: `enemy-hit-flash:${this.nextEnemyHitFlashId}`,

@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
-import { CombatContentConfig, type CombatPawnDefinition } from '@config/CombatContentConfig';
+import {
+  CombatContentConfig,
+  getScaledPawnDamage,
+  getCombatPawnDefinitionById,
+  type CombatPawnDefinition,
+} from '@config/CombatContentConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
@@ -45,6 +50,11 @@ interface StageShopCardView {
   container: Phaser.GameObjects.Container;
 }
 
+interface StagePawnTooltipState {
+  pawnId: string;
+  tier: number;
+}
+
 type DragPayload =
   | {
       kind: 'shop-offer';
@@ -81,9 +91,19 @@ export class StageScene extends Phaser.Scene {
   private shopPanel?: Phaser.GameObjects.Container;
   private shopCardsLayer?: Phaser.GameObjects.Container;
   private rerollButton?: Phaser.GameObjects.Text;
+  private tooltipContainer?: Phaser.GameObjects.Container;
+  private tooltipSprite?: Phaser.GameObjects.Image;
+  private tooltipTitle?: Phaser.GameObjects.Text;
+  private tooltipMeta?: Phaser.GameObjects.Text;
+  private tooltipTierStars?: Phaser.GameObjects.Text;
+  private tooltipRule?: Phaser.GameObjects.Container;
+  private tooltipDescription?: Phaser.GameObjects.Text;
   private readonly slotViews: StageRecordSlotView[] = [];
   private readonly shopCardViews: StageShopCardView[] = [];
   private activeDropSlotIndex: number | null = null;
+  private inspectedPawn: StagePawnTooltipState | null = null;
+  private tooltipHoldTimer?: Phaser.Time.TimerEvent;
+  private tooltipLockedByDrag = false;
   private transientStatusText: string | null = null;
   private lastPresentedCoins: number | null = null;
   private readonly stageFlowCoordination: StageFlowCoordinationState = createStageFlowCoordinationState();
@@ -133,6 +153,7 @@ export class StageScene extends Phaser.Scene {
     this.recordContainer = this.createBuildRecord();
     this.createSynergySystem();
     this.shopPanel = this.createShopPanel();
+    this.tooltipContainer = this.createPawnTooltip();
 
     this.phaseLabel = this.add.text(52, 50, '', {
       color: '#8ef7ff',
@@ -395,6 +416,69 @@ export class StageScene extends Phaser.Scene {
     return container;
   }
 
+  private createPawnTooltip(): Phaser.GameObjects.Container {
+    const width = this.scale.width - 64;
+    const height = 146;
+    const container = this.add.container(this.scale.width / 2, 144);
+    const background = this.add.graphics();
+    background.fillStyle(0x08111b, 0.96);
+    background.fillRoundedRect(-width / 2, -height / 2, width, height, 24);
+    background.lineStyle(2, 0x5dd7ff, 0.45);
+    background.strokeRoundedRect(-width / 2, -height / 2, width, height, 24);
+
+    const leftColumnWidth = Math.round(width * 0.35);
+    background.lineStyle(1, 0x163148, 0.85);
+    background.strokeLineShape(
+      new Phaser.Geom.Line(-width / 2 + leftColumnWidth, -height / 2 + 18, -width / 2 + leftColumnWidth, height / 2 - 18),
+    );
+
+    this.tooltipTitle = this.add.text(-width / 2 + leftColumnWidth / 2, -height / 2 + 22, '', {
+      color: '#f5f7ff',
+      fontFamily: 'monospace',
+      fontSize: '20px',
+      align: 'center',
+      wordWrap: { width: leftColumnWidth - 24 },
+    }).setOrigin(0.5, 0.5);
+    this.tooltipSprite = this.add.image(-width / 2 + leftColumnWidth / 2, 4, CombatContentConfig.PAWN_SPRITE_TEXTURE_KEY, 0);
+    this.tooltipSprite.setDisplaySize(88, 88);
+    this.tooltipTierStars = this.add.text(-width / 2 + leftColumnWidth / 2, 42, '', {
+      color: '#ffd166',
+      fontFamily: 'monospace',
+      fontSize: `${CombatVisualConfig.TIER_STAR_FONT_SIZE_PX}px`,
+      align: 'center',
+    }).setOrigin(0.5, 0.5);
+    this.tooltipTierStars.setStroke('#7a4f00', 5);
+
+    this.tooltipMeta = this.add.text(-width / 2 + leftColumnWidth + 22, -height / 2 + 26, '', {
+      color: '#06111a',
+      backgroundColor: '#8fd0ea',
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      padding: { left: 10, right: 10, top: 6, bottom: 6 },
+    }).setOrigin(0, 0.5);
+    this.tooltipRule = this.add.container(-width / 2 + leftColumnWidth + 160, -height / 2 + 26);
+    this.tooltipDescription = this.add.text(-width / 2 + leftColumnWidth + 22, -height / 2 + 56, '', {
+      color: '#d9e9f8',
+      fontFamily: 'monospace',
+      fontSize: '14px',
+      lineSpacing: 4,
+      wordWrap: { width: width - leftColumnWidth - 44 },
+    });
+
+    container.add([
+      background,
+      this.tooltipTitle,
+      this.tooltipSprite,
+      this.tooltipTierStars,
+      this.tooltipMeta,
+      this.tooltipRule,
+      this.tooltipDescription,
+    ]);
+    container.setVisible(false);
+    container.setAlpha(0);
+    return container;
+  }
+
   private createSynergySystem(): void {
     const center = this.recordContainer!;
     this.synergySystem = new SynergyVisualSystem({
@@ -425,6 +509,7 @@ export class StageScene extends Phaser.Scene {
 
         gameObject.setDepth(5000);
         gameObject.setScale(1.06);
+        this.tooltipLockedByDrag = true;
       },
     );
 
@@ -490,17 +575,27 @@ export class StageScene extends Phaser.Scene {
         this.transientStatusText = errorMsg;
 
         this.clearSlotHighlights();
+        this.tooltipLockedByDrag = false;
 
         if (applied) {
           this.refreshBuildUI();
           this.publishSnapshot();
+          this.hidePawnTooltip();
         } else {
           gameObject.x = payload.homeX;
           gameObject.y = payload.homeY;
           this.syncPresentation();
+          this.hidePawnTooltip();
         }
       },
     );
+
+    this.input.on(Phaser.Input.Events.POINTER_UP, () => {
+      if (!this.tooltipLockedByDrag) {
+        this.hidePawnTooltip();
+      }
+      this.clearTooltipHoldTimer();
+    });
   }
 
   private refreshBuildUI(): void {
@@ -559,44 +654,10 @@ export class StageScene extends Phaser.Scene {
     pawnInstance: StagePawnInstance,
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
-    const accent = getPawnAccentColor(pawn.color);
-    const graphics = this.add.graphics();
+    const sprite = createPawnSprite(this, pawn, 82);
+    sprite.y = -2;
 
-    graphics.fillStyle(0x0f1926, 1);
-    graphics.fillRoundedRect(-42, -42, 84, 84, 24);
-    graphics.fillStyle(accent, 0.16);
-    graphics.fillRoundedRect(-34, -34, 68, 22, 12);
-    graphics.lineStyle(3, accent, 0.82);
-    graphics.strokeRoundedRect(-42, -42, 84, 84, 24);
-    graphics.fillStyle(accent, 0.95);
-    graphics.fillCircle(0, -10, pawn.type === 'generator' ? 13 : 15);
-
-    if (pawn.type === 'finisher') {
-      graphics.lineStyle(4, 0xf7f1ff, 0.9);
-      graphics.strokeCircle(0, -10, 22);
-    } else {
-      graphics.lineStyle(3, 0xdffcff, 0.8);
-      graphics.beginPath();
-      graphics.moveTo(-16, 12);
-      graphics.lineTo(16, 12);
-      graphics.strokePath();
-    }
-
-    const typeLabel = this.add.text(0, 16, pawn.type === 'generator' ? 'GEN' : 'FIN', {
-      color: '#f5f7ff',
-      fontFamily: 'monospace',
-      fontSize: '16px',
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
-    const colorLabel = this.add.text(0, 32, pawn.color.toUpperCase(), {
-      color: '#8fb8d3',
-      fontFamily: 'monospace',
-      fontSize: '11px',
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
-    const stars = this.add.text(0, CombatVisualConfig.SLOT.STAR_OFFSET_Y, '★'.repeat(pawnInstance.tier), {
+    const stars = this.add.text(0, 46, '★'.repeat(pawnInstance.tier), {
       color: '#ffd166',
       fontFamily: 'monospace',
       fontSize: `${CombatVisualConfig.TIER_STAR_FONT_SIZE_PX}px`,
@@ -604,11 +665,11 @@ export class StageScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5);
     stars.setStroke('#7a4f00', 5);
 
-    container.add([graphics, stars, typeLabel, colorLabel]);
-    container.setSize(92, 92);
+    container.add([sprite, stars]);
+    container.setSize(88, 92);
     container.setInteractive(
-      new Phaser.Geom.Rectangle(0, 0, 84, 84),
-      Phaser.Geom.Rectangle.Contains,
+      new Phaser.Geom.Circle(0, -2, 34),
+      Phaser.Geom.Circle.Contains,
     );
     this.input.setDraggable(container);
     container.setData('dragPayload', {
@@ -623,6 +684,8 @@ export class StageScene extends Phaser.Scene {
     if (container.input) {
       container.input.cursor = 'grab';
     }
+
+    this.bindPawnInspection(container, { pawnId: pawn.id, tier: pawnInstance.tier });
 
     return container;
   }
@@ -670,42 +733,39 @@ export class StageScene extends Phaser.Scene {
     const top = -height / 2;
     const accent = getPawnAccentColor(pawn.color);
 
-    graphics.fillStyle(0x101925, 1);
+    graphics.fillStyle(0x0b1520, 1);
     graphics.fillRoundedRect(left, top, width, height, 22);
-    graphics.fillStyle(accent, 0.18);
-    graphics.fillRoundedRect(left + 16, top + 14, width - 32, 36, 16);
+    graphics.fillStyle(accent, 0.08);
+    graphics.fillRoundedRect(left + 12, top + 12, width - 24, 68, 18);
     graphics.lineStyle(2, accent, 0.72);
     graphics.strokeRoundedRect(left, top, width, height, 22);
     graphics.lineStyle(1, 0xffffff, 0.08);
     graphics.strokeRoundedRect(left + 12, top + 12, width - 24, height - 24, 18);
 
-    const badge = this.add.text(left + 18, top + 22, pawn.type === 'generator' ? 'GEN' : 'FIN', {
-      color: '#06111a',
-      backgroundColor: Phaser.Display.Color.IntegerToColor(accent).rgba,
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      padding: { left: 8, right: 8, top: 4, bottom: 4 },
-    });
-
     const title = this.add.text(0, top + 74, formatPawnTitle(pawn), {
       color: '#f5f7ff',
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: '17px',
       align: 'center',
     }).setOrigin(0.5, 0.5);
+
+    const spriteFrame = createPawnSprite(this, pawn, 86);
+    spriteFrame.y = top + 6;
 
     const ruleLabel = createRuleLabelContainer(this, pawn, accent);
     ruleLabel.x = 0;
     ruleLabel.y = top + 102;
 
-    const price = this.add.text(0, top + 128, `${StageFlowConfig.SHOP_PURCHASE_COST} coins`, {
-      color: '#ffe08e',
+    const priceChip = this.add.text(0, top + 137, `${StageFlowConfig.SHOP_PURCHASE_COST}c`, {
+      color: '#071019',
+      backgroundColor: '#ffe08e',
       fontFamily: 'monospace',
       fontSize: '16px',
       align: 'center',
+      padding: { left: 10, right: 10, top: 5, bottom: 5 },
     }).setOrigin(0.5, 0.5);
 
-    container.add([graphics, badge, title, ruleLabel, price]);
+    container.add([graphics, spriteFrame, title, ruleLabel, priceChip]);
     container.setSize(width, height);
     container.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, width, height),
@@ -723,6 +783,8 @@ export class StageScene extends Phaser.Scene {
     if (container.input) {
       container.input.cursor = 'grab';
     }
+
+    this.bindPawnInspection(container, { pawnId: pawn.id, tier: 1 });
 
     return {
       offerIndex,
@@ -934,8 +996,61 @@ export class StageScene extends Phaser.Scene {
     this.previewCard?.setVisible(buildVisible);
     this.waveLabel?.setVisible(buildVisible);
     this.statusLabel?.setVisible(buildVisible);
+    this.tooltipContainer?.setVisible(buildVisible && this.inspectedPawn !== null);
 
     this.playCoinFeedbackIfNeeded();
+  }
+
+  private bindPawnInspection(
+    container: Phaser.GameObjects.Container,
+    tooltipState: StagePawnTooltipState,
+  ): void {
+    container.on('pointerdown', () => {
+      this.clearTooltipHoldTimer();
+      this.tooltipHoldTimer = this.time.delayedCall(150, () => {
+        this.showPawnTooltip(tooltipState);
+      });
+    });
+
+    container.on('pointerout', () => {
+      if (!this.tooltipLockedByDrag) {
+        this.hidePawnTooltip();
+      }
+      this.clearTooltipHoldTimer();
+    });
+  }
+
+  private showPawnTooltip(state: StagePawnTooltipState): void {
+    const pawn = findPawnDefinition(state.pawnId);
+    if (!pawn || !this.tooltipContainer || !this.tooltipSprite || !this.tooltipTitle || !this.tooltipMeta || !this.tooltipTierStars || !this.tooltipRule || !this.tooltipDescription) {
+      return;
+    }
+
+    this.inspectedPawn = state;
+    this.tooltipSprite.setTexture(pawn.art.textureKey, pawn.art.frame);
+    this.tooltipTitle.setText(pawn.displayName);
+    this.tooltipSprite.setPosition(this.tooltipSprite.x, 2 + pawn.art.offsetY * 0.24);
+    this.tooltipTierStars.setText('★'.repeat(state.tier));
+    this.tooltipMeta.setText(pawn.type === 'generator' ? 'Generator' : 'Finisher');
+    this.tooltipMeta.setBackgroundColor(pawn.type === 'generator' ? '#78d9ff' : '#ffa0bf');
+    this.tooltipDescription.setText(getPawnTooltipDescription(pawn, state.tier));
+    this.tooltipRule.removeAll(true);
+    const rule = createRuleLabelContainer(this, pawn, getPawnAccentColor(pawn.color));
+    this.tooltipRule.add(rule);
+
+    this.tooltipContainer.setVisible(true);
+    this.tooltipContainer.setAlpha(1);
+  }
+
+  private hidePawnTooltip(): void {
+    this.inspectedPawn = null;
+    this.tooltipContainer?.setVisible(false);
+    this.tooltipContainer?.setAlpha(0);
+  }
+
+  private clearTooltipHoldTimer(): void {
+    this.tooltipHoldTimer?.remove(false);
+    this.tooltipHoldTimer = undefined;
   }
 
   private publishSnapshot(): void {
@@ -1160,6 +1275,7 @@ export class StageScene extends Phaser.Scene {
     this.input.off(Phaser.Input.Events.DRAG_START);
     this.input.off(Phaser.Input.Events.DRAG);
     this.input.off(Phaser.Input.Events.DRAG_END);
+    this.input.off(Phaser.Input.Events.POINTER_UP);
     if (this.coinFeedbackLabel) {
       this.tweens.killTweensOf(this.coinFeedbackLabel);
     }
@@ -1167,6 +1283,7 @@ export class StageScene extends Phaser.Scene {
       this.tweens.killTweensOf(this.coinsGlowLabel);
     }
     this.synergySystem?.destroy();
+    this.clearTooltipHoldTimer();
   }
 }
 
@@ -1227,8 +1344,7 @@ function getPawnAccentColor(color: CombatPawnDefinition['color']): number {
 }
 
 function formatPawnTitle(pawn: CombatPawnDefinition): string {
-  const typeLabel = pawn.type === 'generator' ? 'Generator' : 'Finisher';
-  return `${capitalize(pawn.color)} ${typeLabel}`;
+  return pawn.displayName;
 }
 
 function capitalize(value: string): string {
@@ -1236,7 +1352,75 @@ function capitalize(value: string): string {
 }
 
 function findPawnDefinition(id: string): CombatPawnDefinition | undefined {
-  return CombatContentConfig.PAWN_DEFINITIONS.find((pawn) => pawn.id === id);
+  return getCombatPawnDefinitionById(id);
+}
+
+function createPawnSprite(
+  scene: Phaser.Scene,
+  pawn: CombatPawnDefinition,
+  size: number,
+): Phaser.GameObjects.Image {
+  const sprite = scene.add.image(pawn.art.offsetX, pawn.art.offsetY, pawn.art.textureKey, pawn.art.frame);
+  sprite.setOrigin(0.5, 0.5);
+  sprite.setDisplaySize(size, size);
+  return sprite;
+}
+
+function getPawnTooltipDescription(
+  pawn: CombatPawnDefinition,
+  tier: number,
+): string {
+  const damage = getScaledPawnDamage(pawn.ability.damage, tier);
+  const secondary = pawn.ability.secondaryEffect;
+
+  switch (pawn.ability.primaryArchetype) {
+    case 'projectile':
+      if (pawn.ability.pattern === 'single-shot') {
+        return `Single precise shot for ${damage} damage.`;
+      }
+      if (pawn.ability.pattern === 'shotgun-spread') {
+        const healSuffix = secondary?.kind === 'base-heal-from-damage'
+          ? ` Heals the base for ${Math.round(secondary.healPercent * 100)}% of damage dealt.`
+          : '';
+        return `Burst of ${pawn.ability.projectileCount ?? 1} projectiles for ${damage} damage each.${healSuffix}`;
+      }
+      if (secondary?.kind === 'bounce-on-hit') {
+        return `Burst of ${pawn.ability.volleyShotCount ?? 1} shots for ${damage} damage. Each shot can bounce once.`;
+      }
+      if (secondary?.kind === 'split-on-hit') {
+        return `Burst of ${pawn.ability.volleyShotCount ?? 1} shots for ${damage} damage. On hit, each shot splits into ${secondary.childCount}.`;
+      }
+      return `Burst volley of ${pawn.ability.volleyShotCount ?? 1} shots for ${damage} damage.`;
+    case 'explosion':
+      if (pawn.ability.pattern === 'delayed-blast') {
+        const burnSuffix = secondary?.kind === 'burn-zone-on-detonation'
+          ? ` Leaves a burning zone for ${formatSeconds(secondary.zoneDurationMs)}.`
+          : '';
+        return `After ${formatSeconds(pawn.ability.delayMs ?? 0)}, detonates for ${damage} damage in a ${pawn.ability.radius} radius.${burnSuffix}`;
+      }
+      if (secondary?.kind === 'high-hp-bonus-damage') {
+        return `Targeted burst for ${damage} damage in a ${pawn.ability.radius} radius. Deals +${Math.round(secondary.bonusDamagePercent * 100)}% to high-HP targets.`;
+      }
+      return `Targeted burst for ${damage} damage in a ${pawn.ability.radius} radius.`;
+    case 'beam':
+      if (pawn.ability.pattern === 'lock-on-beam') {
+        return `Locks a beam for ${formatSeconds(pawn.ability.durationMs)}, ticking ${damage} damage every ${formatSeconds(pawn.ability.tickIntervalMs ?? 0)}.`;
+      }
+      if (secondary?.kind === 'slow-on-hit') {
+        return `Sweeps a beam for ${formatSeconds(pawn.ability.durationMs)}. New crossings take ${damage} damage and ${Math.round((1 - secondary.slowMultiplier) * 100)}% slow.`;
+      }
+      return `Sweeps a beam for ${formatSeconds(pawn.ability.durationMs)} dealing ${damage} damage on crossings.`;
+    case 'zone':
+      if (secondary?.kind === 'next-slot-damage-buff') {
+        return `Creates a ${pawn.ability.radius}-radius field for ${formatSeconds(pawn.ability.durationMs)}. Buffs the next slot by ${Math.round(secondary.damageBonusPercent * 100)}% damage.`;
+      }
+      return `Creates a ${pawn.ability.radius}-radius zone for ${formatSeconds(pawn.ability.durationMs)}, dealing ${damage} damage every ${formatSeconds(pawn.ability.tickIntervalMs)}.`;
+  }
+}
+
+function formatSeconds(durationMs: number): string {
+  const seconds = durationMs / 1000;
+  return Number.isInteger(seconds) ? `${seconds} sec.` : `${seconds.toFixed(1)} sec.`;
 }
 
 function getPolarOffset(angleDeg: number, radius: number): { x: number; y: number } {

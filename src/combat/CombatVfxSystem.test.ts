@@ -53,7 +53,7 @@ describe('CombatVfxSystem', () => {
     expect(refreshedSnapshot.slotActivations[0]?.pawnGlowAlpha).toBeCloseTo(1);
   });
 
-  it('creates generator beam, enemy-hit flash, and two outbound note flights from semantic combat events', () => {
+  it('creates enemy-hit flash and outbound note flights from semantic combat events', () => {
     const vfx = new CombatVfxSystem({
       ...createResolver(),
       getEnemyAnchor: (enemyId) =>
@@ -86,13 +86,7 @@ describe('CombatVfxSystem', () => {
 
     const snapshot = vfx.getSnapshot();
 
-    expect(snapshot.beamHits).toHaveLength(1);
-    expect(snapshot.beamHits[0]).toMatchObject({
-      color: 'red',
-      from: { x: 120, y: 220 },
-      to: { x: 520, y: 300 },
-      weakness: false,
-    });
+    expect(snapshot.beamHits).toHaveLength(0);
 
     expect(snapshot.enemyHitFlashes).toHaveLength(1);
     expect(snapshot.enemyHitFlashes[0]).toMatchObject({
@@ -112,7 +106,7 @@ describe('CombatVfxSystem', () => {
     expect(new Set(snapshot.noteFlights.map((flight) => flight.to.x)).size).toBeGreaterThan(1);
   });
 
-  it('creates finisher intake, weakness beam, color-break burst, and one output note flight from semantic events', () => {
+  it('creates finisher intake, color-break burst, and one output note flight from semantic events', () => {
     const vfx = new CombatVfxSystem({
       ...createResolver(),
       getEnemyAnchor: (enemyId) =>
@@ -197,12 +191,7 @@ describe('CombatVfxSystem', () => {
       color: 'blue',
     });
 
-    expect(snapshot.beamHits).toHaveLength(1);
-    expect(snapshot.beamHits[0]).toMatchObject({
-      color: 'green',
-      weakness: true,
-      thickness: 12,
-    });
+    expect(snapshot.beamHits).toHaveLength(0);
   });
 
   it('creates distinct base-hit feedback and result emphasis from combat outcome events', () => {

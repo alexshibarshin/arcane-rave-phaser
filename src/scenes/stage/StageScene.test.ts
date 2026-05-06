@@ -32,9 +32,9 @@ describe('StageRuntime', () => {
       build: {
         slots: Array(8).fill(null),
         shopOffers: [
-          'pawn-red-generator',
-          'pawn-red-generator',
-          'pawn-red-generator',
+          'ruby-needle',
+          'ruby-needle',
+          'ruby-needle',
         ],
         shopPurchaseCounts: {},
         rerollCount: 0,
@@ -70,11 +70,11 @@ describe('StageRuntime', () => {
       Math.min(CombatTimeControlConfig.CHRONO_MAX, 41 + CombatTimeControlConfig.CHRONO_WAVE_RECOVERY),
     );
     expect(runtime.lastCombatOutcome).toBe('victory');
-    expect(runtime.build.slots[0]).toEqual({ pawnId: 'pawn-red-generator', tier: 1 });
+    expect(runtime.build.slots[0]).toEqual({ pawnId: 'ruby-needle', tier: 1 });
     expect(runtime.build.shopOffers).toEqual([
-      'pawn-red-finisher',
-      'pawn-red-finisher',
-      'pawn-red-finisher',
+      'thorn-fan',
+      'thorn-fan',
+      'thorn-fan',
     ]);
     expect(canStageStartWave(runtime)).toBe(true);
   });
@@ -83,7 +83,7 @@ describe('StageRuntime', () => {
     const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 }, () => 0);
     purchaseStagePawnIntoSlot(runtime, 0, 0);
 
-    expect(getStageCombatLoadout(runtime)[0]).toBe('pawn-red-generator');
+    expect(getStageCombatLoadout(runtime)[0]).toBe('ruby-needle');
     expect(getStageCombatLoadout(runtime).slice(1).every((slot) => slot === null)).toBe(true);
   });
 
@@ -94,11 +94,11 @@ describe('StageRuntime', () => {
     purchaseStagePawnIntoSlot(runtime, 0, 1);
     expect(mergeStagePawnSlots(runtime, 0, 1, () => 0.5)).toBe(true);
 
-    expect(runtime.build.slots[1]).toEqual({ pawnId: 'pawn-red-finisher', tier: 2 });
+    expect(runtime.build.slots[1]).toEqual({ pawnId: 'thorn-fan', tier: 2 });
     expect(runtime.coins).toBe(6);
-    expect(getStageCombatLoadout(runtime)[1]).toBe('pawn-red-finisher');
+    expect(getStageCombatLoadout(runtime)[1]).toBe('thorn-fan');
     expect(getStageCombatLoadoutSlots(runtime)[1]).toEqual({
-      pawnId: 'pawn-red-finisher',
+      pawnId: 'thorn-fan',
       tier: 2,
     });
   });
@@ -110,7 +110,7 @@ describe('StageRuntime', () => {
 
     expect(purchaseStagePawnIntoMergeSlot(runtime, 0, 0, () => 0.5)).toBe(true);
     expect(runtime.coins).toBe(4);
-    expect(runtime.build.slots[0]).toEqual({ pawnId: 'pawn-red-finisher', tier: 2 });
+    expect(runtime.build.slots[0]).toEqual({ pawnId: 'thorn-fan', tier: 2 });
   });
 
   it('disables merge reward coins when the config value is set to zero', () => {
@@ -137,9 +137,9 @@ describe('StageRuntime', () => {
     expect(rerollStageShopOffers(runtime, () => 0.5)).toBe(true);
     expect(runtime.coins).toBe(5);
     expect(runtime.build.shopOffers).toEqual([
-      'pawn-red-finisher',
-      'pawn-red-finisher',
-      'pawn-red-finisher',
+      'thorn-fan',
+      'thorn-fan',
+      'thorn-fan',
     ]);
     expect(runtime.build.rerollCount).toBe(1);
     expect(getStageShopRerollCost(runtime)).toBe(2);

@@ -73,6 +73,50 @@ export type CombatRuntimeEvent =
       color: NoteColor;
       count: 1;
     };
+  }
+  | {
+    event: 'combat:projectile-spawned';
+    payload: { projectileId: string; slotIndex: number; pawnId: string };
+  }
+  | {
+    event: 'combat:projectile-hit';
+    payload: { projectileId: string; enemyId: string; slotIndex: number; pawnId: string };
+  }
+  | {
+    event: 'combat:beam-started';
+    payload: { beamId: string; slotIndex: number; pawnId: string };
+  }
+  | {
+    event: 'combat:beam-ticked';
+    payload: { beamId: string; slotIndex: number; pawnId: string; hitCount: number };
+  }
+  | {
+    event: 'combat:zone-spawned';
+    payload: { zoneId: string; slotIndex: number; pawnId: string };
+  }
+  | {
+    event: 'combat:zone-ticked';
+    payload: { zoneId: string; slotIndex: number; pawnId: string; hitCount: number };
+  }
+  | {
+    event: 'combat:slow-applied';
+    payload: { enemyId: string; slowMultiplier: number; durationMs: number };
+  }
+  | {
+    event: 'combat:base-healed';
+    payload: { amount: number; current: number; max: number };
+  }
+  | {
+    event: 'combat:pawn-buff-applied';
+    payload: { slotIndex: number; sourcePawnId: string; damageBonusPercent: number };
+  }
+  | {
+    event: 'combat:pawn-buff-consumed';
+    payload: { slotIndex: number; sourcePawnId: string; damageBonusPercent: number };
+  }
+  | {
+    event: 'combat:delayed-explosion-spawned';
+    payload: { explosionId: string; slotIndex: number; pawnId: string };
   };
 
 export function resetCombatFrameEffects(runtime: CombatRuntime): void {
@@ -223,5 +267,149 @@ export function pushCombatBaseDamaged(runtime: CombatRuntime): void {
   pushCombatRuntimeEvent(runtime, {
     event: 'combat:hud-base-hp-updated',
     payload,
+  });
+}
+
+export function pushCombatProjectileSpawned(
+  runtime: CombatRuntime,
+  projectileId: string,
+  slotIndex: number,
+  pawnId: string,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:projectile-spawned',
+    payload: { projectileId, slotIndex, pawnId },
+  });
+}
+
+export function pushCombatProjectileHit(
+  runtime: CombatRuntime,
+  projectileId: string,
+  enemyId: string,
+  slotIndex: number,
+  pawnId: string,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:projectile-hit',
+    payload: { projectileId, enemyId, slotIndex, pawnId },
+  });
+}
+
+export function pushCombatBeamStarted(
+  runtime: CombatRuntime,
+  beamId: string,
+  slotIndex: number,
+  pawnId: string,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:beam-started',
+    payload: { beamId, slotIndex, pawnId },
+  });
+}
+
+export function pushCombatBeamTicked(
+  runtime: CombatRuntime,
+  beamId: string,
+  slotIndex: number,
+  pawnId: string,
+  hitCount: number,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:beam-ticked',
+    payload: { beamId, slotIndex, pawnId, hitCount },
+  });
+}
+
+export function pushCombatZoneSpawned(
+  runtime: CombatRuntime,
+  zoneId: string,
+  slotIndex: number,
+  pawnId: string,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:zone-spawned',
+    payload: { zoneId, slotIndex, pawnId },
+  });
+}
+
+export function pushCombatZoneTicked(
+  runtime: CombatRuntime,
+  zoneId: string,
+  slotIndex: number,
+  pawnId: string,
+  hitCount: number,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:zone-ticked',
+    payload: { zoneId, slotIndex, pawnId, hitCount },
+  });
+}
+
+export function pushCombatSlowApplied(
+  runtime: CombatRuntime,
+  enemyId: string,
+  slowMultiplier: number,
+  durationMs: number,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:slow-applied',
+    payload: { enemyId, slowMultiplier, durationMs },
+  });
+}
+
+export function pushCombatBaseHealed(
+  runtime: CombatRuntime,
+  amount: number,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:base-healed',
+    payload: {
+      amount,
+      current: runtime.baseHp,
+      max: CombatBalanceConfig.BASE_HP,
+    },
+  });
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:hud-base-hp-updated',
+    payload: {
+      current: runtime.baseHp,
+      max: CombatBalanceConfig.BASE_HP,
+    },
+  });
+}
+
+export function pushCombatPawnBuffApplied(
+  runtime: CombatRuntime,
+  slotIndex: number,
+  sourcePawnId: string,
+  damageBonusPercent: number,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:pawn-buff-applied',
+    payload: { slotIndex, sourcePawnId, damageBonusPercent },
+  });
+}
+
+export function pushCombatPawnBuffConsumed(
+  runtime: CombatRuntime,
+  slotIndex: number,
+  sourcePawnId: string,
+  damageBonusPercent: number,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:pawn-buff-consumed',
+    payload: { slotIndex, sourcePawnId, damageBonusPercent },
+  });
+}
+
+export function pushCombatDelayedExplosionSpawned(
+  runtime: CombatRuntime,
+  explosionId: string,
+  slotIndex: number,
+  pawnId: string,
+): void {
+  pushCombatRuntimeEvent(runtime, {
+    event: 'combat:delayed-explosion-spawned',
+    payload: { explosionId, slotIndex, pawnId },
   });
 }

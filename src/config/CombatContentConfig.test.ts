@@ -36,8 +36,15 @@ describe('CombatContentConfig', () => {
       validateCombatContentConfig({
         ...CombatContentConfig,
         PAWN_DEFINITIONS: CombatContentConfig.PAWN_DEFINITIONS.map((pawn) =>
-          pawn.id === 'pawn-red-finisher'
-            ? { ...pawn, outputNoteColor: 'red' as const }
+          pawn.type === 'finisher' && pawn.id === 'heatline'
+            ? {
+                ...pawn,
+                outputNoteColor: 'red' as const,
+                noteRule: {
+                  ...pawn.noteRule,
+                  outputNoteColor: 'red' as const,
+                },
+              }
             : pawn,
         ),
       }),

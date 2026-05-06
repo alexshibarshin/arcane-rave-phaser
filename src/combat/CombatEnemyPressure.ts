@@ -2,6 +2,7 @@ import { CombatContentConfig } from '@config/CombatContentConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { setCombatState, type CombatRuntime } from './CombatRuntime';
 import { pushCombatBaseDamaged } from './CombatRuntimeEvents';
+import { getEnemyMoveSpeedMultiplier } from './CombatStatuses';
 
 const combatLayout = createCombatLayoutPlan();
 const enemyDefinitionsById = new Map(
@@ -40,7 +41,10 @@ export function advanceCombatEnemyPressure(
       continue;
     }
 
-    const stepPx = definition.moveSpeedPxPerSec * (deltaMs / 1000);
+    const stepPx =
+      definition.moveSpeedPxPerSec
+      * getEnemyMoveSpeedMultiplier(runtime, enemy.runtimeId)
+      * (deltaMs / 1000);
     const nextY = enemy.y + stepPx;
     const nextDistanceToBase = Math.hypot(enemy.x - combatLayout.base.x, nextY - combatLayout.base.y);
 

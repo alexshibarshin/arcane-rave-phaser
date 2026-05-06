@@ -51,8 +51,12 @@ export function createCombatPresentationRuntime(
   let notePacketElapsedMs = 0;
   let lastCombatElapsedMs = 0;
   let resultEmphasisWash: Phaser.GameObjects.Rectangle | undefined;
-  const beamViews = new Map<string, Phaser.GameObjects.Image>();
-  const beamPool: Phaser.GameObjects.Image[] = [];
+  const liveBeamViews = new Map<string, Phaser.GameObjects.Image>();
+  const liveBeamPool: Phaser.GameObjects.Image[] = [];
+  const projectileViews = new Map<string, Phaser.GameObjects.Image>();
+  const projectilePool: Phaser.GameObjects.Image[] = [];
+  const zoneViews = new Map<string, Phaser.GameObjects.Graphics>();
+  const pendingExplosionViews = new Map<string, Phaser.GameObjects.Graphics>();
   const noteFlightViews = new Map<string, Phaser.GameObjects.Image>();
   const noteFlightPool: Phaser.GameObjects.Image[] = [];
   const enemyHitViews = new Map<string, Phaser.GameObjects.Image>();
@@ -80,7 +84,10 @@ export function createCombatPresentationRuntime(
       syncBasePresentation(options.viewGraph, runtime);
       syncBaseHpBarPresentation(options.viewGraph, runtime);
       syncNotePacketPresentation(options.scene, options.viewGraph, runtime, notePacketElapsedMs, vfxSnapshot);
-      syncBeamPresentation(options.scene, options.viewGraph, beamViews, beamPool, vfxSnapshot);
+      syncProjectilePresentation(options.scene, options.viewGraph, runtime, projectileViews, projectilePool);
+      syncBeamPresentation(options.scene, options.viewGraph, runtime, liveBeamViews, liveBeamPool);
+      syncZonePresentation(options.scene, options.viewGraph, runtime, zoneViews);
+      syncPendingExplosionPresentation(options.scene, options.viewGraph, runtime, pendingExplosionViews);
       syncNoteFlightPresentation(options.scene, options.viewGraph, noteFlightViews, noteFlightPool, vfxSnapshot);
       syncEnemyHitPresentation(options.scene, options.viewGraph, enemyHitViews, enemyHitPool, vfxSnapshot);
       syncPacketBreakPresentation(options.scene, options.viewGraph, packetBreakViews, packetBreakPool, vfxSnapshot);
@@ -166,9 +173,32 @@ export function createCombatPresentationRuntime(
         ));
         options.viewGraph.effects.damageNumberLayer.add(damageNumbers[damageNumbers.length - 1]!.text);
       }
+
+      if (event.event === 'combat:base-healed') {
+        const config = CombatVisualConfig.DAMAGE_NUMBER;
+        const hpBar = options.viewGraph.base.hpBar;
+
+        damageNumbers.push(new CombatDamageNumber(
+          options.scene,
+          hpBar.x + config.BASE_OFFSET_X,
+          hpBar.y + config.BASE_OFFSET_Y - 30,
+          -event.payload.amount,
+          lastCombatElapsedMs,
+          {
+            fontSizePx: config.FONT_SIZE_PX,
+            floatDurationMs: config.FLOAT_DURATION_MS,
+            floatDistanceY: config.FLOAT_DISTANCE_Y,
+          },
+        ));
+        damageNumbers[damageNumbers.length - 1]!.text.setColor('#7ef2a1');
+        options.viewGraph.effects.damageNumberLayer.add(damageNumbers[damageNumbers.length - 1]!.text);
+      }
     },
     destroy() {
-      clearPooledImageMaps(beamViews, beamPool);
+      clearPooledImageMaps(liveBeamViews, liveBeamPool);
+      clearPooledImageMaps(projectileViews, projectilePool);
+      clearGraphicsMap(zoneViews);
+      clearGraphicsMap(pendingExplosionViews);
       clearPooledImageMaps(noteFlightViews, noteFlightPool);
       clearPooledImageMaps(enemyHitViews, enemyHitPool);
       clearPooledImageMaps(packetBreakViews, packetBreakPool);
@@ -389,37 +419,146 @@ function syncNotePacketPresentation(
 function syncBeamPresentation(
   scene: Phaser.Scene,
   viewGraph: CombatSceneViewGraph,
+  runtime: CombatRuntime,
   beamViews: Map<string, Phaser.GameObjects.Image>,
   beamPool: Phaser.GameObjects.Image[],
-  vfxSnapshot: CombatVfxSnapshot,
 ): void {
-  const activeIds = new Set(vfxSnapshot.beamHits.map((beam) => beam.id));
+  const activeIds = new Set(runtime.beams.map((beam) => beam.runtimeId));
 
   reclaimImageViews(beamViews, beamPool, activeIds);
 
-  for (const beam of vfxSnapshot.beamHits) {
-    let beamView = beamViews.get(beam.id);
+  for (const beam of runtime.beams) {
+    let beamView = beamViews.get(beam.runtimeId);
 
     if (!beamView) {
       beamView = acquirePooledImage(scene, viewGraph, beamPool, COMBAT_VFX_BEAM_TEXTURE_KEY);
       beamView.setBlendMode(Phaser.BlendModes.ADD);
-      beamViews.set(beam.id, beamView);
+      beamViews.set(beam.runtimeId, beamView);
     }
 
-    const deltaX = beam.to.x - beam.from.x;
-    const deltaY = beam.to.y - beam.from.y;
-    const length = Math.hypot(deltaX, deltaY);
+    const slotAnchor = viewGraph.anchors.getSlotAnchor(beam.slotIndex);
+    if (!slotAnchor) {
+      beamView.setVisible(false);
+      continue;
+    }
 
-    beamView.setDepth(CombatLayoutConfig.DEPTH.VFX);
+    let from = { x: slotAnchor.x, y: slotAnchor.y };
+    let to: { x: number; y: number } | null = null;
+
+    if (beam.beamType === 'lock-on') {
+      to = beam.targetEnemyRuntimeId ? viewGraph.anchors.getEnemyAnchor(beam.targetEnemyRuntimeId) : null;
+    } else if (beam.sweepStartAngleRad !== null && beam.sweepEndAngleRad !== null && beam.sweepLengthPx !== null) {
+      const progress = Math.min(
+        1,
+        Math.max(0, (runtime.combatElapsedMs - beam.startedAtMs) / Math.max(1, beam.expiresAtMs - beam.startedAtMs)),
+      );
+      const angle = beam.sweepStartAngleRad + (beam.sweepEndAngleRad - beam.sweepStartAngleRad) * progress;
+      to = {
+        x: from.x + Math.cos(angle) * beam.sweepLengthPx,
+        y: from.y + Math.sin(angle) * beam.sweepLengthPx,
+      };
+    }
+
+    if (!to) {
+      beamView.setVisible(false);
+      continue;
+    }
+
+    const deltaX = to.x - from.x;
+    const deltaY = to.y - from.y;
+    const length = Math.hypot(deltaX, deltaY);
+    beamView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.05);
     beamView.setTint(CombatVisualConfig.NOTE_COLORS[beam.color]);
-    beamView.setAlpha(beam.alpha);
-    beamView.setPosition((beam.from.x + beam.to.x) / 2, (beam.from.y + beam.to.y) / 2);
+    beamView.setAlpha(0.9);
+    beamView.setPosition((from.x + to.x) / 2, (from.y + to.y) / 2);
     beamView.setRotation(Math.atan2(deltaY, deltaX));
-    beamView.setScale(
-      length / CombatVfxConfig.TEXTURES.BEAM_WIDTH_PX,
-      beam.thickness / CombatVfxConfig.TEXTURES.BEAM_HEIGHT_PX,
-    );
+    beamView.setScale(length / CombatVfxConfig.TEXTURES.BEAM_WIDTH_PX, beam.beamType === 'lock-on' ? 0.9 : 0.65);
     beamView.setVisible(true);
+  }
+}
+
+function syncProjectilePresentation(
+  scene: Phaser.Scene,
+  viewGraph: CombatSceneViewGraph,
+  runtime: CombatRuntime,
+  projectileViews: Map<string, Phaser.GameObjects.Image>,
+  projectilePool: Phaser.GameObjects.Image[],
+): void {
+  const activeIds = new Set(runtime.projectiles.map((projectile) => projectile.runtimeId));
+  reclaimImageViews(projectileViews, projectilePool, activeIds);
+
+  for (const projectile of runtime.projectiles) {
+    let projectileView = projectileViews.get(projectile.runtimeId);
+    if (!projectileView) {
+      projectileView = acquirePooledImage(scene, viewGraph, projectilePool, COMBAT_VFX_GLOW_TEXTURE_KEY);
+      projectileView.setBlendMode(Phaser.BlendModes.ADD);
+      projectileViews.set(projectile.runtimeId, projectileView);
+    }
+
+    projectileView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.12);
+    projectileView.setPosition(projectile.x, projectile.y);
+    projectileView.setTint(CombatVisualConfig.NOTE_COLORS[projectile.color]);
+    projectileView.setAlpha(0.95);
+    projectileView.setScale(0.22, 0.22);
+    projectileView.setVisible(true);
+  }
+}
+
+function syncZonePresentation(
+  scene: Phaser.Scene,
+  viewGraph: CombatSceneViewGraph,
+  runtime: CombatRuntime,
+  zoneViews: Map<string, Phaser.GameObjects.Graphics>,
+): void {
+  const activeIds = new Set(runtime.zones.map((zone) => zone.runtimeId));
+  reclaimGraphicsViews(zoneViews, activeIds);
+
+  for (const zone of runtime.zones) {
+    let zoneView = zoneViews.get(zone.runtimeId);
+    if (!zoneView) {
+      zoneView = scene.add.graphics();
+      viewGraph.effects.transientLayer.add(zoneView);
+      zoneViews.set(zone.runtimeId, zoneView);
+    }
+
+    const pulse = 0.92 + Math.sin(runtime.combatElapsedMs * 0.006 + zone.centerX * 0.01) * 0.05;
+    zoneView.clear();
+    zoneView.setDepth(CombatLayoutConfig.DEPTH.VFX - 0.03);
+    zoneView.fillStyle(CombatVisualConfig.NOTE_COLORS[zone.color], 0.12);
+    zoneView.fillCircle(zone.centerX, zone.centerY, zone.radius * pulse);
+    zoneView.lineStyle(3, CombatVisualConfig.NOTE_COLORS[zone.color], 0.85);
+    zoneView.strokeCircle(zone.centerX, zone.centerY, zone.radius * pulse);
+    zoneView.lineStyle(1, 0xffffff, 0.22);
+    zoneView.strokeCircle(zone.centerX, zone.centerY, zone.radius * 0.72);
+  }
+}
+
+function syncPendingExplosionPresentation(
+  scene: Phaser.Scene,
+  viewGraph: CombatSceneViewGraph,
+  runtime: CombatRuntime,
+  pendingExplosionViews: Map<string, Phaser.GameObjects.Graphics>,
+): void {
+  const activeIds = new Set(runtime.pendingExplosions.map((explosion) => explosion.runtimeId));
+  reclaimGraphicsViews(pendingExplosionViews, activeIds);
+
+  for (const explosion of runtime.pendingExplosions) {
+    let explosionView = pendingExplosionViews.get(explosion.runtimeId);
+    if (!explosionView) {
+      explosionView = scene.add.graphics();
+      viewGraph.effects.transientLayer.add(explosionView);
+      pendingExplosionViews.set(explosion.runtimeId, explosionView);
+    }
+
+    const progress = Math.min(1, Math.max(0, 1 - (explosion.detonateAtMs - runtime.combatElapsedMs) / Math.max(1, explosion.detonateAtMs - (explosion.detonateAtMs - 1000))));
+    explosionView.clear();
+    explosionView.setDepth(CombatLayoutConfig.DEPTH.VFX - 0.01);
+    explosionView.fillStyle(CombatVisualConfig.NOTE_COLORS[explosion.color], 0.08 + progress * 0.08);
+    explosionView.fillCircle(explosion.centerX, explosion.centerY, explosion.radius);
+    explosionView.lineStyle(3, CombatVisualConfig.NOTE_COLORS[explosion.color], 0.9);
+    explosionView.strokeCircle(explosion.centerX, explosion.centerY, explosion.radius * (0.72 + progress * 0.28));
+    explosionView.lineStyle(1, 0xffffff, 0.28);
+    explosionView.strokeCircle(explosion.centerX, explosion.centerY, explosion.radius * (0.3 + progress * 0.25));
   }
 }
 
@@ -622,4 +761,27 @@ function clearPooledImageMaps(
 
   activeViews.clear();
   pool.length = 0;
+}
+
+function reclaimGraphicsViews(
+  activeViews: Map<string, Phaser.GameObjects.Graphics>,
+  activeIds: Set<string>,
+): void {
+  for (const [id, view] of activeViews.entries()) {
+    if (activeIds.has(id)) {
+      continue;
+    }
+
+    view.destroy();
+    activeViews.delete(id);
+  }
+}
+
+function clearGraphicsMap(
+  activeViews: Map<string, Phaser.GameObjects.Graphics>,
+): void {
+  for (const view of activeViews.values()) {
+    view.destroy();
+  }
+  activeViews.clear();
 }

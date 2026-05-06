@@ -4,10 +4,15 @@ import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { resolveCombatActivations } from './CombatActivation';
+import { advanceCombatBeams, clearCombatBeams } from './CombatBeams';
 import { advanceCombatEnemyPressure } from './CombatEnemyPressure';
+import { advanceCombatPendingExplosions, clearCombatPendingExplosions } from './CombatExplosions';
 import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 import { evaluateCombatOutcome } from './CombatOutcome';
+import { advanceCombatPawnBuffs, clearCombatPawnBuffs } from './CombatPawnBuffs';
+import { advanceCombatProjectiles, advanceCombatQueuedVolleys, clearCombatProjectiles } from './CombatProjectiles';
 import { advanceCombatRotation, rewindCombatRotation } from './CombatRotation';
+import { advanceCombatStatuses, clearCombatEnemyStatuses } from './CombatStatuses';
 import {
   initializeCombatWaveRuntime,
   activatePendingCombatSubWaves,
@@ -19,6 +24,7 @@ import {
   resetCombatFrameEffects,
   type CombatRuntimeEvent,
 } from './CombatRuntimeEvents';
+import { advanceCombatZones, clearCombatZones } from './CombatZones';
 import type { CombatSubWaveConfig, CombatWaveDefinition } from '@config/CombatWaveConfig';
 
 export type CombatState = 'preview' | 'running' | 'paused' | 'victory' | 'defeat';
@@ -54,6 +60,125 @@ export interface CombatEnemyRuntime {
   spawned: boolean;
   nextAttackAtMs: number;
   renderContainerName: string;
+}
+
+export interface CombatSourceSnapshot {
+  damageMultiplier: number;
+  finisherConsumedNotes: number;
+  finisherDamageMultiplier: number;
+  nextSlotBuffBonusPercent: number;
+}
+
+export interface CombatProjectileRuntime {
+  runtimeId: string;
+  pawnId: string;
+  slotIndex: number;
+  color: NoteColor;
+  x: number;
+  y: number;
+  previousX: number;
+  previousY: number;
+  directionX: number;
+  directionY: number;
+  speedPxPerSec: number;
+  remainingLifetimeMs: number;
+  damage: number;
+  sourceSnapshot: CombatSourceSnapshot;
+  bounceRemaining: number;
+  splitChildCount: number;
+  splitConeAngleDeg: number;
+  splitChildLifetimeMs: number;
+  ignoredEnemyRuntimeIds: string[];
+  canSplit: boolean;
+}
+
+export interface CombatQueuedVolleyRuntime {
+  runtimeId: string;
+  pawnId: string;
+  slotIndex: number;
+  color: NoteColor;
+  damage: number;
+  shotsRemaining: number;
+  intervalMs: number;
+  nextFireAtMs: number;
+  projectileSpeedPxPerSec: number;
+  projectileLifetimeMs: number;
+  sourceSnapshot: CombatSourceSnapshot;
+  bounceRemaining: number;
+  splitChildCount: number;
+  splitConeAngleDeg: number;
+  splitChildLifetimeMs: number;
+}
+
+export interface CombatPendingExplosionRuntime {
+  runtimeId: string;
+  pawnId: string;
+  slotIndex: number;
+  color: NoteColor;
+  centerX: number;
+  centerY: number;
+  radius: number;
+  damage: number;
+  detonateAtMs: number;
+  sourceSnapshot: CombatSourceSnapshot;
+  burnZoneOnDetonate: {
+    radius: number;
+    durationMs: number;
+    tickIntervalMs: number;
+    damagePerTick: number;
+  } | null;
+}
+
+export interface CombatBeamRuntime {
+  runtimeId: string;
+  pawnId: string;
+  slotIndex: number;
+  color: NoteColor;
+  beamType: 'lock-on' | 'sweeping';
+  damage: number;
+  startedAtMs: number;
+  expiresAtMs: number;
+  sourceSnapshot: CombatSourceSnapshot;
+  targetEnemyRuntimeId: string | null;
+  tickIntervalMs: number | null;
+  nextTickAtMs: number | null;
+  sweepStartAngleRad: number | null;
+  sweepEndAngleRad: number | null;
+  sweepLengthPx: number | null;
+  previouslyIntersectedEnemyRuntimeIds: string[];
+  slowOnHit: {
+    slowMultiplier: number;
+    durationMs: number;
+  } | null;
+}
+
+export interface CombatZoneRuntime {
+  runtimeId: string;
+  pawnId: string;
+  slotIndex: number;
+  color: NoteColor;
+  centerX: number;
+  centerY: number;
+  radius: number;
+  damagePerTick: number;
+  tickIntervalMs: number;
+  nextTickAtMs: number;
+  expiresAtMs: number;
+  sourceSnapshot: CombatSourceSnapshot;
+  nextSlotDamageBuffPercent: number | null;
+}
+
+export interface CombatEnemyStatusRuntime {
+  enemyRuntimeId: string;
+  slowMultiplier: number;
+  expiresAtMs: number;
+}
+
+export interface CombatPawnBuffRuntime {
+  kind: 'next-slot-damage-buff';
+  slotIndex: number;
+  sourcePawnId: string;
+  damageBonusPercent: number;
 }
 
 export interface CombatSubWaveSpawnBag {
@@ -105,6 +230,13 @@ export interface CombatRuntime {
   slots: CombatSlotRuntime[];
   notePacket: CombatNotePacketRuntime;
   enemies: CombatEnemyRuntime[];
+  projectiles: CombatProjectileRuntime[];
+  queuedVolleys: CombatQueuedVolleyRuntime[];
+  pendingExplosions: CombatPendingExplosionRuntime[];
+  beams: CombatBeamRuntime[];
+  zones: CombatZoneRuntime[];
+  enemyStatuses: Map<string, CombatEnemyStatusRuntime>;
+  pawnBuffs: Array<CombatPawnBuffRuntime | null>;
   wave: CombatWaveRuntime;
   outcome: {
     victory: boolean;
@@ -113,6 +245,9 @@ export interface CombatRuntime {
   effects: {
     transientIds: string[];
     pendingEvents: CombatRuntimeEvent[];
+  };
+  ids: {
+    nextEffectId: number;
   };
 }
 
@@ -209,6 +344,13 @@ export function createCombatRuntime(
       visuals: [],
     },
     enemies,
+    projectiles: [],
+    queuedVolleys: [],
+    pendingExplosions: [],
+    beams: [],
+    zones: [],
+    enemyStatuses: new Map(),
+    pawnBuffs: Array.from({ length: CombatContentConfig.SLOT_COUNT }, () => null),
     wave: createInitialCombatWaveState(waveIndex, totalWaves, initialWave),
     outcome: {
       victory: false,
@@ -217,6 +359,9 @@ export function createCombatRuntime(
     effects: {
       transientIds: [],
       pendingEvents: [],
+    },
+    ids: {
+      nextEffectId: 1,
     },
   };
 
@@ -269,6 +414,13 @@ export function advanceCombatRuntime(
     const forwardDeltaMs = advanceCombatTimeControl(runtime, deltaMs);
     const crossings = forwardDeltaMs > 0 ? advanceCombatRotation(runtime, forwardDeltaMs) : [];
     resolveCombatActivations(runtime, crossings);
+    advanceCombatQueuedVolleys(runtime);
+    advanceCombatProjectiles(runtime, forwardDeltaMs);
+    advanceCombatPendingExplosions(runtime);
+    advanceCombatBeams(runtime, forwardDeltaMs);
+    advanceCombatZones(runtime);
+    advanceCombatStatuses(runtime);
+    advanceCombatPawnBuffs(runtime);
     advanceCombatEnemyPressure(runtime, deltaMs);
     spawnCombatEnemies(runtime, options.random ?? Math.random);
     runtime.wave.enemiesRemaining = calculateCombatEnemiesRemaining(runtime);
@@ -315,6 +467,10 @@ export function setCombatState(runtime: CombatRuntime, nextState: CombatState): 
   runtime.state = nextState;
   runtime.outcome.victory = nextState === 'victory';
   runtime.outcome.defeat = nextState === 'defeat';
+
+  if (nextState === 'victory' || nextState === 'defeat') {
+    clearCombatTransientState(runtime);
+  }
 
   return true;
 }
@@ -414,4 +570,13 @@ function advanceCombatTimeControl(runtime: CombatRuntime, deltaMs: number): numb
 
 function PhaserMathClamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function clearCombatTransientState(runtime: CombatRuntime): void {
+  clearCombatProjectiles(runtime);
+  clearCombatPendingExplosions(runtime);
+  clearCombatBeams(runtime);
+  clearCombatZones(runtime);
+  clearCombatEnemyStatuses(runtime);
+  clearCombatPawnBuffs(runtime);
 }

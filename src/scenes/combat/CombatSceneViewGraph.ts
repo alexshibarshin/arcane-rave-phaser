@@ -571,33 +571,8 @@ function renderSlotUprightPresentation(
   slot: CombatRenderModel['record']['slots'][number],
   container: Phaser.GameObjects.Container,
 ): void {
-  const pedestal = slot.presentation.upright.pedestal;
   const construct = slot.presentation.upright.construct;
   const tierStars = slot.presentation.upright.tierStars;
-
-  if (pedestal) {
-    const pedestalGraphic = scene.add.graphics();
-
-    pedestalGraphic.fillStyle(pedestal.color, 0.16);
-    pedestalGraphic.fillRoundedRect(
-      -CombatVisualConfig.SLOT.PEDESTAL_WIDTH / 2,
-      26,
-      CombatVisualConfig.SLOT.PEDESTAL_WIDTH,
-      CombatVisualConfig.SLOT.PEDESTAL_HEIGHT,
-      14,
-    );
-    pedestalGraphic.lineStyle(2, pedestal.color, 0.95);
-    pedestalGraphic.strokeRoundedRect(
-      -CombatVisualConfig.SLOT.PEDESTAL_WIDTH / 2,
-      26,
-      CombatVisualConfig.SLOT.PEDESTAL_WIDTH,
-      CombatVisualConfig.SLOT.PEDESTAL_HEIGHT,
-      14,
-    );
-    pedestalGraphic.lineStyle(2, 0xe4f6ff, 0.35);
-    pedestalGraphic.strokeLineShape(new Phaser.Geom.Line(-28, 18, 28, 18));
-    container.add(pedestalGraphic);
-  }
 
   if (!construct) {
     const emptyDock = scene.add.graphics();
@@ -610,40 +585,14 @@ function renderSlotUprightPresentation(
     return;
   }
 
-  const graphics = scene.add.graphics();
+  const sprite = scene.add.image(construct.spriteOffsetX, construct.spriteOffsetY - 2, construct.spriteTextureKey, construct.spriteFrame);
+  sprite.setOrigin(0.5, 0.5);
+  sprite.setDisplaySize(86, 86);
 
-  graphics.lineStyle(3, construct.color, 0.95);
-  graphics.fillStyle(construct.color, 0.14);
-
-  if (construct.family === 'generator') {
-    graphics.beginPath();
-    graphics.moveTo(0, -36);
-    graphics.lineTo(34, 0);
-    graphics.lineTo(0, 36);
-    graphics.lineTo(-34, 0);
-    graphics.closePath();
-    graphics.fillPath();
-    graphics.strokePath();
-    graphics.lineStyle(2, 0xe8fbff, 0.75);
-    graphics.strokeLineShape(new Phaser.Geom.Line(-22, 0, 22, 0));
-    graphics.strokeLineShape(new Phaser.Geom.Line(0, -22, 0, 22));
-  } else {
-    graphics.beginPath();
-    graphics.moveTo(0, -42);
-    graphics.lineTo(30, 28);
-    graphics.lineTo(0, 12);
-    graphics.lineTo(-30, 28);
-    graphics.closePath();
-    graphics.fillPath();
-    graphics.strokePath();
-    graphics.lineStyle(2, 0xe8fbff, 0.7);
-    graphics.strokeLineShape(new Phaser.Geom.Line(0, -32, 0, 16));
-  }
-
-  container.add(graphics);
+  container.add(sprite);
 
   if (tierStars) {
-    const stars = scene.add.text(0, CombatVisualConfig.SLOT.STAR_OFFSET_Y, '★'.repeat(tierStars.count), {
+    const stars = scene.add.text(0, 46, '★'.repeat(tierStars.count), {
       color: `#${tierStars.color.toString(16).padStart(6, '0')}`,
       fontFamily: 'monospace',
       fontSize: `${CombatVisualConfig.TIER_STAR_FONT_SIZE_PX}px`,

@@ -1,1323 +1,213 @@
 import { describe, expect, it } from 'vitest';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
-import { CombatContentConfig } from '@config/CombatContentConfig';
-import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
-import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
-import { CombatWaveConfig } from '@config/CombatWaveConfig';
-import { COMBAT_NEEDLE_ANGLE_DEGREES, createCombatLayoutPlan } from './CombatLayout';
+import { COMBAT_NEEDLE_ANGLE_DEGREES } from './CombatLayout';
 import {
   advanceCombatRuntime,
   createCombatRuntime,
-  restoreCombatChrono,
   setCombatNotePacket,
   setCombatState,
-  setCombatTimeControlMode,
+  type CombatRuntime,
 } from './CombatRuntime';
 
-describe('createCombatRuntime', () => {
-  const initialWave = CombatWaveConfig.WAVES[0];
-  const firstSubWave = initialWave?.subWaves[0];
-  const secondSubWave = initialWave?.subWaves[1];
-
-  it('creates the initial combat source of truth from combat config', () => {
-    const runtime = createCombatRuntime();
-    const totalSpawnCount = (initialWave?.subWaves ?? []).reduce(
-      (subWaveTotal, subWave) =>
-        subWaveTotal + Object.values(subWave.enemies).reduce((sum, count) => sum + count, 0),
-      0,
-    );
-
-    expect(runtime.state).toBe('preview');
-    expect(runtime.combatElapsedMs).toBe(0);
-    expect(runtime.waveElapsedMs).toBe(0);
-    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP);
-    expect(runtime.record.currentAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
-    expect(runtime.record.previousAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
-    expect(runtime.record.rotationSpeedDegPerSecond).toBe(
-      CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND,
-    );
-    expect(runtime.record.startAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
-    expect(runtime.notePacket.color).toBeNull();
-    expect(runtime.notePacket.count).toBe(0);
-    expect(runtime.notePacket.visuals).toEqual([]);
-    expect(runtime.wave.currentWaveIndex).toBe(0);
-    expect(runtime.wave.totalWaves).toBe(CombatWaveConfig.WAVES.length);
-    expect(runtime.wave.pendingSubWaves).toEqual(
-      CombatWaveConfig.WAVES[0]?.subWaves.filter((sw) => sw.startTimeMs > 0) ?? [],
-    );
-    expect(runtime.slots).toHaveLength(CombatContentConfig.SLOT_COUNT);
-    expect(runtime.enemies).toHaveLength(totalSpawnCount);
-    expect(runtime.wave.activeSubWaves).toHaveLength(1);
-    expect(runtime.wave.activeSubWaves[0]?.startTimeMs).toBe(0);
-    expect(runtime.wave.enemiesRemaining).toBe(totalSpawnCount);
-    expect(runtime.outcome.victory).toBe(false);
-    expect(runtime.outcome.defeat).toBe(false);
-    expect(runtime.effects.transientIds).toEqual([]);
-    expect(runtime.effects.pendingEvents).toEqual([]);
-  });
-
-  it('stores preview timing in runtime from combat balance config', () => {
+describe('CombatRuntime', () => {
+  it('creates combat state with effect-family containers for the overhaul', () => {
     const runtime = createCombatRuntime();
 
-    expect(runtime.preview).toEqual({
-      elapsedMs: 0,
-      durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
-    });
-    expect(runtime.time).toEqual({
-      chrono: {
-        current: CombatTimeControlConfig.CHRONO_START,
-        max: CombatTimeControlConfig.CHRONO_MAX,
-      },
-      requestedMode: 'idle',
-      activeMode: 'idle',
-      activeIntensity: 0,
-    });
+    expect(runtime.projectiles).toEqual([]);
+    expect(runtime.queuedVolleys).toEqual([]);
+    expect(runtime.pendingExplosions).toEqual([]);
+    expect(runtime.beams).toEqual([]);
+    expect(runtime.zones).toEqual([]);
+    expect(Array.from(runtime.enemyStatuses.values())).toEqual([]);
+    expect(runtime.pawnBuffs).toHaveLength(8);
   });
 
-  it('can initialize combat from a non-zero authored wave index', () => {
-    const runtime = createCombatRuntime(Math.random, {
-      waveIndex: 1,
-      totalWaves: CombatWaveConfig.WAVES.length,
-    });
-    const selectedWave = CombatWaveConfig.WAVES[1];
-
-    expect(runtime.wave.currentWaveIndex).toBe(1);
-    expect(runtime.wave.currentWaveId).toBe(selectedWave?.id ?? null);
-    expect(runtime.record.startAngle).toBe(selectedWave?.startAngleDeg ?? 0);
-    expect(runtime.wave.pendingSubWaves).toEqual(
-      selectedWave?.subWaves.filter((sw) => sw.startTimeMs > 0) ?? [],
-    );
-  });
-
-  it('can override authored slot presets with a stage-provided combat loadout', () => {
-    const runtime = createCombatRuntime(Math.random, {
-      slotPawnIds: [
-        'pawn-red-generator',
-        null,
-        'pawn-blue-finisher',
-        null,
-        null,
-        null,
-        null,
-        null,
-      ],
-    });
-
-    expect(runtime.slots.map((slot) => slot.pawnId)).toEqual([
-      'pawn-red-generator',
-      null,
-      'pawn-blue-finisher',
-      null,
-      null,
-      null,
-      null,
-      null,
-    ]);
-    expect(runtime.slots.map((slot) => slot.pawnTier)).toEqual([1, null, 1, null, null, null, null, null]);
-  });
-
-  it('centralizes note packet updates with capacity clamping and fresh visual ids', () => {
-    const runtime = createCombatRuntime();
-
-    setCombatNotePacket(runtime, 'red', CombatBalanceConfig.NOTE_PACKET_CAPACITY + 2);
-    expect(runtime.notePacket).toEqual({
-      color: 'red',
-      count: CombatBalanceConfig.NOTE_PACKET_CAPACITY,
-      visuals: [
-        'note-packet:red:0',
-        'note-packet:red:1',
-        'note-packet:red:2',
-        'note-packet:red:3',
-        'note-packet:red:4',
-      ],
-    });
-
-    setCombatNotePacket(runtime, 'blue', 2);
-    expect(runtime.notePacket).toEqual({
-      color: 'blue',
-      count: 2,
-      visuals: ['note-packet:blue:0', 'note-packet:blue:1'],
-    });
-
-    setCombatNotePacket(runtime, 'blue', 0);
-    expect(runtime.notePacket).toEqual({
-      color: null,
-      count: 0,
-      visuals: [],
-    });
-  });
-
-  it('creates runtime enemies for all spawns across all sub-waves', () => {
-    const runtime = createCombatRuntime();
-    const expectedCounts = new Map<string, number>();
-
-    for (const subWave of initialWave?.subWaves ?? []) {
-      for (const [enemyId, count] of Object.entries(subWave.enemies)) {
-        expectedCounts.set(enemyId, (expectedCounts.get(enemyId) ?? 0) + count);
-      }
-    }
-
-    expect(runtime.enemies).toHaveLength(
-      Array.from(expectedCounts.values()).reduce((sum, count) => sum + count, 0),
-    );
-
-    for (const [enemyId, count] of expectedCounts) {
-      expect(runtime.enemies.filter((enemy) => enemy.definitionId === enemyId)).toHaveLength(count);
-    }
-
-    expect(runtime.enemies.map((enemy) => enemy.runtimeId)).toEqual(
-      runtime.enemies.map((_, index) => `enemy-runtime-${index + 1}`),
-    );
-
-    for (const enemy of runtime.enemies) {
-      expect(enemy.spawned).toBe(false);
-      expect(enemy.state).toBe('moving');
-    }
-  });
-
-  it('creates stable runtime slots from the combat layout geometry', () => {
-    const runtime = createCombatRuntime();
-    const layout = createCombatLayoutPlan();
-    const activeWave = CombatWaveConfig.WAVES[0];
-    const activePreset = CombatContentConfig.SLOT_PRESETS.find(
-      (preset) => preset.id === activeWave?.slotPresetId,
-    );
-
-    expect(runtime.slots).toEqual(
-      layout.record.slots.map((slot) => ({
-        slotIndex: slot.index,
-        pawnId: activePreset?.slots[slot.index] ?? null,
-        pawnTier: activePreset?.slots[slot.index] ? 1 : null,
-        worldPosition: {
-          x:
-            layout.record.centerX
-            + Math.cos((slot.centerAngleDeg * Math.PI) / 180) * layout.record.radius * 0.75,
-          y:
-            layout.record.centerY
-            + Math.sin((slot.centerAngleDeg * Math.PI) / 180) * layout.record.radius * 0.75,
-        },
-        sectorCenterAngleDeg: slot.centerAngleDeg,
-        activationVisualState: 'idle',
-      })),
-    );
-  });
-
-  it('stores provided pawn tiers alongside stage loadout ids', () => {
-    const runtime = createCombatRuntime(Math.random, {
-      slotPawnIds: ['pawn-red-generator', null, 'pawn-blue-finisher', null, null, null, null, null],
-      slotPawnTiers: [2, null, 3, null, null, null, null, null],
-    });
-
-    expect(runtime.slots.map((slot) => slot.pawnTier)).toEqual([2, null, 3, null, null, null, null, null]);
-  });
-
-  it('advances from preview to running after the config-driven preview delay', () => {
-    const runtime = createCombatRuntime();
-
-    advanceCombatRuntime(runtime, CombatBalanceConfig.PREVIEW_DURATION_MS - 1);
-    expect(runtime.state).toBe('preview');
-    expect(runtime.preview.elapsedMs).toBe(CombatBalanceConfig.PREVIEW_DURATION_MS - 1);
-
-    advanceCombatRuntime(runtime, 1);
-    expect(runtime.state).toBe('running');
-    expect(runtime.preview.elapsedMs).toBe(CombatBalanceConfig.PREVIEW_DURATION_MS);
-  });
-
-  it('rotates the record counterclockwise only while combat is running', () => {
-    const runtime = createCombatRuntime();
-
-    advanceCombatRuntime(runtime, 500);
-    expect(runtime.record.previousAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
-    expect(runtime.record.currentAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
-
-    setCombatState(runtime, 'running');
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(runtime.record.previousAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
-    expect(runtime.record.currentAngle).toBe(
-      CombatBalanceConfig.RECORD_START_ANGLE_DEG
-        - CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND,
-    );
-
-    setCombatState(runtime, 'paused');
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(runtime.record.previousAngle).toBe(CombatBalanceConfig.RECORD_START_ANGLE_DEG);
-    expect(runtime.record.currentAngle).toBe(
-      CombatBalanceConfig.RECORD_START_ANGLE_DEG
-        - CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND,
-    );
-  });
-
-  it('fast-forwards activations while draining chrono', () => {
-    const runtime = createCombatRuntime();
-    setCombatState(runtime, 'running');
-    setCombatTimeControlMode(runtime, 'fast-forward');
+  it('spawns a Ruby Needle projectile, damages an enemy, and still emits generator notes', () => {
+    const runtime = createReadyRuntime('ruby-needle');
+    const target = primeEnemy(runtime, 0, { x: 100, y: 60, color: 'red' });
 
     advanceCombatRuntime(runtime, 1000);
 
-    expect(runtime.record.currentAngle).toBeCloseTo(
-      CombatBalanceConfig.RECORD_START_ANGLE_DEG
-        - CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND
-          * CombatTimeControlConfig.FAST_FORWARD_ROTATION_SPEED_MULTIPLIER,
-    );
-    expect(runtime.time.activeMode).toBe('fast-forward');
-    expect(runtime.time.chrono.current).toBeCloseTo(
-      CombatTimeControlConfig.CHRONO_START
-        - CombatTimeControlConfig.FAST_FORWARD_CHRONO_DRAIN_PER_SECOND,
-    );
+    expect(target.currentHp).toBe(0);
+    expect(runtime.notePacket.color).toBe('red');
+    expect(runtime.notePacket.count).toBe(2);
+    expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:projectile-spawned')).toBe(true);
+    expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:projectile-hit')).toBe(true);
   });
 
-  it('rewinds the record without replaying forward crossings on the rewound segment', () => {
-    const runtime = createCombatRuntime();
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = -20;
-    runtime.record.previousAngle = -20;
-    setCombatTimeControlMode(runtime, 'rewind');
+  it('clamps same-color generator note overflow while still allowing no-target casts', () => {
+    const runtime = createReadyRuntime('moss-patch');
+    setCombatNotePacket(runtime, 'green', 4);
 
     advanceCombatRuntime(runtime, 1000);
 
-    expect(runtime.record.currentAngle).toBeCloseTo(
-      -20
-        + CombatBalanceConfig.RECORD_ROTATION_SPEED_DEG_PER_SECOND
-          * CombatTimeControlConfig.REWIND_ROTATION_SPEED_MULTIPLIER,
-    );
-    expect(runtime.time.activeMode).toBe('rewind');
-    expect(runtime.effects.pendingEvents).toEqual([]);
+    expect(runtime.notePacket.color).toBe('green');
+    expect(runtime.notePacket.count).toBe(CombatBalanceConfig.NOTE_PACKET_CAPACITY);
+    expect(runtime.zones).toHaveLength(0);
   });
 
-  it('regenerates chrono while waiting and clamps recovery to the resource cap', () => {
-    const runtime = createCombatRuntime();
-    setCombatState(runtime, 'running');
-    runtime.time.chrono.current = 40;
-
-    advanceCombatRuntime(runtime, 1000);
-    expect(runtime.time.chrono.current).toBeCloseTo(
-      40 + CombatTimeControlConfig.CHRONO_IDLE_REGEN_PER_SECOND,
-    );
-
-    restoreCombatChrono(runtime, 999);
-    expect(runtime.time.chrono.current).toBe(CombatTimeControlConfig.CHRONO_MAX);
-  });
-
-  it('resumes enemy attack cadence from the same paused state without catch-up bursts', () => {
-    const runtime = createCombatRuntime();
-    const attacker = runtime.enemies[0];
-
-    expect(attacker).toBeDefined();
-
-    if (!attacker) {
-      return;
-    }
-
-    runtime.wave.activeSubWaves = [];
-    runtime.wave.spawnBags.clear();
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-    }
-    setCombatState(runtime, 'running');
-    attacker.spawned = true;
-    attacker.state = 'attacking';
-    attacker.nextAttackAtMs = 1000;
-
-    advanceCombatRuntime(runtime, 900);
-    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP);
-
-    setCombatState(runtime, 'paused');
-    advanceCombatRuntime(runtime, 5000);
-    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP);
-
-    setCombatState(runtime, 'running');
-    advanceCombatRuntime(runtime, 99);
-    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP);
-
-    advanceCombatRuntime(runtime, 1);
-    expect(runtime.baseHp).toBe(CombatBalanceConfig.BASE_HP - CombatBalanceConfig.ENEMY_ATTACK_DAMAGE);
-  });
-
-  it('activates every crossed empty slot in temporal order during multi-crossing frames', () => {
-    const runtime = createCombatRuntime();
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = -10;
-    runtime.record.previousAngle = -10;
-    runtime.record.rotationSpeedDegPerSecond = 180;
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(runtime.effects.transientIds).toEqual([
-      'slot-activated:1',
-      'slot-activated:2',
-      'slot-activated:3',
-      'slot-activated:4',
-    ]);
-    expect(runtime.slots[1]?.activationVisualState).toBe('active');
-    expect(runtime.slots[2]?.activationVisualState).toBe('active');
-    expect(runtime.slots[3]?.activationVisualState).toBe('active');
-    expect(runtime.slots[4]?.activationVisualState).toBe('active');
-    expect(runtime.slots[0]?.activationVisualState).toBe('idle');
-    expect(runtime.slots[5]?.activationVisualState).toBe('idle');
-  });
-
-  it('resolves a crossed generator slot against the nearest living enemy and creates a new packet from empty', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const generatorSlot = runtime.slots[0];
-
-    expect(generatorSlot).toBeDefined();
-
-    if (!generatorSlot) {
-      return;
-    }
-
-    generatorSlot.pawnId = 'pawn-red-generator';
-    generatorSlot.worldPosition = { x: 100, y: 100 };
-    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    const nearestEnemy = runtime.enemies[0];
-    const fartherEnemy = runtime.enemies[1];
-
-    expect(nearestEnemy).toBeDefined();
-    expect(fartherEnemy).toBeDefined();
-
-    if (!nearestEnemy || !fartherEnemy) {
-      return;
-    }
-
-    nearestEnemy.spawned = true;
-    nearestEnemy.state = 'moving';
-    nearestEnemy.currentHp = nearestEnemy.maxHp;
-    nearestEnemy.x = 120;
-    nearestEnemy.y = 100;
-
-    fartherEnemy.spawned = true;
-    fartherEnemy.state = 'moving';
-    fartherEnemy.currentHp = fartherEnemy.maxHp;
-    fartherEnemy.x = 320;
-    fartherEnemy.y = 260;
-
-    for (const enemy of runtime.enemies.slice(2)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(runtime.effects.transientIds).toContain('slot-activated:0');
-    expect(runtime.slots[0]?.activationVisualState).toBe('active');
-    const weaknessDamage = Math.round(CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 1.5);
-
-    expect(nearestEnemy.currentHp).toBe(
-      Math.max(0, nearestEnemy.maxHp - weaknessDamage),
-    );
-    expect(fartherEnemy.currentHp).toBe(fartherEnemy.maxHp);
-    expect(runtime.notePacket).toEqual({
-      color: 'red',
-      count: 2,
-      visuals: ['note-packet:red:0', 'note-packet:red:1'],
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:enemy-hit',
-      payload: {
-        enemyId: nearestEnemy.runtimeId,
-        slotIndex: 0,
-        attackerColor: 'red',
-        damage: weaknessDamage,
-        currentHp: nearestEnemy.currentHp,
-        maxHp: nearestEnemy.maxHp,
-        wasWeaknessHit: true,
-      },
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:generator-notes-emitted',
-      payload: {
-        slotIndex: 0,
-        pawnId: 'pawn-red-generator',
-        color: 'red',
-        count: 2,
-      },
-    });
-  });
-
-  it('adds two notes to a same-color packet and clamps the count at the packet cap', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-    setCombatNotePacket(runtime, 'green', CombatBalanceConfig.NOTE_PACKET_CAPACITY - 1);
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 200, y: 200 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const generatorSlot = runtime.slots[0];
-
-    expect(generatorSlot).toBeDefined();
-
-    if (!generatorSlot) {
-      return;
-    }
-
-    generatorSlot.pawnId = 'pawn-green-generator';
-    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(runtime.notePacket).toEqual({
-      color: 'green',
-      count: CombatBalanceConfig.NOTE_PACKET_CAPACITY,
-      visuals: [
-        'note-packet:green:0',
-        'note-packet:green:1',
-        'note-packet:green:2',
-        'note-packet:green:3',
-        'note-packet:green:4',
-      ],
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:note-packet-changed',
-      payload: {
-        color: 'green',
-        count: CombatBalanceConfig.NOTE_PACKET_CAPACITY,
-      },
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:generator-notes-emitted',
-      payload: {
-        slotIndex: 0,
-        pawnId: 'pawn-green-generator',
-        color: 'green',
-        count: 1,
-      },
-    });
-  });
-
-  it('breaks a foreign-color packet, replaces it with a two-note generator packet, and emits a color-break signal', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-    setCombatNotePacket(runtime, 'blue', 4);
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 200, y: 200 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const generatorSlot = runtime.slots[0];
-
-    expect(generatorSlot).toBeDefined();
-
-    if (!generatorSlot) {
-      return;
-    }
-
-    generatorSlot.pawnId = 'pawn-red-generator';
-    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(runtime.notePacket).toEqual({
-      color: 'red',
-      count: 2,
-      visuals: ['note-packet:red:0', 'note-packet:red:1'],
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:note-packet-color-broke',
-      payload: {
-        previousColor: 'blue',
-        nextColor: 'red',
-      },
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:generator-notes-emitted',
-      payload: {
-        slotIndex: 0,
-        pawnId: 'pawn-red-generator',
-        color: 'red',
-        count: 2,
-      },
-    });
-  });
-
-  it('ignores dead or invalid enemies, resolves safely into empty space, and still mutates the packet', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const generatorSlot = runtime.slots[0];
-
-    expect(generatorSlot).toBeDefined();
-
-    if (!generatorSlot) {
-      return;
-    }
-
-    generatorSlot.pawnId = 'pawn-blue-generator';
-    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    const nearestDeadEnemy = runtime.enemies[0];
-    const unspawnedEnemy = runtime.enemies[1];
-
-    expect(nearestDeadEnemy).toBeDefined();
-    expect(unspawnedEnemy).toBeDefined();
-
-    if (!nearestDeadEnemy || !unspawnedEnemy) {
-      return;
-    }
-
-    nearestDeadEnemy.spawned = true;
-    nearestDeadEnemy.state = 'dead';
-    nearestDeadEnemy.currentHp = 0;
-    nearestDeadEnemy.x = 105;
-    nearestDeadEnemy.y = 100;
-
-    unspawnedEnemy.spawned = false;
-    unspawnedEnemy.state = 'moving';
-    unspawnedEnemy.currentHp = unspawnedEnemy.maxHp;
-    unspawnedEnemy.x = 110;
-    unspawnedEnemy.y = 100;
-
-    for (const enemy of runtime.enemies.slice(2)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:enemy-hit')).toBe(false);
-    expect(runtime.notePacket).toEqual({
-      color: 'blue',
-      count: 2,
-      visuals: ['note-packet:blue:0', 'note-packet:blue:1'],
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:pawn-resolved',
-      payload: {
-        slotIndex: 0,
-        pawnId: 'pawn-blue-generator',
-        pawnType: 'generator',
-      },
-    });
-  });
-
-  it('consumes a same-color packet, scales finisher damage by consumed notes, and leaves one output note', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-    setCombatNotePacket(runtime, 'green', 3);
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const finisherSlot = runtime.slots[0];
-    const targetEnemy = runtime.enemies[0];
-
-    expect(finisherSlot).toBeDefined();
-    expect(targetEnemy).toBeDefined();
-
-    if (!finisherSlot || !targetEnemy) {
-      return;
-    }
-
-    finisherSlot.pawnId = 'pawn-green-finisher';
-    finisherSlot.worldPosition = { x: 100, y: 100 };
-    finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    targetEnemy.spawned = true;
-    targetEnemy.state = 'moving';
-    targetEnemy.currentHp = targetEnemy.maxHp;
-    targetEnemy.x = 120;
-    targetEnemy.y = 100;
-
-    for (const enemy of runtime.enemies.slice(1)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(targetEnemy.currentHp).toBe(
-      targetEnemy.maxHp
-        - Math.round(
-          CombatBalanceConfig.FINISHER_BASE_DAMAGE
-            * CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[3],
-        ),
-    );
-    expect(runtime.notePacket).toEqual({
-      color: 'blue',
-      count: 1,
-      visuals: ['note-packet:blue:0'],
-    });
-  });
-
-  it('breaks a foreign-color packet, still attacks on the zero-consumed multiplier path, and emits one output note', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-    setCombatNotePacket(runtime, 'red', 5);
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const finisherSlot = runtime.slots[0];
-    const targetEnemy = runtime.enemies[0];
-
-    expect(finisherSlot).toBeDefined();
-    expect(targetEnemy).toBeDefined();
-
-    if (!finisherSlot || !targetEnemy) {
-      return;
-    }
-
-    finisherSlot.pawnId = 'pawn-green-finisher';
-    finisherSlot.worldPosition = { x: 100, y: 100 };
-    finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    targetEnemy.spawned = true;
-    targetEnemy.state = 'moving';
-    targetEnemy.currentHp = targetEnemy.maxHp;
-    targetEnemy.x = 120;
-    targetEnemy.y = 100;
-
-    for (const enemy of runtime.enemies.slice(1)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(targetEnemy.currentHp).toBe(
-      targetEnemy.maxHp
-        - Math.round(
-          CombatBalanceConfig.FINISHER_BASE_DAMAGE
-            * CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[0],
-        ),
-    );
-    expect(runtime.notePacket).toEqual({
-      color: 'blue',
-      count: 1,
-      visuals: ['note-packet:blue:0'],
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:note-packet-color-broke',
-      payload: {
-        previousColor: 'red',
-        nextColor: 'blue',
-      },
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:finisher-consumed-notes',
-      payload: {
-        slotIndex: 0,
-        pawnId: 'pawn-green-finisher',
-        color: 'green',
-        consumedNotes: 0,
-        multiplier: CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[0],
-      },
-    });
-    expect(runtime.effects.pendingEvents).toContainEqual({
-      event: 'combat:finisher-output-note-emitted',
-      payload: {
-        slotIndex: 0,
-        pawnId: 'pawn-green-finisher',
-        color: 'blue',
-        count: 1,
-      },
-    });
-  });
-
-  it('moves enemies downward until they enter base attack range and then switches them to attacking', () => {
-    const runtime = createCombatRuntime();
-    const enemy = runtime.enemies[0];
-
-    expect(enemy).toBeDefined();
-
-    if (!enemy) {
-      return;
-    }
-
-    // Prevent spawn bag from interfering with manual test setup
-    runtime.wave.activeSubWaves = [];
-    runtime.wave.spawnBags.clear();
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-    }
-    enemy.x = CombatLayoutConfig.BASE_X;
-    enemy.y = CombatLayoutConfig.ENEMY_ZONE_TOP;
-    enemy.spawned = true;
-    setCombatState(runtime, 'running');
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(enemy.x).toBe(CombatLayoutConfig.BASE_X);
-    expect(enemy.y).toBe(
-      CombatLayoutConfig.ENEMY_ZONE_TOP + CombatBalanceConfig.ENEMY_MOVE_SPEED_PX_PER_SEC,
-    );
-    expect(enemy.state).toBe('moving');
-
-    advanceCombatRuntime(runtime, 15750);
-
-    expect(enemy.x).toBe(CombatLayoutConfig.BASE_X);
-    expect(enemy.y).toBe(
-      CombatLayoutConfig.BASE_Y - CombatBalanceConfig.ENEMY_ATTACK_RANGE_PX,
-    );
-    expect(enemy.state).toBe('attacking');
-  });
-
-  it('lets an attacking enemy damage the base on its cooldown until combat reaches defeat', () => {
-    const runtime = createCombatRuntime();
-    const enemy = runtime.enemies[0];
-
-    expect(enemy).toBeDefined();
-
-    if (!enemy) {
-      return;
-    }
-
-    // Prevent spawn bag from interfering with manual test setup
-    runtime.wave.activeSubWaves = [];
-    runtime.wave.spawnBags.clear();
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-    }
-    runtime.baseHp = 2;
-    enemy.state = 'attacking';
-    enemy.spawned = true;
-    enemy.nextAttackAtMs = 0;
-    setCombatState(runtime, 'running');
-
-    advanceCombatRuntime(runtime, CombatBalanceConfig.ENEMY_ATTACK_COOLDOWN_MS - 1);
-    expect(runtime.baseHp).toBe(2);
-    expect(runtime.state).toBe('running');
-
-    advanceCombatRuntime(runtime, 1);
-    expect(runtime.baseHp).toBe(1);
-    expect(runtime.state).toBe('running');
-
-    advanceCombatRuntime(runtime, CombatBalanceConfig.ENEMY_ATTACK_COOLDOWN_MS);
-    expect(runtime.baseHp).toBe(0);
-    expect(runtime.state).toBe('defeat');
-  });
-
-  it('applies a 1.5x weakness multiplier when a red generator attacks a red enemy', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const generatorSlot = runtime.slots[0];
-    const targetEnemy = runtime.enemies[0];
-    const otherEnemy = runtime.enemies[1];
-
-    expect(generatorSlot).toBeDefined();
-    expect(targetEnemy).toBeDefined();
-    expect(otherEnemy).toBeDefined();
-
-    if (!generatorSlot || !targetEnemy || !otherEnemy) {
-      return;
-    }
-
-    generatorSlot.pawnId = 'pawn-red-generator';
-    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    // enemy[0] is red (weak to red) — should take weakness damage
-    targetEnemy.color = 'red';
-    targetEnemy.spawned = true;
-    targetEnemy.state = 'moving';
-    targetEnemy.currentHp = targetEnemy.maxHp;
-    targetEnemy.x = 120;
-    targetEnemy.y = 100;
-
-    // enemy[1] is green (no weakness advantage) — should take normal damage
-    otherEnemy.color = 'green';
-    otherEnemy.spawned = true;
-    otherEnemy.state = 'moving';
-    otherEnemy.currentHp = otherEnemy.maxHp;
-    otherEnemy.x = 320;
-    otherEnemy.y = 260;
-
-    for (const enemy of runtime.enemies.slice(2)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
-
-    advanceCombatRuntime(runtime, 1000);
-
-    // red vs red => weakness multiplier 1.5x applied
-    expect(targetEnemy.currentHp).toBe(
-      targetEnemy.maxHp - Math.round(CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 1.5),
-    );
-    // other enemy was not targeted
-    expect(otherEnemy.currentHp).toBe(otherEnemy.maxHp);
-    // event payload must include the weakness flag
-    const hitPayload = runtime.effects.pendingEvents.find(
-      (e) => e.event === 'combat:enemy-hit' && e.payload.enemyId === targetEnemy.runtimeId,
-    )?.payload as { damage: number; wasWeaknessHit: boolean };
-    expect(hitPayload.damage).toBe(Math.round(CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 1.5));
-    expect(hitPayload.wasWeaknessHit).toBe(true);
-  });
-
-  it('applies a 1.5x weakness multiplier to finisher damage when colors match', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
+  it('captures finisher notes for Heatline, starts a beam, and emits its output note', () => {
+    const runtime = createReadyRuntime('heatline');
+    const target = primeEnemy(runtime, 0, { x: 100, y: 80, color: 'red', hp: 200 });
     setCombatNotePacket(runtime, 'red', 3);
 
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
+    advanceCombatRuntime(runtime, 1000);
 
-    const finisherSlot = runtime.slots[0];
-    const targetEnemy = runtime.enemies[0];
-    const otherEnemy = runtime.enemies[1];
+    expect(runtime.notePacket.color).toBe('blue');
+    expect(runtime.notePacket.count).toBe(1);
+    expect(runtime.beams).toHaveLength(1);
+    expect(target.currentHp).toBeLessThan(target.maxHp);
+    expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:beam-started')).toBe(true);
+  });
 
-    expect(finisherSlot).toBeDefined();
-    expect(targetEnemy).toBeDefined();
-    expect(otherEnemy).toBeDefined();
+  it('queues Meteor Drop, detonates it later, and leaves a burn zone after impact', () => {
+    const runtime = createReadyRuntime('meteor-drop');
+    const target = primeEnemy(runtime, 0, { x: 110, y: 70, color: 'green' });
 
-    if (!finisherSlot || !targetEnemy || !otherEnemy) {
-      return;
-    }
+    advanceCombatRuntime(runtime, 1000);
+    expect(runtime.pendingExplosions).toHaveLength(1);
+    expect(target.currentHp).toBe(target.maxHp);
 
-    finisherSlot.pawnId = 'pawn-red-finisher';
-    finisherSlot.worldPosition = { x: 100, y: 100 };
-    finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+    advanceCombatRuntime(runtime, 1000);
+    expect(runtime.pendingExplosions).toHaveLength(0);
+    expect(runtime.zones.length).toBeGreaterThan(0);
+  });
 
-    // enemy[0] is red (weak to red) — should take weakness damage
-    targetEnemy.color = 'red';
-    targetEnemy.spawned = true;
-    targetEnemy.state = 'moving';
-    targetEnemy.currentHp = targetEnemy.maxHp;
-    targetEnemy.x = 120;
-    targetEnemy.y = 100;
-
-    // enemy[1] is green (no weakness) — should take normal finisher damage
-    otherEnemy.color = 'green';
-    otherEnemy.spawned = true;
-    otherEnemy.state = 'moving';
-    otherEnemy.currentHp = otherEnemy.maxHp;
-    otherEnemy.x = 320;
-    otherEnemy.y = 260;
-
-    for (const enemy of runtime.enemies.slice(2)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
+  it('ticks Moss Patch zones immediately on spawn and on later intervals', () => {
+    const runtime = createReadyRuntime('moss-patch');
+    const target = primeEnemy(runtime, 0, { x: 90, y: 90, color: 'red' });
 
     advanceCombatRuntime(runtime, 1000);
 
-    // finisher base: 20 * 1.4 (3 notes) = 28, then weakness 28 * 1.5 = 42
-    const finisherBaseDamage = Math.round(
-      CombatBalanceConfig.FINISHER_BASE_DAMAGE
-        * CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[3],
-    );
-    const finisherWeakDamage = Math.round(finisherBaseDamage * 1.5);
+    expect(runtime.zones).toHaveLength(1);
+    const hpAfterFirstTick = target.currentHp;
+    expect(hpAfterFirstTick).toBeLessThan(target.maxHp);
 
-    expect(targetEnemy.currentHp).toBe(Math.max(0, targetEnemy.maxHp - finisherWeakDamage));
-    // other enemy was not targeted (only nearest is hit)
-    expect(otherEnemy.currentHp).toBe(otherEnemy.maxHp);
-
-    const hitPayload = runtime.effects.pendingEvents.find(
-      (e) => e.event === 'combat:enemy-hit' && e.payload.enemyId === targetEnemy.runtimeId,
-    )?.payload as { damage: number; wasWeaknessHit: boolean };
-    expect(hitPayload.damage).toBe(finisherWeakDamage);
-    expect(hitPayload.wasWeaknessHit).toBe(true);
-  });
-
-  it('applies no multiplier for different-color matchups', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const generatorSlot = runtime.slots[0];
-    const targetEnemy = runtime.enemies[0];
-
-    expect(generatorSlot).toBeDefined();
-    expect(targetEnemy).toBeDefined();
-
-    if (!generatorSlot || !targetEnemy) {
-      return;
-    }
-
-    generatorSlot.pawnId = 'pawn-green-generator';
-    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    // green vs red = different colors, so no weakness multiplier
-    targetEnemy.color = 'blue';
-    targetEnemy.spawned = true;
-    targetEnemy.state = 'moving';
-    targetEnemy.currentHp = targetEnemy.maxHp;
-    targetEnemy.x = 120;
-    targetEnemy.y = 100;
-
-    for (const enemy of runtime.enemies.slice(1)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
-
-    advanceCombatRuntime(runtime, 1000);
-
-    // different colors: no weakness multiplier, plain baseDamage
-    expect(targetEnemy.currentHp).toBe(targetEnemy.maxHp - CombatBalanceConfig.GENERATOR_BASE_DAMAGE);
-
-    const hitPayload = runtime.effects.pendingEvents.find(
-      (e) => e.event === 'combat:enemy-hit' && e.payload.enemyId === targetEnemy.runtimeId,
-    )?.payload as { damage: number; wasWeaknessHit: boolean };
-    expect(hitPayload.damage).toBe(CombatBalanceConfig.GENERATOR_BASE_DAMAGE);
-    expect(hitPayload.wasWeaknessHit).toBe(false);
-  });
-
-  it('scales generator damage by pawn tier before weakness is applied', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.pawnTier = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const generatorSlot = runtime.slots[0];
-    const targetEnemy = runtime.enemies[0];
-
-    expect(generatorSlot).toBeDefined();
-    expect(targetEnemy).toBeDefined();
-
-    if (!generatorSlot || !targetEnemy) {
-      return;
-    }
-
-    generatorSlot.pawnId = 'pawn-red-generator';
-    generatorSlot.pawnTier = 2;
-    generatorSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    targetEnemy.color = 'green';
-    targetEnemy.spawned = true;
-    targetEnemy.state = 'moving';
-    targetEnemy.currentHp = targetEnemy.maxHp;
-    targetEnemy.x = 120;
-    targetEnemy.y = 100;
-
-    for (const enemy of runtime.enemies.slice(1)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(targetEnemy.currentHp).toBe(
-      Math.max(0, targetEnemy.maxHp - CombatBalanceConfig.GENERATOR_BASE_DAMAGE * 3),
-    );
-  });
-
-  it('scales finisher damage by pawn tier before note and weakness multipliers are applied', () => {
-    const runtime = createCombatRuntime();
-
-    runtime.spawn.pendingEnemyRuntimeIds = [];
-    setCombatState(runtime, 'running');
-    runtime.record.currentAngle = 10;
-    runtime.record.previousAngle = 10;
-    runtime.record.rotationSpeedDegPerSecond = 20;
-    setCombatNotePacket(runtime, 'blue', 3);
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-      slot.pawnTier = null;
-      slot.worldPosition = { x: 100, y: 100 };
-      slot.sectorCenterAngleDeg = null;
-    }
-
-    const finisherSlot = runtime.slots[0];
-    const targetEnemy = runtime.enemies[0];
-
-    expect(finisherSlot).toBeDefined();
-    expect(targetEnemy).toBeDefined();
-
-    if (!finisherSlot || !targetEnemy) {
-      return;
-    }
-
-    finisherSlot.pawnId = 'pawn-blue-finisher';
-    finisherSlot.pawnTier = 3;
-    finisherSlot.worldPosition = { x: 100, y: 100 };
-    finisherSlot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
-
-    targetEnemy.color = 'blue';
-    targetEnemy.spawned = true;
-    targetEnemy.state = 'moving';
-    targetEnemy.currentHp = 999;
-    targetEnemy.maxHp = 999;
-    targetEnemy.x = 120;
-    targetEnemy.y = 100;
-
-    for (const enemy of runtime.enemies.slice(1)) {
-      enemy.spawned = false;
-      enemy.state = 'dead';
-      enemy.currentHp = 0;
-    }
-
-    advanceCombatRuntime(runtime, 1000);
-
-    const expectedDamage = Math.round(
-      CombatBalanceConfig.FINISHER_BASE_DAMAGE
-        * 8
-        * CombatBalanceConfig.FINISHER_CONSUMED_NOTES_MULTIPLIER[3]
-        * CombatBalanceConfig.WEAKNESS_MULTIPLIER,
-    );
-
-    expect(targetEnemy.currentHp).toBe(999 - expectedDamage);
-  });
-
-  it('activates sub-waves by absolute startTimeMs from wave start, not by completion order', () => {
-    const runtime = createCombatRuntime();
-    const firstSubWaveEnemyCount = Object.values(firstSubWave?.enemies ?? {}).reduce(
-      (sum, count) => sum + count,
-      0,
-    );
-    const secondSubWaveEnemyCount = Object.values(secondSubWave?.enemies ?? {}).reduce(
-      (sum, count) => sum + count,
-      0,
-    );
-    const firstSubWaveEnemyEntries = Object.entries(firstSubWave?.enemies ?? {});
-    const [firstEnemyId, firstEnemyCount = 0] = firstSubWaveEnemyEntries[0] ?? [];
-    const [secondEnemyId] = firstSubWaveEnemyEntries[1] ?? [];
-
-    // At t=0: first sub-wave (startTimeMs: 0) should be active with spawn bag
-    expect(runtime.wave.activeSubWaves).toHaveLength(1);
-    expect(runtime.wave.activeSubWaves[0]?.id).toBe(firstSubWave?.id);
-    expect(runtime.wave.pendingSubWaves).toHaveLength((initialWave?.subWaves.length ?? 1) - 1);
-    expect(runtime.wave.pendingSubWaves[0]?.id).toBe(secondSubWave?.id);
-    expect(runtime.wave.spawnBags.get(firstSubWave?.id ?? '')?.enemyRuntimeIds).toHaveLength(
-      firstSubWaveEnemyCount,
-    );
-    const firstEnemyRuntimes = runtime.enemies.filter((e) => e.definitionId === firstEnemyId);
-    const secondEnemyRuntime = runtime.enemies.find((e) => e.definitionId === secondEnemyId);
-    expect(firstEnemyRuntimes.length).toBeGreaterThanOrEqual(firstEnemyCount);
-    expect(secondEnemyRuntime).toBeDefined();
-    expect(runtime.wave.spawnBags.get(firstSubWave?.id ?? '')?.enemyRuntimeIds).toContain(
-      firstEnemyRuntimes[0]?.runtimeId,
-    );
-    expect(runtime.wave.spawnBags.get(firstSubWave?.id ?? '')?.enemyRuntimeIds).toContain(
-      secondEnemyRuntime?.runtimeId,
-    );
-
-    // After advancing past second sub-wave start time
-    setCombatState(runtime, 'running');
-    runtime.waveElapsedMs = (secondSubWave?.startTimeMs ?? 1) - 1;
-
-    advanceCombatRuntime(runtime, 1);
-
-    expect(runtime.wave.activeSubWaves).toHaveLength(2);
-    expect(runtime.wave.pendingSubWaves).toHaveLength(
-      Math.max(0, (initialWave?.subWaves.length ?? 0) - 2),
-    );
-    expect(runtime.wave.spawnBags.has(secondSubWave?.id ?? '')).toBe(true);
-    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(4);
-
-    advanceCombatRuntime(runtime, (secondSubWave?.spawnIntervalMs ?? 1) - 1);
-    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(4);
-
-    advanceCombatRuntime(runtime, 1);
-    expect(runtime.enemies.filter((enemy) => enemy.spawned)).toHaveLength(5);
-  });
-
-  it('bootstraps enemy spawns into the top lane with config-driven x range and anti-clumping', () => {
-    const runtime = createCombatRuntime();
-    const randomValues = [0.1, 0.12, 0.9];
-    let randomIndex = 0;
-    const nextRandom = (): number => {
-      const value = randomValues[randomIndex] ?? randomValues[randomValues.length - 1] ?? 0.5;
-
-      randomIndex += 1;
-
-      return value;
-    };
-
-    for (const slot of runtime.slots) {
-      slot.pawnId = null;
-    }
-    setCombatState(runtime, 'running');
-
-    advanceCombatRuntime(runtime, 1, { random: nextRandom });
-
-    // After 1ms the first enemy from the shuffled bag should be spawned
-    const spawnedAfterFirst = runtime.enemies.filter((e) => e.spawned);
-    expect(spawnedAfterFirst).toHaveLength(1);
-    expect(spawnedAfterFirst[0]?.state).toBe('moving');
-    expect(spawnedAfterFirst[0]?.y).toBe(CombatLayoutConfig.ENEMY_SPAWN_Y);
-    expect(spawnedAfterFirst[0]?.x).toBeGreaterThanOrEqual(
-      CombatLayoutConfig.ENEMY_SPAWN_X_MIN,
-    );
-    expect(spawnedAfterFirst[0]?.x).toBeLessThanOrEqual(CombatLayoutConfig.ENEMY_SPAWN_X_MAX);
-
-    advanceCombatRuntime(runtime, CombatWaveConfig.WAVES[0]?.subWaves[0]?.spawnIntervalMs ?? 900, {
-      random: nextRandom,
-    });
-
-    // After 900ms more the second enemy from the bag should be spawned
-    const spawnedAfterSecond = runtime.enemies.filter((e) => e.spawned);
-    expect(spawnedAfterSecond).toHaveLength(2);
-    // One enemy was just spawned (y at spawn line), the other moved down
-    expect(spawnedAfterSecond.some((e) => e.y === CombatLayoutConfig.ENEMY_SPAWN_Y)).toBe(true);
-    const spawnXs = spawnedAfterSecond.map((e) => e.x ?? 0);
-    expect(Math.abs((spawnXs[1] ?? 0) - (spawnXs[0] ?? 0))).toBeGreaterThanOrEqual(
-      CombatBalanceConfig.ENEMY_SPAWN_MIN_GAP_PX,
-    );
-  });
-
-  it('evaluates victory when all sub-waves started, all bags empty, and all enemies dead', () => {
-    const runtime = createCombatRuntime();
-    setCombatState(runtime, 'running');
-    const lastSubWave = initialWave?.subWaves[initialWave.subWaves.length - 1];
-    const maxSpawnIntervalMs = Math.max(
-      ...(initialWave?.subWaves.map((subWave) => subWave.spawnIntervalMs) ?? [0]),
-    );
-    const totalEnemies = runtime.enemies.length;
-
-    advanceCombatRuntime(runtime, (lastSubWave?.startTimeMs ?? 0) + totalEnemies * maxSpawnIntervalMs);
-
-    const allSpawned = runtime.enemies.filter((e) => e.spawned);
-    expect(allSpawned).toHaveLength(totalEnemies);
-
-    // Kill all enemies
-    for (const enemy of runtime.enemies) {
-      if (enemy.spawned) {
-        enemy.state = 'dead';
-        enemy.currentHp = 0;
-      }
-    }
-
-    // After all enemies dead and all bags empty, victory should be true
-    advanceCombatRuntime(runtime, 1);
-
-    expect(runtime.state).toBe('victory');
-    expect(runtime.outcome.victory).toBe(true);
-  });
-
-  it('does not evaluate victory when future sub-waves are still pending', () => {
-    const runtime = createCombatRuntime();
-    setCombatState(runtime, 'running');
-
-    const beforeSecondSubWaveMs = Math.max((secondSubWave?.startTimeMs ?? 1) - 1, 0);
-
-    advanceCombatRuntime(runtime, beforeSecondSubWaveMs);
-
-    // Kill all currently spawned enemies
-    for (const enemy of runtime.enemies) {
-      if (enemy.spawned) {
-        enemy.state = 'dead';
-        enemy.currentHp = 0;
-      }
-    }
-
-    // Advance a bit more - victory should NOT trigger because wave-1-b is still pending
     advanceCombatRuntime(runtime, 500);
-
-    expect(runtime.state).toBe('running');
-    expect(runtime.outcome.victory).toBe(false);
+    expect(target.currentHp).toBeLessThan(hpAfterFirstTick);
   });
 
-  it('emits enemies-left count via runtime wave state', () => {
-    const runtime = createCombatRuntime();
-    setCombatState(runtime, 'running');
-    const firstSubWaveEnemyCount = Object.values(firstSubWave?.enemies ?? {}).reduce(
-      (sum, count) => sum + count,
-      0,
-    );
-    const secondSubWaveEnemyCount = Object.values(secondSubWave?.enemies ?? {}).reduce(
-      (sum, count) => sum + count,
-      0,
-    );
+  it('heals the base from Lifebloom Scatter using actual damage dealt', () => {
+    const runtime = createReadyRuntime('lifebloom-scatter');
+    runtime.baseHp = 40;
+    primeEnemy(runtime, 0, { x: 100, y: 80, color: 'blue', hp: 120 });
 
-    advanceCombatRuntime(runtime, Math.max((secondSubWave?.startTimeMs ?? 1) - 1, 0));
+    advanceCombatRuntime(runtime, 1000);
 
-    const spawnedAfterFirst = runtime.enemies.filter((e) => e.spawned);
-    expect(spawnedAfterFirst).toHaveLength(3);
+    expect(runtime.baseHp).toBeGreaterThan(40);
+    expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:base-healed')).toBe(true);
+  });
 
-    expect(runtime.wave.enemiesRemaining).toBe(firstSubWaveEnemyCount + secondSubWaveEnemyCount);
+  it('stores a Pulse Garden buff on the next occupied slot and consumes it on that slot activation', () => {
+    const runtime = createReadyRuntime('pulse-garden', 0);
+    runtime.slots[1]!.pawnId = 'ruby-needle';
+    runtime.slots[1]!.pawnTier = 1;
+    runtime.slots[1]!.sectorCenterAngleDeg = null;
+    primeEnemy(runtime, 0, { x: 100, y: 80, color: 'red', hp: 120 });
+
+    advanceCombatRuntime(runtime, 1000);
+    expect(runtime.pawnBuffs[1]?.damageBonusPercent).toBe(0.35);
+
+    runtime.slots[0]!.sectorCenterAngleDeg = null;
+    runtime.slots[1]!.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+    runtime.record.currentAngle = 1;
+    runtime.record.previousAngle = 1;
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.pawnBuffs[1]).toBeNull();
+    expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:pawn-buff-consumed')).toBe(true);
+  });
+
+  it('applies Frost Sweep slow through the sweeping beam runtime', () => {
+    const runtime = createReadyRuntime('frost-sweep');
+    const target = primeEnemy(runtime, 0, { x: 100, y: 90, color: 'green', hp: 120 });
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.enemyStatuses.get(target.runtimeId)?.slowMultiplier).toBe(0.55);
+    expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:slow-applied')).toBe(true);
+  });
+
+  it('gives Pressure Burst its high-hp damage bonus only while the target is still healthy', () => {
+    const runtime = createReadyRuntime('pressure-burst');
+    const target = primeEnemy(runtime, 0, { x: 100, y: 70, color: 'blue', hp: 200 });
+
+    advanceCombatRuntime(runtime, 1000);
+    const firstHitHp = target.currentHp;
+
+    target.currentHp = 80;
+    runtime.record.currentAngle = 1;
+    runtime.record.previousAngle = 1;
+    runtime.slots[0]!.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(firstHitHp).toBeLessThan(158);
+    expect(target.currentHp).toBeGreaterThan(17);
+  });
+
+  it('fires Arc Bounce as a timed volley and can hit a second enemy after bouncing', () => {
+    const runtime = createReadyRuntime('arc-bounce');
+    const firstTarget = primeEnemy(runtime, 0, { x: 100, y: 70, color: 'green', hp: 120 });
+    const secondTarget = primeEnemy(runtime, 1, { x: 108, y: 56, color: 'red', hp: 120 });
+
+    advanceCombatRuntime(runtime, 1000);
+    expect(runtime.queuedVolleys).toHaveLength(1);
+
+    let projectileHitEvents = 0;
+    for (let index = 0; index < 5; index += 1) {
+      advanceCombatRuntime(runtime, 200);
+      projectileHitEvents += runtime.effects.pendingEvents.filter((event) => event.event === 'combat:projectile-hit').length;
+    }
+
+    expect(firstTarget.currentHp).toBeLessThan(firstTarget.maxHp);
+    expect(projectileHitEvents).toBeGreaterThan(1);
+    expect(secondTarget.currentHp).toBeLessThanOrEqual(secondTarget.maxHp);
+  });
+
+  it('splits Prism Volley shots into child projectiles that continue after the first hit', () => {
+    const runtime = createReadyRuntime('prism-volley');
+    const firstTarget = primeEnemy(runtime, 0, { x: 100, y: 70, color: 'red', hp: 120 });
+    const secondTarget = primeEnemy(runtime, 1, { x: 126, y: 48, color: 'green', hp: 120 });
+
+    advanceCombatRuntime(runtime, 1000);
+    advanceCombatRuntime(runtime, 250);
+
+    expect(runtime.projectiles.length).toBeGreaterThan(0);
+    expect(firstTarget.currentHp).toBeLessThan(firstTarget.maxHp);
+    expect(secondTarget.currentHp).toBeLessThanOrEqual(secondTarget.maxHp);
   });
 });
+
+function createReadyRuntime(
+  pawnId: string,
+  slotIndex = 0,
+): CombatRuntime {
+  const runtime = createCombatRuntime();
+  setCombatState(runtime, 'running');
+  runtime.preview.elapsedMs = runtime.preview.durationMs;
+  runtime.record.currentAngle = 1;
+  runtime.record.previousAngle = 1;
+  const slot = runtime.slots[slotIndex]!;
+  slot.pawnId = pawnId;
+  slot.pawnTier = 1;
+  slot.worldPosition = { x: 100, y: 120 };
+  slot.sectorCenterAngleDeg = COMBAT_NEEDLE_ANGLE_DEGREES;
+
+  return runtime;
+}
+
+function primeEnemy(
+  runtime: CombatRuntime,
+  enemyIndex: number,
+  options: { x: number; y: number; color: 'red' | 'green' | 'blue'; hp?: number },
+) {
+  const enemy = runtime.enemies[enemyIndex]!;
+  enemy.spawned = true;
+  enemy.state = 'moving';
+  enemy.x = options.x;
+  enemy.y = options.y;
+  enemy.color = options.color;
+  enemy.maxHp = options.hp ?? enemy.maxHp;
+  enemy.currentHp = options.hp ?? enemy.maxHp;
+  return enemy;
+}

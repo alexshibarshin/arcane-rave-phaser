@@ -1,6 +1,10 @@
 import Phaser from 'phaser';
 import capibaraDjSpriteUrl from '../../art/capibara_dj_s.png';
+import pawnSpriteMapUrl from '../../art/pawn_sprite_map.png';
 import { EntityConfig } from '@config/EntitiesConfig';
+import {
+  CombatContentConfig,
+} from '@config/CombatContentConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { emit } from '@events/EventBus';
@@ -19,6 +23,17 @@ export class BootScene extends Phaser.Scene {
   preload(): void {
     if (!this.textures.exists(CombatLayoutConfig.BASE_SPRITE_TEXTURE_KEY)) {
       this.load.image(CombatLayoutConfig.BASE_SPRITE_TEXTURE_KEY, capibaraDjSpriteUrl);
+    }
+
+    if (!this.textures.exists(CombatContentConfig.PAWN_SPRITE_TEXTURE_KEY)) {
+      this.load.spritesheet(
+        CombatContentConfig.PAWN_SPRITE_TEXTURE_KEY,
+        pawnSpriteMapUrl,
+        {
+          frameWidth: CombatContentConfig.PAWN_SPRITE_FRAME_WIDTH,
+          frameHeight: CombatContentConfig.PAWN_SPRITE_FRAME_HEIGHT,
+        },
+      );
     }
   }
 

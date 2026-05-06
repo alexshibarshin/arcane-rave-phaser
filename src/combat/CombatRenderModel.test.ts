@@ -73,9 +73,9 @@ describe('CombatRenderModel', () => {
   it('prefers stage-provided slot loadout over the authored wave preset', () => {
     const model = createCombatRenderModel({
       slotPawnIds: [
-        'pawn-green-generator',
+        'moss-patch',
         null,
-        'pawn-red-finisher',
+        'heatline',
         null,
         null,
         null,
@@ -84,16 +84,16 @@ describe('CombatRenderModel', () => {
       ],
     });
 
-    expect(model.record.slots[0]?.pawn?.id).toBe('pawn-green-generator');
-    expect(model.record.slots[2]?.pawn?.id).toBe('pawn-red-finisher');
+    expect(model.record.slots[0]?.pawn?.id).toBe('moss-patch');
+    expect(model.record.slots[2]?.pawn?.id).toBe('heatline');
     expect(model.record.slots[1]?.pawn).toBeNull();
   });
 
   it('renders stage-provided pawn tiers instead of hardcoded type-based stars', () => {
     const model = createCombatRenderModel({
       slotPawns: [
-        { pawnId: 'pawn-green-generator', tier: 3 },
-        { pawnId: 'pawn-red-finisher', tier: 2 },
+        { pawnId: 'moss-patch', tier: 3 },
+        { pawnId: 'heatline', tier: 2 },
         ...Array.from({ length: 6 }, () => ({ pawnId: null, tier: null })),
       ],
     });

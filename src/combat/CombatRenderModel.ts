@@ -14,11 +14,16 @@ import { createCombatLayoutPlan } from './CombatLayout';
 
 interface CombatRenderPawnModel {
   id: string;
+  displayName: string;
   type: PawnType;
   color: NoteColor;
   constructFamily: string;
   silhouetteKey: string;
   pedestalStyleKey: string;
+  spriteTextureKey: string;
+  spriteFrame: number;
+  spriteOffsetX: number;
+  spriteOffsetY: number;
   tierStars: number;
   ruleLabel: string;
 }
@@ -50,6 +55,10 @@ interface CombatSlotPresentationModel {
     construct: {
       family: string;
       silhouetteKey: string;
+      spriteTextureKey: string;
+      spriteFrame: number;
+      spriteOffsetX: number;
+      spriteOffsetY: number;
       color: number;
     } | null;
     tierStars: {
@@ -459,11 +468,16 @@ function createSlotPawnRenderModel(
 
   return {
     id: pawnDefinition.id,
+    displayName: pawnDefinition.displayName,
     type: pawnDefinition.type,
     color: pawnDefinition.color,
     constructFamily: pawnDefinition.visualFamilyKey,
     silhouetteKey: pawnDefinition.visualSilhouetteKey,
     pedestalStyleKey: pawnDefinition.pedestalStyleKey,
+    spriteTextureKey: pawnDefinition.art.textureKey,
+    spriteFrame: pawnDefinition.art.frame,
+    spriteOffsetX: pawnDefinition.art.offsetX,
+    spriteOffsetY: pawnDefinition.art.offsetY,
     tierStars: normalizePawnTier(pawnId, pawnTier),
     ruleLabel: pawnDefinition.type === 'generator' ? '+♪♪' : '♪♪♪ > ♪',
   };
@@ -516,6 +530,10 @@ function createSlotPresentationModel(
       construct: {
         family: pawnDefinition.visualFamilyKey,
         silhouetteKey: pawnDefinition.visualSilhouetteKey,
+        spriteTextureKey: pawnDefinition.art.textureKey,
+        spriteFrame: pawnDefinition.art.frame,
+        spriteOffsetX: pawnDefinition.art.offsetX,
+        spriteOffsetY: pawnDefinition.art.offsetY,
         color: accentColor,
       },
       tierStars: {
