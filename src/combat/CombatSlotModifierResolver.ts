@@ -1,8 +1,10 @@
 import { getCombatPawnDefinitionById, type NoteColor } from '@config/CombatContentConfig';
 import { SLOT_MODIFIER_CONFIG } from '@config/SlotModifierConfig';
 import type {
+  AoeRadiusScaleParams,
   ColorOutputNoteBonusParams,
   OutputNoteBonusParams,
+  ProjectileBonusParams,
 } from '@config/SlotModifierConfig';
 import type { CombatRuntime } from './CombatRuntime';
 
@@ -70,6 +72,31 @@ export function resolveSlotModifierMutations(
           ? params.bonusNoteCount
           : 0,
         colorFilter: params.targetColor,
+      };
+    }
+    case 'projectile-bonus': {
+      const params = modifier.effectParams as ProjectileBonusParams;
+
+      if (pawn.ability.primaryArchetype !== 'projectile') {
+        return DEFAULT_SLOT_MODIFIER_MUTATIONS;
+      }
+
+      return {
+        ...DEFAULT_SLOT_MODIFIER_MUTATIONS,
+        projectileCountBonus: params.projectileCountBonus,
+        volleyShotCountBonus: params.volleyShotCountBonus,
+      };
+    }
+    case 'aoe-radius-scale': {
+      const params = modifier.effectParams as AoeRadiusScaleParams;
+
+      if (pawn.ability.primaryArchetype !== 'explosion' && pawn.ability.primaryArchetype !== 'zone') {
+        return DEFAULT_SLOT_MODIFIER_MUTATIONS;
+      }
+
+      return {
+        ...DEFAULT_SLOT_MODIFIER_MUTATIONS,
+        radiusMultiplier: params.radiusMultiplier,
       };
     }
     default:

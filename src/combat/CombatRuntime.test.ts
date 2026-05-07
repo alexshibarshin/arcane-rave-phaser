@@ -316,6 +316,61 @@ describe('CombatRuntime', () => {
     expect(firstTarget.currentHp).toBeLessThan(firstTarget.maxHp);
     expect(secondTarget.currentHp).toBeLessThanOrEqual(secondTarget.maxHp);
   });
+
+  it('spawns extra shotgun projectiles from a projectile-bonus slot modifier', () => {
+    const runtime = createReadyRuntime('lifebloom-scatter');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-one-projectile' };
+    primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'blue', hp: 200 });
+
+    advanceCombatRuntime(runtime, 200);
+
+    const slotProjectiles = runtime.projectiles.filter((p) => p.slotIndex === 0);
+    expect(slotProjectiles).toHaveLength(4);
+  });
+
+  it('queues extra volley shots from a projectile-bonus slot modifier', () => {
+    const runtime = createReadyRuntime('prism-volley');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-one-projectile' };
+    primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'red', hp: 200 });
+
+    advanceCombatRuntime(runtime, 200);
+
+    expect(runtime.queuedVolleys).toHaveLength(1);
+    expect(runtime.queuedVolleys[0]?.shotsRemaining).toBe(3);
+  });
+
+  it('does not affect single-shot pattern with projectile-bonus modifier', () => {
+    const runtime = createReadyRuntime('ruby-needle');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-one-projectile' };
+    primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'red' });
+
+    advanceCombatRuntime(runtime, 200);
+
+    const slotProjectiles = runtime.projectiles.filter((p) => p.slotIndex === 0);
+    expect(slotProjectiles).toHaveLength(1);
+  });
+
+  it('multiplies delayed explosion radius with aoe-radius-scale modifier', () => {
+    const runtime = createReadyRuntime('meteor-drop');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-fifty-aoe-radius' };
+    primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'green', hp: 300 });
+
+    advanceCombatRuntime(runtime, 200);
+
+    expect(runtime.pendingExplosions).toHaveLength(1);
+    expect(runtime.pendingExplosions[0]?.radius).toBe(225);
+  });
+
+  it('multiplies zone radius with aoe-radius-scale modifier', () => {
+    const runtime = createReadyRuntime('moss-patch');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-fifty-aoe-radius' };
+    primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -120, color: 'red' });
+
+    advanceCombatRuntime(runtime, 200);
+
+    expect(runtime.zones).toHaveLength(1);
+    expect(runtime.zones[0]?.radius).toBe(195);
+  });
 });
 
 function createReadyRuntime(

@@ -12,7 +12,7 @@ import { createBeam } from './CombatBeams';
 import { createImmediateTargetedExplosion, queueDelayedExplosion } from './CombatExplosions';
 import { applyNextSlotDamageBuff, consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
 import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from './CombatProjectiles';
-import { resolveSlotModifierMutations } from './CombatSlotModifierResolver';
+import { resolveSlotModifierMutations, type SlotModifierMutations } from './CombatSlotModifierResolver';
 import {
   createDirectionToEnemy,
   getSlotOrigin,
@@ -113,18 +113,20 @@ function resolvePawnAbility(
     nextSlotBuffBonusPercent: number;
   },
 ): void {
+  const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
+
   switch (pawn.ability.primaryArchetype) {
     case 'projectile':
-      resolveProjectileAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
+      resolveProjectileAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot, mutations);
       return;
     case 'explosion':
-      resolveExplosionAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
+      resolveExplosionAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot, mutations);
       return;
     case 'beam':
       resolveBeamAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
       return;
     case 'zone':
-      resolveZoneAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
+      resolveZoneAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot, mutations);
       return;
   }
 }
@@ -140,6 +142,7 @@ function resolveProjectileAbility(
     finisherDamageMultiplier: number;
     nextSlotBuffBonusPercent: number;
   },
+  mutations: SlotModifierMutations,
 ): void {
   const origin = getSlotOrigin(slot);
   const target = selectFrontmostEnemy(runtime);
@@ -173,7 +176,7 @@ function resolveProjectileAbility(
       pawn,
       slot.slotIndex,
       sourceSnapshot,
-      ability.projectileCount ?? 1,
+      (ability.projectileCount ?? 1) + mutations.projectileCountBonus,
       ability.coneAngleDeg ?? 0,
       ability.projectileSpeed,
       ability.projectileLifetimeMs,
@@ -187,7 +190,7 @@ function resolveProjectileAbility(
     pawn,
     slot.slotIndex,
     sourceSnapshot,
-    ability.volleyShotCount ?? 1,
+    (ability.volleyShotCount ?? 1) + mutations.volleyShotCountBonus,
     ability.volleyIntervalMs ?? 1,
     ability.projectileSpeed,
     ability.projectileLifetimeMs,
@@ -206,7 +209,10 @@ function resolveExplosionAbility(
     finisherDamageMultiplier: number;
     nextSlotBuffBonusPercent: number;
   },
+  mutations: SlotModifierMutations,
 ): void {
+  const effectiveRadius = ability.radius * mutations.radiusMultiplier;
+
   if (ability.pattern === 'targeted-burst') {
     createImmediateTargetedExplosion(
       runtime,
@@ -214,7 +220,7 @@ function resolveExplosionAbility(
       slot.slotIndex,
       sourceSnapshot,
       ability.damage,
-      ability.radius,
+      effectiveRadius,
       ability.targeting,
     );
     return;
@@ -226,7 +232,7 @@ function resolveExplosionAbility(
     slot.slotIndex,
     sourceSnapshot,
     ability.damage,
-    ability.radius,
+    effectiveRadius,
     ability.delayMs ?? 0,
     ability.targeting,
   );
@@ -270,14 +276,17 @@ function resolveZoneAbility(
     finisherDamageMultiplier: number;
     nextSlotBuffBonusPercent: number;
   },
+  mutations: SlotModifierMutations,
 ): void {
+  const effectiveRadius = ability.radius * mutations.radiusMultiplier;
+
   createTargetedZone(
     runtime,
     pawn,
     slot.slotIndex,
     sourceSnapshot,
     ability.damage,
-    ability.radius,
+    effectiveRadius,
     ability.durationMs,
     ability.tickIntervalMs,
     ability.targeting,
