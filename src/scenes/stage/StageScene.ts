@@ -35,6 +35,8 @@ import {
 } from '@stage/StageFlowCoordinator';
 import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
+import { createModifierIcons, type ModifierIconView } from './ModifierIconRenderer';
+import { isPawnCompatibleWithModifier } from './ModifierCompatibility';
 
 interface StageRecordSlotView {
   slotIndex: number;
@@ -103,6 +105,7 @@ export class StageScene extends Phaser.Scene {
   private tooltipDescription?: Phaser.GameObjects.Text;
   private readonly slotViews: StageRecordSlotView[] = [];
   private readonly shopCardViews: StageShopCardView[] = [];
+  private modifierIconViews: ModifierIconView[] = [];
   private activeDropSlotIndex: number | null = null;
   private inspectedPawn: StagePawnTooltipState | null = null;
   private tooltipHoldTimer?: Phaser.Time.TimerEvent;
@@ -366,6 +369,7 @@ export class StageScene extends Phaser.Scene {
     this.recordPawnLayer = this.add.container(0, 0);
     this.recordInnerLabelLayer = this.add.container(0, 0);
     container.add([this.recordInnerLabelLayer, this.recordPawnLayer, centerGlow, centerCapibara, needle]);
+    this.modifierIconViews = createModifierIcons(this, this.runtime, container);
 
     return container;
   }
@@ -579,6 +583,9 @@ export class StageScene extends Phaser.Scene {
         this.tooltipLockedByDrag = false;
 
         if (applied) {
+          if (targetSlotIndex !== null) {
+            this.evaluateModifierCompatibility(targetSlotIndex);
+          }
           this.refreshBuildUI();
           this.publishSnapshot();
           this.hidePawnTooltip();
@@ -1075,8 +1082,22 @@ export class StageScene extends Phaser.Scene {
     this.waveLabel?.setVisible(buildVisible);
     this.statusLabel?.setVisible(buildVisible);
     this.tooltipContainer?.setVisible(buildVisible && this.inspectedPawn !== null);
+    this.modifierIconViews.forEach((view) => {
+      view.container.setVisible(buildVisible);
+    });
 
     this.playCoinFeedbackIfNeeded();
+  }
+
+  private evaluateModifierCompatibility(slotIndex: number): void {
+    const pawnId = this.runtime.build.slots[slotIndex]?.pawnId;
+    const slotAssignment = this.runtime.slotModifiers.find((assignment) => assignment.slotIndex === slotIndex);
+
+    if (!pawnId || !slotAssignment) {
+      return;
+    }
+
+    void isPawnCompatibleWithModifier(pawnId, slotAssignment.modifierId);
   }
 
   private bindPawnInspection(
