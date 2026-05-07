@@ -329,18 +329,18 @@ export const PAWN_SPRITE_TEXTURE_KEY = 'pawn-sprite-map';
 export const PAWN_SPRITE_FRAME_WIDTH = 362;
 export const PAWN_SPRITE_FRAME_HEIGHT = 362;
 const PAWN_ART_OFFSETS: Record<string, { offsetX: number; offsetY: number }> = {
-  'ruby-needle': { offsetX: 0, offsetY: 6 },
+  'ruby-needle': { offsetX: -4, offsetY: 6 },
   'bass-bomb': { offsetX: 0, offsetY: 4 },
-  'heatline': { offsetX: 0, offsetY: 6 },
-  'meteor-drop': { offsetX: 0, offsetY: 8 },
-  'moss-patch': { offsetX: 0, offsetY: 12 },
+  'heatline': { offsetX: 5, offsetY: 6 },
+  'meteor-drop': { offsetX: 8, offsetY: 8 },
+  'moss-patch': { offsetX: -4, offsetY: 12 },
   'lifebloom-scatter': { offsetX: 0, offsetY: 10 },
-  'thorn-fan': { offsetX: 0, offsetY: 8 },
+  'thorn-fan': { offsetX: 3, offsetY: 8 },
   'pulse-garden': { offsetX: 0, offsetY: 10 },
-  'frost-sweep': { offsetX: 0, offsetY: 14 },
+  'frost-sweep': { offsetX: -4, offsetY: 14 },
   'prism-volley': { offsetX: 0, offsetY: 10 },
   'pressure-burst': { offsetX: 0, offsetY: 10 },
-  'arc-bounce': { offsetX: 0, offsetY: 14 },
+  'arc-bounce': { offsetX: 8, offsetY: 0 },
 };
 
 const combatContentConfig = {
@@ -398,18 +398,18 @@ const combatContentConfig = {
       displayName: 'Heatline',
       color: 'red',
       outputNoteColor: 'blue',
-      damage: 16,
+      damage: 12,
       artFrame: 2,
       primaryArchetype: 'beam',
-      tooltip: 'Locks a beam for 3 sec., ticking 16 damage every 0.2 sec. If the target dies, it jumps to the next frontmost enemy.',
+      tooltip: 'Locks a beam for 3 sec., ticking 12 damage every 0.5 sec. If the target dies, it jumps to the next frontmost enemy.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'beam',
         pattern: 'lock-on-beam',
         targeting: 'frontmost-enemy',
-        damage: 16,
-        durationMs: 3000,
-        tickIntervalMs: 200,
+        damage: 12,
+        durationMs: 2500,
+        tickIntervalMs: 500,
       },
     }),
     createFinisherPawnDefinition({

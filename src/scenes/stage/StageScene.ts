@@ -374,7 +374,7 @@ export class StageScene extends Phaser.Scene {
   private createShopPanel(): Phaser.GameObjects.Container {
     const width = StagePresentationConfig.SHOP_PANEL_WIDTH;
     const height = StagePresentationConfig.SHOP_PANEL_HEIGHT;
-    const container = this.add.container(width / 2, StagePresentationConfig.SHOP_PANEL_Y);
+    const container = this.add.container(this.scale.width / 2, StagePresentationConfig.SHOP_PANEL_Y);
     const background = this.add.graphics();
     const x = -width / 2;
     const y = -height / 2;
