@@ -12,6 +12,7 @@ import { createBeam } from './CombatBeams';
 import { createImmediateTargetedExplosion, queueDelayedExplosion } from './CombatExplosions';
 import { applyNextSlotDamageBuff, consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
 import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from './CombatProjectiles';
+import { rewindCombatRotation } from './CombatRotation';
 import { resolveSlotModifierMutations, type SlotModifierMutations } from './CombatSlotModifierResolver';
 import {
   createDirectionToEnemy,
@@ -99,10 +100,59 @@ export function resolveCombatActivations(
     resolvePawnAbility(runtime, slot, pawn, sourceSnapshot);
     applyNoteRuleMutation(runtime, slot, pawn);
     consumePendingSlotDamageBuff(runtime, slot.slotIndex);
+
+    const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
+    if (mutations.doubleActivation) {
+      resolveDoubleActivation(runtime, slot, pawn);
+    }
   }
 }
 
-function resolvePawnAbility(
+function resolveDoubleActivation(
+  runtime: CombatRuntime,
+  slot: CombatSlotRuntime,
+  pawn: CombatPawnDefinition,
+): void {
+  const rewindAngleDeg = 45;
+  const rewindDeltaMs = (rewindAngleDeg / runtime.record.rotationSpeedDegPerSecond) * 1000;
+  rewindCombatRotation(runtime, rewindDeltaMs, 1);
+
+  const pendingBuff = readPendingSlotDamageBuff(runtime, slot.slotIndex);
+  const consumedNotes = pawn.type === 'finisher'
+    ? getFinisherConsumedNotes(runtime, pawn.color)
+    : 0;
+  const finisherDamageMultiplier = pawn.type === 'finisher'
+    ? getFinisherConsumedNotesMultiplier(consumedNotes)
+    : 1;
+  const nextSlotBuffBonusPercent = pendingBuff?.damageBonusPercent ?? 0;
+  const sourceSnapshot = {
+    damageMultiplier:
+      finisherDamageMultiplier
+      * (1 + nextSlotBuffBonusPercent)
+      * getTierDamageMultiplier(slot.pawnTier),
+    finisherConsumedNotes: consumedNotes,
+    finisherDamageMultiplier,
+    nextSlotBuffBonusPercent,
+  };
+
+  pushCombatPawnResolved(runtime, slot.slotIndex, pawn.id, pawn.type);
+
+  if (pawn.type === 'finisher') {
+    pushCombatFinisherConsumedNotes(runtime, {
+      slotIndex: slot.slotIndex,
+      pawnId: pawn.id,
+      color: pawn.color,
+      consumedNotes,
+      multiplier: finisherDamageMultiplier,
+    });
+  }
+
+  resolvePawnAbility(runtime, slot, pawn, sourceSnapshot);
+  applyNoteRuleMutation(runtime, slot, pawn);
+  consumePendingSlotDamageBuff(runtime, slot.slotIndex);
+}
+
+export function resolvePawnAbility(
   runtime: CombatRuntime,
   slot: CombatSlotRuntime,
   pawn: CombatPawnDefinition,

@@ -99,6 +99,11 @@ export function resolveSlotModifierMutations(
         radiusMultiplier: params.radiusMultiplier,
       };
     }
+    case 'double-activation':
+      return {
+        ...DEFAULT_SLOT_MODIFIER_MUTATIONS,
+        doubleActivation: true,
+      };
     default:
       return DEFAULT_SLOT_MODIFIER_MUTATIONS;
   }

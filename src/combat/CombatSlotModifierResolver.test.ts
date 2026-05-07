@@ -108,6 +108,23 @@ describe('resolveSlotModifierMutations', () => {
     });
   });
 
+  it('returns doubleActivation true for double-activation modifier', () => {
+    const runtime = createCombatRuntime(undefined, {
+      slotPawns: [{ pawnId: 'ruby-needle', tier: 1 }],
+      slotModifiers: [{ slotIndex: 0, modifierId: 'double-activation' }],
+    });
+
+    expect(resolveSlotModifierMutations(runtime, 0)).toEqual({
+      bonusNotes: 0,
+      colorFilter: null,
+      projectileCountBonus: 0,
+      volleyShotCountBonus: 0,
+      radiusMultiplier: 1,
+      extraBeamCount: 0,
+      doubleActivation: true,
+    });
+  });
+
   it('returns projectile bonuses for projectile-bonus on a projectile pawn', () => {
     const runtime = createCombatRuntime(undefined, {
       slotPawns: [{ pawnId: 'ruby-needle', tier: 1 }],
