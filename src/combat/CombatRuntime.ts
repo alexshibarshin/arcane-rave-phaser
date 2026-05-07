@@ -145,6 +145,8 @@ export interface CombatBeamRuntime {
   targetEnemyRuntimeId: string | null;
   tickIntervalMs: number | null;
   nextTickAtMs: number | null;
+  originX: number;
+  originY: number;
   sweepStartAngleRad: number | null;
   sweepEndAngleRad: number | null;
   sweepLengthPx: number | null;

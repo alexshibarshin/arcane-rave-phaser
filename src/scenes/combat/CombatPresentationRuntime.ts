@@ -436,14 +436,19 @@ function syncBeamPresentation(
       beamViews.set(beam.runtimeId, beamView);
     }
 
-    const slotAnchor = viewGraph.anchors.getSlotAnchor(beam.slotIndex);
-    if (!slotAnchor) {
-      beamView.setVisible(false);
-      continue;
-    }
-
-    let from = { x: slotAnchor.x, y: slotAnchor.y };
+    let from: { x: number; y: number };
     let to: { x: number; y: number } | null = null;
+
+    if (beam.beamType === 'sweeping') {
+      from = { x: beam.originX, y: beam.originY };
+    } else {
+      const slotAnchor = viewGraph.anchors.getSlotAnchor(beam.slotIndex);
+      if (!slotAnchor) {
+        beamView.setVisible(false);
+        continue;
+      }
+      from = { x: slotAnchor.x, y: slotAnchor.y };
+    }
 
     if (beam.beamType === 'lock-on') {
       to = beam.targetEnemyRuntimeId ? viewGraph.anchors.getEnemyAnchor(beam.targetEnemyRuntimeId) : null;

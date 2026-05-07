@@ -1444,9 +1444,9 @@ function getPawnTooltipDescription(
         return `Locks a beam for ${formatSeconds(pawn.ability.durationMs)}, ticking ${damage} damage every ${formatSeconds(pawn.ability.tickIntervalMs ?? 0)}. If the target dies, the beam jumps to the next frontmost enemy.`;
       }
       if (secondary?.kind === 'slow-on-hit') {
-        return `Sweeps a beam for ${formatSeconds(pawn.ability.durationMs)}. New crossings take ${damage} damage and ${Math.round((1 - secondary.slowMultiplier) * 100)}% slow.`;
+        return `Deploys a static emitter that sweeps a beam upward for ${formatSeconds(pawn.ability.durationMs)}. New crossings take ${damage} damage and ${Math.round((1 - secondary.slowMultiplier) * 100)}% slow for ${formatSeconds(secondary.durationMs)}.`;
       }
-      return `Sweeps a beam for ${formatSeconds(pawn.ability.durationMs)} dealing ${damage} damage on crossings.`;
+      return `Deploys a static emitter that sweeps a beam upward for ${formatSeconds(pawn.ability.durationMs)} dealing ${damage} damage on crossings.`;
     case 'zone':
       if (secondary?.kind === 'next-slot-damage-buff') {
         return `Creates a ${pawn.ability.radius}-radius field for ${formatSeconds(pawn.ability.durationMs)}. Buffs the next slot by ${Math.round(secondary.damageBonusPercent * 100)}% damage.`;

@@ -9,6 +9,8 @@ const DEFAULT_SWEEP_ARC_DEG = 72;
 const DEFAULT_SWEEP_LENGTH_PX = 520;
 const DEFAULT_SWEEP_HIT_RADIUS_PX = 24;
 
+const SWEEP_REFERENCE_ANGLE = -Math.PI / 2; // straight up in screen space
+
 export function createBeam(
   runtime: CombatRuntime,
   pawn: CombatPawnDefinition,
@@ -24,13 +26,12 @@ export function createBeam(
 ): void {
   const slot = runtime.slots[slotIndex];
   const origin = slot ? getSlotOrigin(slot) : null;
-  const target = selectFrontmostEnemy(runtime);
+  const target = beamType === 'lock-on' ? selectFrontmostEnemy(runtime) : null;
 
-  if (!slot || !origin || !target) {
+  if (!slot || !origin || (beamType === 'lock-on' && !target)) {
     return;
   }
 
-  const targetAngle = Math.atan2(target.y - origin.y, target.x - origin.x);
   const configuredSweepArcDeg = sweepArcDeg ?? DEFAULT_SWEEP_ARC_DEG;
   const configuredSweepLengthPx = sweepLengthPx ?? DEFAULT_SWEEP_LENGTH_PX;
   const configuredSweepHitRadiusPx = sweepHitRadiusPx ?? DEFAULT_SWEEP_HIT_RADIUS_PX;
@@ -45,11 +46,13 @@ export function createBeam(
     startedAtMs: runtime.combatElapsedMs,
     expiresAtMs: runtime.combatElapsedMs + durationMs,
     sourceSnapshot,
-    targetEnemyRuntimeId: beamType === 'lock-on' ? target.runtimeId : null,
+    targetEnemyRuntimeId: beamType === 'lock-on' ? target!.runtimeId : null,
     tickIntervalMs,
     nextTickAtMs: tickIntervalMs === null ? null : runtime.combatElapsedMs,
-    sweepStartAngleRad: beamType === 'sweeping' ? targetAngle - sweepHalfArcRad : null,
-    sweepEndAngleRad: beamType === 'sweeping' ? targetAngle + sweepHalfArcRad : null,
+    originX: origin.x,
+    originY: origin.y,
+    sweepStartAngleRad: beamType === 'sweeping' ? SWEEP_REFERENCE_ANGLE - sweepHalfArcRad : null,
+    sweepEndAngleRad: beamType === 'sweeping' ? SWEEP_REFERENCE_ANGLE + sweepHalfArcRad : null,
     sweepLengthPx: beamType === 'sweeping' ? configuredSweepLengthPx : null,
     sweepHitRadiusPx: beamType === 'sweeping' ? configuredSweepHitRadiusPx : null,
     previouslyIntersectedEnemyRuntimeIds: [],
@@ -149,12 +152,8 @@ function tickSweepingBeam(
   beam: CombatBeamRuntime,
   pawn: CombatPawnDefinition,
 ): void {
-  const slot = runtime.slots[beam.slotIndex];
-  const origin = slot ? getSlotOrigin(slot) : null;
-
   if (
-    !origin
-    || beam.sweepStartAngleRad === null
+    beam.sweepStartAngleRad === null
     || beam.sweepEndAngleRad === null
     || beam.sweepLengthPx === null
     || beam.sweepHitRadiusPx === null
@@ -164,8 +163,8 @@ function tickSweepingBeam(
 
   const progress = Math.min(1, Math.max(0, (runtime.combatElapsedMs - beam.startedAtMs) / Math.max(1, beam.expiresAtMs - beam.startedAtMs)));
   const angle = beam.sweepStartAngleRad + (beam.sweepEndAngleRad - beam.sweepStartAngleRad) * progress;
-  const endX = origin.x + Math.cos(angle) * beam.sweepLengthPx;
-  const endY = origin.y + Math.sin(angle) * beam.sweepLengthPx;
+  const endX = beam.originX + Math.cos(angle) * beam.sweepLengthPx;
+  const endY = beam.originY + Math.sin(angle) * beam.sweepLengthPx;
   const currentlyIntersected: string[] = [];
   let hitCount = 0;
 
@@ -174,7 +173,7 @@ function tickSweepingBeam(
       continue;
     }
 
-    if (!segmentHitsCircle(origin.x, origin.y, endX, endY, enemy.x, enemy.y, beam.sweepHitRadiusPx)) {
+    if (!segmentHitsCircle(beam.originX, beam.originY, endX, endY, enemy.x, enemy.y, beam.sweepHitRadiusPx)) {
       continue;
     }
 
