@@ -1,24 +1,11 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import {
   CombatContentConfig,
-  type CombatBeamAbilityDefinition,
-  type CombatExplosionAbilityDefinition,
   type CombatFinisherPawnDefinition,
   type CombatPawnDefinition,
-  type CombatProjectileAbilityDefinition,
-  type CombatZoneAbilityDefinition,
 } from '@config/CombatContentConfig';
-import { createBeam } from './CombatBeams';
-import { spawnExtraBeams } from './CombatExtraBeam';
-import { createImmediateTargetedExplosion, queueDelayedExplosion } from './CombatExplosions';
-import { applyNextSlotDamageBuff, consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
-import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from './CombatProjectiles';
+import { consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
 import { resolveSlotModifierMutations, type SlotModifierMutations } from '@modifiers/SlotModifierResolver';
-import {
-  createDirectionToEnemy,
-  getSlotOrigin,
-  selectFrontmostEnemy,
-} from './CombatTargeting';
 import {
   pushCombatFinisherConsumedNotes,
   pushCombatFinisherOutputNoteEmitted,
@@ -28,7 +15,6 @@ import {
   pushCombatPawnResolved,
   pushCombatSlotActivated,
 } from './CombatRuntimeEvents';
-import { createTargetedZone } from './CombatZones';
 import {
   setCombatNotePacket,
   type CombatRuntime,
@@ -37,6 +23,7 @@ import {
   type NoteColor,
 } from './CombatRuntime';
 import type { CombatSlotCrossing } from './CombatRotation';
+import { ABILITY_EXECUTORS } from './abilities/executors';
 
 const pawnDefinitionsById = new Map(
   CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => [pawn.id, pawn]),
@@ -165,190 +152,7 @@ export function resolvePawnAbility(
   },
 ): void {
   const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
-
-  switch (pawn.ability.primaryArchetype) {
-    case 'projectile':
-      resolveProjectileAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot, mutations);
-      return;
-    case 'explosion':
-      resolveExplosionAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot, mutations);
-      return;
-    case 'beam':
-      resolveBeamAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
-      if (mutations.extraBeamCount > 0) {
-        spawnExtraBeams(runtime, slot.slotIndex, pawn, pawn.ability, sourceSnapshot, mutations.extraBeamCount);
-      }
-      return;
-    case 'zone':
-      resolveZoneAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot, mutations);
-      return;
-  }
-}
-
-function resolveProjectileAbility(
-  runtime: CombatRuntime,
-  slot: CombatSlotRuntime,
-  pawn: CombatPawnDefinition,
-  ability: CombatProjectileAbilityDefinition,
-  sourceSnapshot: {
-    damageMultiplier: number;
-    finisherConsumedNotes: number;
-    finisherDamageMultiplier: number;
-    nextSlotBuffBonusPercent: number;
-  },
-  mutations: SlotModifierMutations,
-): void {
-  const origin = getSlotOrigin(slot);
-  const target = selectFrontmostEnemy(runtime);
-
-  if (!origin || !target) {
-    return;
-  }
-
-  if (ability.pattern === 'single-shot') {
-    const direction = createDirectionToEnemy(origin.x, origin.y, target);
-    spawnSingleProjectile({
-      runtime,
-      pawn,
-      slotIndex: slot.slotIndex,
-      color: pawn.color,
-      originX: origin.x,
-      originY: origin.y,
-      directionX: direction.x,
-      directionY: direction.y,
-      damage: ability.damage,
-      projectileSpeedPxPerSec: ability.projectileSpeed,
-      projectileLifetimeMs: ability.projectileLifetimeMs,
-      sourceSnapshot,
-    });
-    return;
-  }
-
-  if (ability.pattern === 'shotgun-spread') {
-    spawnShotgunProjectiles(
-      runtime,
-      pawn,
-      slot.slotIndex,
-      sourceSnapshot,
-      (ability.projectileCount ?? 1) + mutations.projectileCountBonus,
-      ability.coneAngleDeg ?? 0,
-      ability.projectileSpeed,
-      ability.projectileLifetimeMs,
-      ability.damage,
-    );
-    return;
-  }
-
-  queueProjectileVolley(
-    runtime,
-    pawn,
-    slot.slotIndex,
-    sourceSnapshot,
-    (ability.volleyShotCount ?? 1) + mutations.volleyShotCountBonus,
-    ability.volleyIntervalMs ?? 1,
-    ability.projectileSpeed,
-    ability.projectileLifetimeMs,
-    ability.damage,
-  );
-}
-
-function resolveExplosionAbility(
-  runtime: CombatRuntime,
-  slot: CombatSlotRuntime,
-  pawn: CombatPawnDefinition,
-  ability: CombatExplosionAbilityDefinition,
-  sourceSnapshot: {
-    damageMultiplier: number;
-    finisherConsumedNotes: number;
-    finisherDamageMultiplier: number;
-    nextSlotBuffBonusPercent: number;
-  },
-  mutations: SlotModifierMutations,
-): void {
-  const effectiveRadius = ability.radius * mutations.radiusMultiplier;
-
-  if (ability.pattern === 'targeted-burst') {
-    createImmediateTargetedExplosion(
-      runtime,
-      pawn,
-      slot.slotIndex,
-      sourceSnapshot,
-      ability.damage,
-      effectiveRadius,
-      ability.targeting,
-    );
-    return;
-  }
-
-  queueDelayedExplosion(
-    runtime,
-    pawn,
-    slot.slotIndex,
-    sourceSnapshot,
-    ability.damage,
-    effectiveRadius,
-    ability.delayMs ?? 0,
-    ability.targeting,
-  );
-}
-
-function resolveBeamAbility(
-  runtime: CombatRuntime,
-  slot: CombatSlotRuntime,
-  pawn: CombatPawnDefinition,
-  ability: CombatBeamAbilityDefinition,
-  sourceSnapshot: {
-    damageMultiplier: number;
-    finisherConsumedNotes: number;
-    finisherDamageMultiplier: number;
-    nextSlotBuffBonusPercent: number;
-  },
-): void {
-  createBeam(
-    runtime,
-    pawn,
-    slot.slotIndex,
-    sourceSnapshot,
-    ability.damage,
-    ability.durationMs,
-    ability.tickIntervalMs ?? null,
-    ability.pattern === 'lock-on-beam' ? 'lock-on' : 'sweeping',
-    ability.pattern === 'sweeping-beam' ? ability.sweepArcDeg ?? null : null,
-    ability.pattern === 'sweeping-beam' ? ability.sweepLengthPx ?? null : null,
-    ability.pattern === 'sweeping-beam' ? ability.sweepHitRadiusPx ?? null : null,
-  );
-}
-
-function resolveZoneAbility(
-  runtime: CombatRuntime,
-  slot: CombatSlotRuntime,
-  pawn: CombatPawnDefinition,
-  ability: CombatZoneAbilityDefinition,
-  sourceSnapshot: {
-    damageMultiplier: number;
-    finisherConsumedNotes: number;
-    finisherDamageMultiplier: number;
-    nextSlotBuffBonusPercent: number;
-  },
-  mutations: SlotModifierMutations,
-): void {
-  const effectiveRadius = ability.radius * mutations.radiusMultiplier;
-
-  createTargetedZone(
-    runtime,
-    pawn,
-    slot.slotIndex,
-    sourceSnapshot,
-    ability.damage,
-    effectiveRadius,
-    ability.durationMs,
-    ability.tickIntervalMs,
-    ability.targeting,
-  );
-
-  if (ability.secondaryEffect?.kind === 'next-slot-damage-buff') {
-    applyNextSlotDamageBuff(runtime, slot.slotIndex, pawn.id, ability.secondaryEffect.damageBonusPercent);
-  }
+  ABILITY_EXECUTORS[pawn.ability.primaryArchetype].execute({ runtime, slot, pawn, sourceSnapshot, mutations });
 }
 
 function applyNoteRuleMutation(
