@@ -34,6 +34,7 @@ import {
   type StageFlowIntent,
 } from '@stage/StageFlowCoordinator';
 import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
+import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
 
 interface StageRecordSlotView {
   slotIndex: number;
@@ -957,6 +958,7 @@ export class StageScene extends Phaser.Scene {
     slotPawns: Array<{ pawnId: string | null; tier: number | null }>;
     slotPawnIds: Array<string | null>;
     slotPawnTiers: Array<number | null>;
+    slotModifiers: SlotModifierAssignment[];
   }): void {
     this.scene.launch(SceneKeys.COMBAT, payload);
     this.stageFlowCoordination.isTransitioning = false;

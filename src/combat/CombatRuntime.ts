@@ -3,6 +3,7 @@ import { CombatContentConfig, getCombatPawnDefinitionById } from '@config/Combat
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
+import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { resolveCombatActivations } from './CombatActivation';
 import { advanceCombatBeams, clearCombatBeams } from './CombatBeams';
@@ -234,6 +235,7 @@ export interface CombatRuntime {
     startAngle: number;
   };
   slots: CombatSlotRuntime[];
+  slotModifiers: Array<SlotModifierAssignment | null>;
   notePacket: CombatNotePacketRuntime;
   enemies: CombatEnemyRuntime[];
   projectiles: CombatProjectileRuntime[];
@@ -270,6 +272,7 @@ export interface CreateCombatRuntimeOptions {
   waveIndex?: number;
   totalWaves?: number;
   slotPawns?: CombatLoadoutSlot[];
+  slotModifiers?: SlotModifierAssignment[];
   slotPawnIds?: Array<string | null>;
   slotPawnTiers?: Array<number | null>;
   chronoCurrent?: number;
@@ -289,6 +292,7 @@ export function createCombatRuntime(
     CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
     ?? null;
   const slotPawns = resolveCombatLoadoutSlots(options, slotPreset?.slots ?? []);
+  const slotModifiers = resolveCombatSlotModifiers(options.slotModifiers);
   const enemies = createCombatEnemyRuntimes(initialWave as CombatWaveDefinition);
   const chronoMax = Math.max(0, options.chronoMax ?? CombatTimeControlConfig.CHRONO_MAX);
   const chronoCurrent = PhaserMathClamp(
@@ -338,6 +342,7 @@ export function createCombatRuntime(
       sectorCenterAngleDeg: slot.centerAngleDeg,
       activationVisualState: 'idle',
     })),
+    slotModifiers,
     notePacket: {
       color: null,
       count: 0,
@@ -389,6 +394,21 @@ function resolveCombatLoadoutSlots(
     pawnId: pawnId ?? null,
     tier: pawnId === null ? null : Math.max(1, slotPawnTiers[index] ?? 1),
   }));
+}
+
+function resolveCombatSlotModifiers(
+  assignments: SlotModifierAssignment[] | undefined,
+): Array<SlotModifierAssignment | null> {
+  const slotModifiers = Array.from(
+    { length: CombatContentConfig.SLOT_COUNT },
+    (): SlotModifierAssignment | null => null,
+  );
+
+  for (const assignment of assignments ?? []) {
+    slotModifiers[assignment.slotIndex] = assignment;
+  }
+
+  return slotModifiers;
 }
 
 function resolveInitialSlotPawnTier(

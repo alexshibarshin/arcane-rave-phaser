@@ -61,7 +61,7 @@ export type CombatVfxEvent =
       slotIndex: number;
       pawnId: string;
       color: NoteColor;
-      count: 1;
+      count: number;
     };
   }
   | {

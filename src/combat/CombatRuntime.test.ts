@@ -23,6 +23,27 @@ describe('CombatRuntime', () => {
     expect(runtime.pawnBuffs).toHaveLength(runtime.slots.length);
   });
 
+  it('indexes provided slot modifier assignments into a full slot-sized runtime array', () => {
+    const runtime = createCombatRuntime(undefined, {
+      slotModifiers: [
+        { slotIndex: 2, modifierId: 'plus-one-output-note' },
+        { slotIndex: 5, modifierId: 'plus-two-output-notes' },
+      ],
+    });
+
+    expect(runtime.slotModifiers).toHaveLength(8);
+    expect(runtime.slotModifiers).toEqual([
+      null,
+      null,
+      { slotIndex: 2, modifierId: 'plus-one-output-note' },
+      null,
+      null,
+      { slotIndex: 5, modifierId: 'plus-two-output-notes' },
+      null,
+      null,
+    ]);
+  });
+
   it('spawns a Ruby Needle projectile, damages an enemy, and still emits generator notes', () => {
     const runtime = createReadyRuntime('ruby-needle');
     const target = primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'red' });
@@ -47,6 +68,56 @@ describe('CombatRuntime', () => {
     expect(runtime.zones).toHaveLength(0);
   });
 
+  it('adds bonus output notes for generators from slot modifiers', () => {
+    const runtime = createReadyRuntime('ruby-needle');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-one-output-note' };
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket.color).toBe('red');
+    expect(runtime.notePacket.count).toBe(3);
+  });
+
+  it('supports plus-two output note modifiers for generators', () => {
+    const runtime = createReadyRuntime('ruby-needle');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-two-output-notes' };
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket.color).toBe('red');
+    expect(runtime.notePacket.count).toBe(4);
+  });
+
+  it('applies generator bonus notes before same-color capacity clamping', () => {
+    const runtime = createReadyRuntime('ruby-needle');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-two-output-notes' };
+    setCombatNotePacket(runtime, 'red', 4);
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket.color).toBe('red');
+    expect(runtime.notePacket.count).toBe(CombatBalanceConfig.NOTE_PACKET_CAPACITY);
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:generator-notes-emitted',
+      payload: {
+        slotIndex: 0,
+        pawnId: 'ruby-needle',
+        color: 'red',
+        count: 1,
+      },
+    });
+  });
+
+  it('applies color-specific output bonuses using the generator color', () => {
+    const runtime = createReadyRuntime('ruby-needle');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-one-red-output-note' };
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket.color).toBe('red');
+    expect(runtime.notePacket.count).toBe(3);
+  });
+
   it('captures finisher notes for Heatline, starts a beam, and emits its output note', () => {
     const runtime = createReadyRuntime('heatline');
     const target = primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'red', hp: 200 });
@@ -62,6 +133,51 @@ describe('CombatRuntime', () => {
     expect(beam ? beam.expiresAtMs - beam.startedAtMs : 0).toBeGreaterThan(0);
     expect(target.currentHp).toBeLessThan(target.maxHp);
     expect(runtime.effects.pendingEvents.some((event) => event.event === 'combat:beam-started')).toBe(true);
+  });
+
+  it('reports dynamic finisher output note counts when slot modifiers add bonus notes', () => {
+    const runtime = createReadyRuntime('heatline');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-one-output-note' };
+    setCombatNotePacket(runtime, 'red', 3);
+    primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'red', hp: 200 });
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket.color).toBe('blue');
+    expect(runtime.notePacket.count).toBe(2);
+    expect(runtime.effects.pendingEvents).toContainEqual({
+      event: 'combat:finisher-output-note-emitted',
+      payload: {
+        slotIndex: 0,
+        pawnId: 'heatline',
+        color: 'blue',
+        count: 2,
+      },
+    });
+  });
+
+  it('applies color-specific output note bonuses using the finisher output color', () => {
+    const runtime = createReadyRuntime('pressure-burst');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-one-red-output-note' };
+    setCombatNotePacket(runtime, 'blue', 3);
+    primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'red', hp: 200 });
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket.color).toBe('red');
+    expect(runtime.notePacket.count).toBe(2);
+  });
+
+  it('does not apply color-specific output bonuses when the finisher output color does not match', () => {
+    const runtime = createReadyRuntime('heatline');
+    runtime.slotModifiers[0] = { slotIndex: 0, modifierId: 'plus-one-red-output-note' };
+    setCombatNotePacket(runtime, 'red', 3);
+    primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -210, color: 'red', hp: 200 });
+
+    advanceCombatRuntime(runtime, 1000);
+
+    expect(runtime.notePacket.color).toBe('blue');
+    expect(runtime.notePacket.count).toBe(1);
   });
 
   it('retargets Heatline to a new frontmost enemy when the current target dies', () => {

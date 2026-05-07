@@ -96,6 +96,7 @@ describe('StageFlowCoordinator', () => {
         slotPawns: Array.from({ length: 8 }, () => ({ pawnId: null, tier: null })),
         slotPawnIds: Array(8).fill(null),
         slotPawnTiers: Array(8).fill(null),
+        slotModifiers: runtime.slotModifiers,
       },
     });
   });

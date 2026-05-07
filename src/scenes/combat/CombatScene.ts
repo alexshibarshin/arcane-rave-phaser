@@ -20,6 +20,7 @@ import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
 import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 import type { InputSystem } from '@systems/InputSystem';
 import type { SimulationSystem } from '@systems/SimulationSystem';
+import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
 import { createCombatSceneViewGraph, type CombatSceneViewGraph } from './CombatSceneViewGraph';
 import { resolveCombatSceneSlotPawnIds } from './resolveCombatSceneSlotPawnIds';
 import {
@@ -37,6 +38,7 @@ interface CombatSceneInitData {
   slotPawns?: CombatLoadoutSlot[];
   slotPawnIds?: Array<string | null>;
   slotPawnTiers?: Array<number | null>;
+  slotModifiers?: SlotModifierAssignment[];
 }
 
 export class CombatScene extends GameScene {
@@ -50,6 +52,7 @@ export class CombatScene extends GameScene {
   private slotPawns?: CombatLoadoutSlot[];
   private slotPawnIds?: Array<string | null>;
   private slotPawnTiers?: Array<number | null>;
+  private slotModifiers?: SlotModifierAssignment[];
   private synergySystem?: SynergyVisualSystem;
   private viewGraph?: CombatSceneViewGraph;
   private presentationRuntime?: CombatPresentationRuntime;
@@ -188,6 +191,7 @@ export class CombatScene extends GameScene {
     this.slotPawns = data.slotPawns ? data.slotPawns.map((slot) => ({ ...slot })) : undefined;
     this.slotPawnIds = data.slotPawnIds ? [...data.slotPawnIds] : undefined;
     this.slotPawnTiers = data.slotPawnTiers ? [...data.slotPawnTiers] : undefined;
+    this.slotModifiers = data.slotModifiers ? data.slotModifiers.map((assignment) => ({ ...assignment })) : undefined;
   }
 
   create(): void {
@@ -220,6 +224,7 @@ export class CombatScene extends GameScene {
       slotPawns: this.slotPawns,
       slotPawnIds: this.slotPawnIds,
       slotPawnTiers: this.slotPawnTiers,
+      slotModifiers: this.slotModifiers,
     });
     this.slotPawnIds = resolveCombatSceneSlotPawnIds(
       this.slotPawnIds ?? this.slotPawns?.map((slot) => slot.pawnId ?? null),

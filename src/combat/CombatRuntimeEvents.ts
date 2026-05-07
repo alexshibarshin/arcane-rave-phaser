@@ -71,7 +71,7 @@ export type CombatRuntimeEvent =
       slotIndex: number;
       pawnId: string;
       color: NoteColor;
-      count: 1;
+      count: number;
     };
   }
   | {
@@ -242,6 +242,7 @@ export function pushCombatFinisherOutputNoteEmitted(
   slot: CombatSlotRuntime,
   pawnId: string,
   color: NoteColor,
+  count: number,
 ): void {
   pushCombatRuntimeEvent(runtime, {
     event: 'combat:finisher-output-note-emitted',
@@ -249,7 +250,7 @@ export function pushCombatFinisherOutputNoteEmitted(
       slotIndex: slot.slotIndex,
       pawnId,
       color,
-      count: 1,
+      count,
     },
   });
 }

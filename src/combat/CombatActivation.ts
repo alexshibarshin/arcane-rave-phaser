@@ -12,6 +12,7 @@ import { createBeam } from './CombatBeams';
 import { createImmediateTargetedExplosion, queueDelayedExplosion } from './CombatExplosions';
 import { applyNextSlotDamageBuff, consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
 import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from './CombatProjectiles';
+import { resolveSlotModifierMutations } from './CombatSlotModifierResolver';
 import {
   createDirectionToEnemy,
   getSlotOrigin,
@@ -292,12 +293,18 @@ function applyNoteRuleMutation(
   slot: CombatSlotRuntime,
   pawn: CombatPawnDefinition,
 ): void {
+  const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
+  const outputColor = pawn.type === 'generator' ? pawn.color : pawn.outputNoteColor;
+  const bonusNotes = mutations.colorFilter !== null && mutations.colorFilter !== outputColor
+    ? 0
+    : mutations.bonusNotes;
+
   if (pawn.type === 'generator') {
-    applyGeneratorPacketMutation(runtime, slot, pawn.id, pawn.color);
+    applyGeneratorPacketMutation(runtime, slot, pawn.id, pawn.color, bonusNotes);
     return;
   }
 
-  applyFinisherPacketMutation(runtime, slot, pawn);
+  applyFinisherPacketMutation(runtime, slot, pawn, bonusNotes);
 }
 
 function applyGeneratorPacketMutation(
@@ -305,20 +312,22 @@ function applyGeneratorPacketMutation(
   slot: CombatSlotRuntime,
   pawnId: string,
   color: NoteColor,
+  bonusNotes = 0,
 ): void {
   const previousColor = runtime.notePacket.color;
   const previousCount = runtime.notePacket.count;
-  let emittedNotes = 2;
+  const baseCount = 2 + bonusNotes;
+  let emittedNotes = Math.min(baseCount, CombatBalanceConfig.NOTE_PACKET_CAPACITY);
 
   if (previousColor === null || previousCount <= 0) {
-    setCombatNotePacket(runtime, color, 2);
+    setCombatNotePacket(runtime, color, Math.min(baseCount, CombatBalanceConfig.NOTE_PACKET_CAPACITY));
     pushCombatGeneratorNotesEmitted(runtime, slot, pawnId, color, emittedNotes);
     pushCombatNotePacketChanged(runtime);
     return;
   }
 
   if (previousColor === color) {
-    const nextCount = Math.min(previousCount + 2, CombatBalanceConfig.NOTE_PACKET_CAPACITY);
+    const nextCount = Math.min(previousCount + baseCount, CombatBalanceConfig.NOTE_PACKET_CAPACITY);
     emittedNotes = Math.max(0, nextCount - previousCount);
 
     setCombatNotePacket(runtime, color, nextCount);
@@ -328,7 +337,7 @@ function applyGeneratorPacketMutation(
   }
 
   pushCombatNotePacketColorBroke(runtime, previousColor, color);
-  setCombatNotePacket(runtime, color, 2);
+  setCombatNotePacket(runtime, color, Math.min(baseCount, CombatBalanceConfig.NOTE_PACKET_CAPACITY));
   pushCombatGeneratorNotesEmitted(runtime, slot, pawnId, color, emittedNotes);
   pushCombatNotePacketChanged(runtime);
 }
@@ -337,13 +346,20 @@ function applyFinisherPacketMutation(
   runtime: CombatRuntime,
   slot: CombatSlotRuntime,
   pawn: CombatFinisherPawnDefinition,
+  bonusNotes = 0,
 ): void {
+  const emittedNotes = Math.min(1 + bonusNotes, CombatBalanceConfig.NOTE_PACKET_CAPACITY);
+
   if (runtime.notePacket.color !== null && runtime.notePacket.color !== pawn.color) {
     pushCombatNotePacketColorBroke(runtime, runtime.notePacket.color, pawn.outputNoteColor);
   }
 
-  setCombatNotePacket(runtime, pawn.outputNoteColor, 1);
-  pushCombatFinisherOutputNoteEmitted(runtime, slot, pawn.id, pawn.outputNoteColor);
+  setCombatNotePacket(
+    runtime,
+    pawn.outputNoteColor,
+    emittedNotes,
+  );
+  pushCombatFinisherOutputNoteEmitted(runtime, slot, pawn.id, pawn.outputNoteColor, emittedNotes);
   pushCombatNotePacketChanged(runtime);
 }
 

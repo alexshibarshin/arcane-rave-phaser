@@ -7,12 +7,14 @@ import {
   getStageCombatLoadout,
   getStageCombatLoadoutSlots,
   getStageCombatLoadoutTiers,
+  getStageSlotModifiers,
   requestStageWaveStart,
   resolveStageCombatOutcome,
   type StageCombatOutcome,
   type StageRuntime,
 } from '@stage/StageRuntime';
 import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
+import type { SlotModifierAssignment } from './StageSlotModifiers';
 import { createStageWavePreview } from '@stage/StageWavePreview';
 
 export interface StageFlowCoordinationState {
@@ -63,6 +65,7 @@ export type StageFlowCommand =
         slotPawns: CombatLoadoutSlot[];
         slotPawnIds: Array<string | null>;
         slotPawnTiers: Array<number | null>;
+        slotModifiers: SlotModifierAssignment[];
       };
     }
   | {
@@ -240,6 +243,7 @@ function createLaunchCombatCommand(runtime: StageRuntime): Extract<
       slotPawns: getStageCombatLoadoutSlots(runtime),
       slotPawnIds: getStageCombatLoadout(runtime),
       slotPawnTiers: getStageCombatLoadoutTiers(runtime),
+      slotModifiers: getStageSlotModifiers(runtime),
     },
   };
 }
