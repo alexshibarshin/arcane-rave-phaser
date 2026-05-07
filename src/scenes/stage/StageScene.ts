@@ -37,6 +37,9 @@ import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
 import { createModifierIcons, type ModifierIconView } from './ModifierIconRenderer';
 import { isPawnCompatibleWithModifier } from './ModifierCompatibility';
+import { bindModifierInspection, type ModifierTooltipState } from './ModifierTooltipBridge';
+import { showCompatibilityLink } from './ModifierLinkEffect';
+import { SLOT_MODIFIER_CONFIG, type SlotModifierDefinition } from '@config/SlotModifierConfig';
 
 interface StageRecordSlotView {
   slotIndex: number;
@@ -57,6 +60,7 @@ interface StageShopCardView {
 interface StagePawnTooltipState {
   pawnId: string;
   tier: number;
+  slotIndex?: number;
 }
 
 type DragPayload =
@@ -108,7 +112,9 @@ export class StageScene extends Phaser.Scene {
   private modifierIconViews: ModifierIconView[] = [];
   private activeDropSlotIndex: number | null = null;
   private inspectedPawn: StagePawnTooltipState | null = null;
+  private inspectedModifier: ModifierTooltipState | null = null;
   private tooltipHoldTimer?: Phaser.Time.TimerEvent;
+  private modifierTooltipHoldTimer?: Phaser.Time.TimerEvent;
   private combatReturnTimer?: Phaser.Time.TimerEvent;
   private tooltipLockedByDrag = false;
   private transientStatusText: string | null = null;
@@ -370,6 +376,15 @@ export class StageScene extends Phaser.Scene {
     this.recordInnerLabelLayer = this.add.container(0, 0);
     container.add([this.recordInnerLabelLayer, this.recordPawnLayer, centerGlow, centerCapibara, needle]);
     this.modifierIconViews = createModifierIcons(this, this.runtime, container);
+    for (const iconView of this.modifierIconViews) {
+      bindModifierInspection(
+        this,
+        iconView,
+        { modifierId: iconView.modifierId, slotIndex: iconView.slotIndex },
+        (state) => this.showModifierTooltip(state),
+        () => this.hideModifierTooltip(),
+      );
+    }
 
     return container;
   }
@@ -583,17 +598,19 @@ export class StageScene extends Phaser.Scene {
         this.tooltipLockedByDrag = false;
 
         if (applied) {
-          if (targetSlotIndex !== null) {
-            this.evaluateModifierCompatibility(targetSlotIndex);
-          }
           this.refreshBuildUI();
+          if (targetSlotIndex !== null) {
+            this.showCompatibilityLinkIfApplicable(targetSlotIndex);
+          }
           this.publishSnapshot();
           this.hidePawnTooltip();
+          this.hideModifierTooltip();
         } else {
           gameObject.x = payload.homeX;
           gameObject.y = payload.homeY;
           this.syncPresentation();
           this.hidePawnTooltip();
+          this.hideModifierTooltip();
         }
       },
     );
@@ -601,6 +618,7 @@ export class StageScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_UP, () => {
       if (!this.tooltipLockedByDrag) {
         this.hidePawnTooltip();
+        this.hideModifierTooltip();
       }
       this.clearTooltipHoldTimer();
     });
@@ -698,7 +716,7 @@ export class StageScene extends Phaser.Scene {
       container.input.cursor = 'grab';
     }
 
-    this.bindPawnInspection(container, { pawnId: pawn.id, tier: pawnInstance.tier });
+    this.bindPawnInspection(container, { pawnId: pawn.id, tier: pawnInstance.tier, slotIndex });
 
     return container;
   }
@@ -1081,7 +1099,7 @@ export class StageScene extends Phaser.Scene {
     this.previewCard?.setVisible(buildVisible);
     this.waveLabel?.setVisible(buildVisible);
     this.statusLabel?.setVisible(buildVisible);
-    this.tooltipContainer?.setVisible(buildVisible && this.inspectedPawn !== null);
+    this.tooltipContainer?.setVisible(buildVisible && (this.inspectedPawn !== null || this.inspectedModifier !== null));
     this.modifierIconViews.forEach((view) => {
       view.container.setVisible(buildVisible);
     });
@@ -1089,7 +1107,7 @@ export class StageScene extends Phaser.Scene {
     this.playCoinFeedbackIfNeeded();
   }
 
-  private evaluateModifierCompatibility(slotIndex: number): void {
+  private showCompatibilityLinkIfApplicable(slotIndex: number): void {
     const pawnId = this.runtime.build.slots[slotIndex]?.pawnId;
     const slotAssignment = this.runtime.slotModifiers.find((assignment) => assignment.slotIndex === slotIndex);
 
@@ -1097,7 +1115,17 @@ export class StageScene extends Phaser.Scene {
       return;
     }
 
-    void isPawnCompatibleWithModifier(pawnId, slotAssignment.modifierId);
+    if (!isPawnCompatibleWithModifier(pawnId, slotAssignment.modifierId)) {
+      return;
+    }
+
+    const iconView = this.modifierIconViews.find((view) => view.slotIndex === slotIndex);
+    const pawnView = this.slotViews.find((view) => view.slotIndex === slotIndex)?.pawnContainer;
+    if (!iconView || !pawnView) {
+      return;
+    }
+
+    showCompatibilityLink(this, iconView.container, pawnView);
   }
 
   private bindPawnInspection(
@@ -1125,10 +1153,13 @@ export class StageScene extends Phaser.Scene {
       return;
     }
 
+    this.inspectedModifier = null;
     this.inspectedPawn = state;
+    this.tooltipSprite.setVisible(true);
     this.tooltipSprite.setTexture(pawn.art.textureKey, pawn.art.frame);
     this.tooltipTitle.setText(pawn.displayName);
     this.tooltipSprite.setPosition(this.tooltipSprite.x, 2 + pawn.art.offsetY * 0.24);
+    this.tooltipTierStars.setVisible(true);
     this.tooltipTierStars.setText('★'.repeat(state.tier));
     this.tooltipMeta.setText(pawn.type === 'generator' ? 'Generator' : 'Finisher');
     this.tooltipMeta.setBackgroundColor(pawn.type === 'generator' ? '#78d9ff' : '#ffa0bf');
@@ -1139,17 +1170,54 @@ export class StageScene extends Phaser.Scene {
 
     this.tooltipContainer.setVisible(true);
     this.tooltipContainer.setAlpha(1);
+    if (typeof state.slotIndex === 'number') {
+      this.showCompatibilityLinkIfApplicable(state.slotIndex);
+    }
   }
 
   private hidePawnTooltip(): void {
     this.inspectedPawn = null;
-    this.tooltipContainer?.setVisible(false);
-    this.tooltipContainer?.setAlpha(0);
+    if (this.inspectedModifier === null) {
+      this.tooltipContainer?.setVisible(false);
+      this.tooltipContainer?.setAlpha(0);
+    }
+  }
+
+  private showModifierTooltip(state: ModifierTooltipState): void {
+    const modifier = SLOT_MODIFIER_CONFIG.getModifierById(state.modifierId);
+    if (!modifier || !this.tooltipContainer || !this.tooltipSprite || !this.tooltipTitle || !this.tooltipMeta || !this.tooltipTierStars || !this.tooltipRule || !this.tooltipDescription) {
+      return;
+    }
+
+    this.inspectedPawn = null;
+    this.inspectedModifier = state;
+    this.tooltipSprite.setVisible(false);
+    this.tooltipTitle.setText(modifier.displayName);
+    this.tooltipMeta.setText(modifier.rarity === 'premium' ? 'Premium' : 'Common');
+    this.tooltipMeta.setBackgroundColor(modifier.rarity === 'premium' ? '#d9a6ff' : '#8fd0ea');
+    this.tooltipTierStars.setVisible(false);
+    this.tooltipTierStars.setText('');
+    this.tooltipDescription.setText(modifier.shortDescription);
+    this.tooltipRule.removeAll(true);
+    this.tooltipRule.add(createModifierEffectLabel(this, modifier));
+    this.tooltipContainer.setVisible(true);
+    this.tooltipContainer.setAlpha(1);
+    this.showCompatibilityLinkIfApplicable(state.slotIndex);
+  }
+
+  private hideModifierTooltip(): void {
+    this.inspectedModifier = null;
+    if (this.inspectedPawn === null) {
+      this.tooltipContainer?.setVisible(false);
+      this.tooltipContainer?.setAlpha(0);
+    }
   }
 
   private clearTooltipHoldTimer(): void {
     this.tooltipHoldTimer?.remove(false);
     this.tooltipHoldTimer = undefined;
+    this.modifierTooltipHoldTimer?.remove(false);
+    this.modifierTooltipHoldTimer = undefined;
   }
 
   private playCombatPhaseReturn(
@@ -1610,4 +1678,49 @@ function createRuleLabelContainer(
 
   const container = scene.add.container(0, 0, textObjects);
   return container;
+}
+
+function createModifierEffectLabel(
+  scene: Phaser.Scene,
+  modifier: SlotModifierDefinition,
+): Phaser.GameObjects.Text {
+  return scene.add.text(0, 0, formatModifierEffectLabel(modifier.effectKind), {
+    color: '#071019',
+    backgroundColor: getModifierEffectLabelColor(modifier.effectKind),
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    padding: { left: 8, right: 8, top: 5, bottom: 5 },
+  }).setOrigin(0, 0.5);
+}
+
+function formatModifierEffectLabel(effectKind: SlotModifierDefinition['effectKind']): string {
+  switch (effectKind) {
+    case 'output-note-bonus':
+      return 'Extra Notes';
+    case 'color-output-note-bonus':
+      return 'Color Notes';
+    case 'projectile-bonus':
+      return 'Projectile';
+    case 'aoe-radius-scale':
+      return 'AoE';
+    case 'beam-count-bonus':
+      return 'Beam';
+    case 'double-activation':
+      return 'Double Act';
+  }
+}
+
+function getModifierEffectLabelColor(effectKind: SlotModifierDefinition['effectKind']): string {
+  switch (effectKind) {
+    case 'output-note-bonus':
+    case 'color-output-note-bonus':
+      return '#ffd58a';
+    case 'projectile-bonus':
+    case 'beam-count-bonus':
+      return '#9bdcff';
+    case 'aoe-radius-scale':
+      return '#9ff0ba';
+    case 'double-activation':
+      return '#d9a6ff';
+  }
 }

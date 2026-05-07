@@ -45,6 +45,10 @@ export function createModifierIcons(
 
     drawModifierBadge(badge, modifier);
     container.add([badge, glyph]);
+    container.setSize((ICON_RADIUS_PX + 8) * 2, (ICON_RADIUS_PX + 8) * 2);
+    container.setInteractive({ radius: ICON_RADIUS_PX + 8 }, (_hitArea, x, y) => {
+      return Math.hypot(x, y) <= ICON_RADIUS_PX + 8;
+    });
     container.setVisible(visible);
     recordGroup.add(container);
 

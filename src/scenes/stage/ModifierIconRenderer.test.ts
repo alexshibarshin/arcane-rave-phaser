@@ -32,6 +32,8 @@ class FakeText {
 class FakeContainer {
   visible = true;
   list: unknown[] = [];
+  width = 0;
+  height = 0;
 
   constructor(
     public x: number,
@@ -49,6 +51,16 @@ class FakeContainer {
 
   setVisible(value: boolean): this {
     this.visible = value;
+    return this;
+  }
+
+  setSize(width: number, height: number): this {
+    this.width = width;
+    this.height = height;
+    return this;
+  }
+
+  setInteractive(): this {
     return this;
   }
 }
