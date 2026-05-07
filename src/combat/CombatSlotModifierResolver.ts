@@ -2,6 +2,7 @@ import { getCombatPawnDefinitionById, type NoteColor } from '@config/CombatConte
 import { SLOT_MODIFIER_CONFIG } from '@config/SlotModifierConfig';
 import type {
   AoeRadiusScaleParams,
+  BeamCountBonusParams,
   ColorOutputNoteBonusParams,
   OutputNoteBonusParams,
   ProjectileBonusParams,
@@ -97,6 +98,18 @@ export function resolveSlotModifierMutations(
       return {
         ...DEFAULT_SLOT_MODIFIER_MUTATIONS,
         radiusMultiplier: params.radiusMultiplier,
+      };
+    }
+    case 'beam-count-bonus': {
+      const params = modifier.effectParams as BeamCountBonusParams;
+
+      if (pawn.ability.primaryArchetype !== 'beam') {
+        return DEFAULT_SLOT_MODIFIER_MUTATIONS;
+      }
+
+      return {
+        ...DEFAULT_SLOT_MODIFIER_MUTATIONS,
+        extraBeamCount: params.extraBeamCount,
       };
     }
     case 'double-activation':

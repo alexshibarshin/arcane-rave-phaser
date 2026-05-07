@@ -9,6 +9,7 @@ import {
   type CombatZoneAbilityDefinition,
 } from '@config/CombatContentConfig';
 import { createBeam } from './CombatBeams';
+import { spawnExtraBeams } from './CombatExtraBeam';
 import { createImmediateTargetedExplosion, queueDelayedExplosion } from './CombatExplosions';
 import { applyNextSlotDamageBuff, consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
 import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from './CombatProjectiles';
@@ -174,6 +175,9 @@ export function resolvePawnAbility(
       return;
     case 'beam':
       resolveBeamAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot);
+      if (mutations.extraBeamCount > 0) {
+        spawnExtraBeams(runtime, slot.slotIndex, pawn, pawn.ability, sourceSnapshot, mutations.extraBeamCount);
+      }
       return;
     case 'zone':
       resolveZoneAbility(runtime, slot, pawn, pawn.ability, sourceSnapshot, mutations);

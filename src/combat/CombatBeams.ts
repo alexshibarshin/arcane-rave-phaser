@@ -3,9 +3,9 @@ import { applyCombatHit } from './CombatDamage';
 import { createRuntimeEffectId, getSlotOrigin, selectFrontmostEnemy } from './CombatTargeting';
 import { applyEnemySlow } from './CombatStatuses';
 import { pushCombatBeamStarted, pushCombatBeamTicked } from './CombatRuntimeEvents';
-import type { CombatBeamRuntime, CombatRuntime, CombatSourceSnapshot } from './CombatRuntime';
+import type { CombatBeamRuntime, CombatEnemyRuntime, CombatRuntime, CombatSourceSnapshot } from './CombatRuntime';
 
-const DEFAULT_SWEEP_ARC_DEG = 72;
+export const DEFAULT_SWEEP_ARC_DEG = 72;
 const DEFAULT_SWEEP_LENGTH_PX = 520;
 const DEFAULT_SWEEP_HIT_RADIUS_PX = 24;
 
@@ -23,10 +23,13 @@ export function createBeam(
   sweepArcDeg: number | null,
   sweepLengthPx: number | null,
   sweepHitRadiusPx: number | null,
+  targetOverride?: CombatEnemyRuntime | null,
 ): void {
   const slot = runtime.slots[slotIndex];
   const origin = slot ? getSlotOrigin(slot) : null;
-  const target = beamType === 'lock-on' ? selectFrontmostEnemy(runtime) : null;
+  const target = beamType === 'lock-on'
+    ? (targetOverride ?? selectFrontmostEnemy(runtime))
+    : null;
 
   if (!slot || !origin || (beamType === 'lock-on' && !target)) {
     return;

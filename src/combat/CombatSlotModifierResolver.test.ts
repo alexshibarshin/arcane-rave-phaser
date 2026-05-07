@@ -141,4 +141,31 @@ describe('resolveSlotModifierMutations', () => {
       doubleActivation: false,
     });
   });
+
+  it('returns extraBeamCount for beam-count-bonus on a beam pawn', () => {
+    const runtime = createCombatRuntime(undefined, {
+      slotPawns: [{ pawnId: 'heatline', tier: 1 }],
+      slotModifiers: [{ slotIndex: 0, modifierId: 'plus-one-extra-beam' }],
+    });
+
+    expect(resolveSlotModifierMutations(runtime, 0)).toEqual({
+      bonusNotes: 0,
+      colorFilter: null,
+      projectileCountBonus: 0,
+      volleyShotCountBonus: 0,
+      radiusMultiplier: 1,
+      extraBeamCount: 1,
+      doubleActivation: false,
+    });
+  });
+
+  it('returns defaults for beam-count-bonus on a non-beam pawn', () => {
+    const runtime = createCombatRuntime(undefined, {
+      slotPawns: [{ pawnId: 'ruby-needle', tier: 1 }],
+      slotModifiers: [{ slotIndex: 0, modifierId: 'plus-one-extra-beam' }],
+    });
+
+    const mutations = resolveSlotModifierMutations(runtime, 0);
+    expect(mutations.extraBeamCount).toBe(0);
+  });
 });
