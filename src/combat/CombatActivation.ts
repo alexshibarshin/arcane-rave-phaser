@@ -13,7 +13,7 @@ import { spawnExtraBeams } from './CombatExtraBeam';
 import { createImmediateTargetedExplosion, queueDelayedExplosion } from './CombatExplosions';
 import { applyNextSlotDamageBuff, consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
 import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from './CombatProjectiles';
-import { resolveSlotModifierMutations, type SlotModifierMutations } from './CombatSlotModifierResolver';
+import { resolveSlotModifierMutations, type SlotModifierMutations } from '@modifiers/SlotModifierResolver';
 import {
   createDirectionToEnemy,
   getSlotOrigin,

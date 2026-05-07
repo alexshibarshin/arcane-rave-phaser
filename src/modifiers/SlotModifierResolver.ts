@@ -8,7 +8,7 @@ import type {
   OutputNoteBonusParams,
   ProjectileBonusParams,
 } from '@config/SlotModifierConfig';
-import type { CombatRuntime } from './CombatRuntime';
+import type { CombatRuntime } from '@combat/CombatRuntime';
 
 export interface SlotModifierMutations {
   bonusNotes: number;

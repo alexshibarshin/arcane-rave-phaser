@@ -14,7 +14,7 @@ import {
   rerollStageShop,
   type StageBuildState,
 } from './StageBuild';
-import { generateStageSlotModifiers, type SlotModifierAssignment } from './StageSlotModifiers';
+import { generateStageSlotModifiers, type SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
 
 export type StagePhase = 'build' | 'combat' | 'stage_complete' | 'stage_failed';

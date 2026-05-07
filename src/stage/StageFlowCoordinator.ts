@@ -14,7 +14,7 @@ import {
   type StageRuntime,
 } from '@stage/StageRuntime';
 import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
-import type { SlotModifierAssignment } from './StageSlotModifiers';
+import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import { createStageWavePreview } from '@stage/StageWavePreview';
 
 export interface StageFlowCoordinationState {

@@ -3,7 +3,7 @@ import { CombatContentConfig, getCombatPawnDefinitionById } from '@config/Combat
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
-import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
+import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { resolveCombatActivations } from './CombatActivation';
 import { advanceCombatBeams, clearCombatBeams } from './CombatBeams';

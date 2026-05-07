@@ -24,6 +24,7 @@
       "@scenes/*": ["./src/scenes/*"],
       "@combat/*": ["./src/combat/*"],
       "@stage/*": ["./src/stage/*"],
+      "@modifiers/*": ["./src/modifiers/*"],
       "@render/*": ["./src/render/*"],
       "@utils/*": ["./src/utils/*"],
       "@app-types/*": ["./src/types/*"]

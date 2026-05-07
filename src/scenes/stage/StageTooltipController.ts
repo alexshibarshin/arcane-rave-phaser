@@ -10,7 +10,7 @@ import {
   getPawnTooltipDescription,
   createModifierEffectLabel,
 } from './StageRenderHelpers';
-import { isPawnCompatibleWithModifier } from './ModifierCompatibility';
+import { isPawnCompatibleWithModifier } from '@modifiers/ModifierCompatibility';
 import { showCompatibilityLink } from './ModifierLinkEffect';
 import type { StageRecordView } from './StageRecordView';
 import type { ModifierTooltipState } from './ModifierTooltipBridge';

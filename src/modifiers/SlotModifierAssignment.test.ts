@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateStageSlotModifiers } from './StageSlotModifiers';
+import { generateStageSlotModifiers } from './SlotModifierAssignment';
 import { STAGE_CONFIGS, type StageConfig } from '@config/StageConfig';
 import { SLOT_MODIFIER_CONFIG, type SlotModifierDefinition } from '@config/SlotModifierConfig';
 

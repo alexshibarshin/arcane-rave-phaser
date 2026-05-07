@@ -20,7 +20,7 @@ import { CombatDebugInputSystem } from '@systems/CombatDebugInputSystem';
 import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 import type { InputSystem } from '@systems/InputSystem';
 import type { SimulationSystem } from '@systems/SimulationSystem';
-import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
+import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import { createCombatSceneViewGraph, type CombatSceneViewGraph } from './CombatSceneViewGraph';
 import { resolveCombatSceneSlotPawnIds } from './resolveCombatSceneSlotPawnIds';
 import {

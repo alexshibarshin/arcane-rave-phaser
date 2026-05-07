@@ -24,7 +24,7 @@ import {
   type StageFlowCoordinationState,
   type StageFlowIntent,
 } from '@stage/StageFlowCoordinator';
-import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
+import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import { StageRecordView } from './StageRecordView';
 import { StageShopView } from './StageShopView';
 import { StageDragController } from './StageDragController';

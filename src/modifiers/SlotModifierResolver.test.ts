@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createCombatRuntime } from './CombatRuntime';
-import { resolveSlotModifierMutations } from './CombatSlotModifierResolver';
+import { createCombatRuntime } from '@combat/CombatRuntime';
+import { resolveSlotModifierMutations } from './SlotModifierResolver';
 
 describe('resolveSlotModifierMutations', () => {
   it('returns bonus note mutations for output-note-bonus assignments', () => {

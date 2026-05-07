@@ -6,7 +6,7 @@ import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { SynergyVisualSystem } from '@systems/SynergyVisualSystem';
 import { getStageBuildSlotPawnIds, type StagePawnInstance, type StageBuildState } from '@stage/StageBuild';
 import { createModifierIcons, type ModifierIconView } from './ModifierIconRenderer';
-import type { SlotModifierAssignment } from '@stage/StageSlotModifiers';
+import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import type { StageRuntime } from '@stage/StageRuntime';
 import {
   findPawnDefinition,
