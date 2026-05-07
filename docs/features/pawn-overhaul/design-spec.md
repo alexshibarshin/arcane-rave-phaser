@@ -276,8 +276,8 @@ For a single pawn activation:
   - has `durationMs`;
   - has authored `tickIntervalMs`;
   - applies damage ticks over time;
-  - if the target dies, the beam ends immediately;
-  - does not retarget.
+  - if the target dies, the beam immediately reacquires the current `frontmost enemy`;
+  - ends only if no valid replacement target exists or the duration expires.
 - `Sweeping beam`
   - selects the `frontmost enemy` at cast time;
   - constructs a sweep path from that cast-time choice;

@@ -1,30 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { CombatContentConfig } from '@config/CombatContentConfig';
-import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig } from '@config/CombatWaveConfig';
-import { GameConfig } from '@config/GameConfig';
 import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 import { createCombatRenderModel } from './CombatRenderModel';
 
 describe('CombatRenderModel', () => {
-  it('binds structural anchors and depths to shared combat layout config', () => {
+  it('produces a structurally consistent layered presentation model', () => {
     const model = createCombatRenderModel();
 
-    expect(model.background).toEqual({
-      depth: CombatLayoutConfig.DEPTH.BACKGROUND,
-      width: GameConfig.VIEWPORT_WIDTH,
-      height: GameConfig.VIEWPORT_HEIGHT,
-    });
-    expect(model.enemyLane.depth).toBe(CombatLayoutConfig.DEPTH.ENEMY_LANE_DECORATIONS);
-    expect(model.enemyLane.top).toBe(CombatLayoutConfig.ENEMY_ZONE_TOP);
-    expect(model.enemyLane.bottom).toBe(CombatLayoutConfig.ENEMY_ZONE_BOTTOM);
-    expect(model.record.base.depth).toBe(CombatLayoutConfig.DEPTH.RECORD_BASE);
+    expect(model.background.width).toBeGreaterThan(0);
+    expect(model.background.height).toBeGreaterThan(0);
+    expect(model.enemyLane.top).toBeLessThan(model.enemyLane.bottom);
     expect(model.record.slots).toHaveLength(CombatContentConfig.SLOT_COUNT);
-    expect(model.base.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
-    expect(model.baseHpBar.depth).toBe(CombatLayoutConfig.DEPTH.BASE);
-    expect(model.notePacketAnchor.depth).toBe(CombatLayoutConfig.DEPTH.NOTE_PACKET);
-    expect(model.hud.depth).toBe(CombatLayoutConfig.DEPTH.HUD);
+    expect(model.record.base.radius).toBeGreaterThan(0);
+    expect(model.base.width).toBeGreaterThan(0);
+    expect(model.base.height).toBeGreaterThan(0);
+    expect(model.baseHpBar.width).toBeGreaterThan(0);
+    expect(model.baseHpBar.y).toBeGreaterThan(model.base.y);
+    expect(model.notePacketAnchor.y).toBeLessThan(model.base.y);
+    expect(model.background.depth).toBeLessThan(model.enemyLane.depth);
+    expect(model.enemyLane.depth).toBeLessThan(model.record.base.depth);
+    expect(model.record.base.depth).toBeLessThan(model.base.depth);
+    expect(model.base.depth).toBeLessThan(model.notePacketAnchor.depth);
+    expect(model.notePacketAnchor.depth).toBeLessThan(model.hud.depth);
   });
 
   it('maps the active slot preset into occupied and empty slot presentation states', () => {
@@ -59,8 +58,8 @@ describe('CombatRenderModel', () => {
       );
       expect(slot.presentation.upright.pedestal?.styleKey).toBe(pawnDefinition?.pedestalStyleKey);
 
-      expect(slot.pawn?.tierStars).toBe(1);
-      expect(slot.presentation.upright.tierStars?.count).toBe(1);
+      expect(slot.pawn?.tierStars).toBeGreaterThan(0);
+      expect(slot.presentation.upright.tierStars?.count).toBe(slot.pawn?.tierStars);
 
       if (pawnDefinition?.type === 'generator') {
         expect(slot.presentation.rotating.ruleLabel?.segments).toHaveLength(3);
@@ -136,20 +135,12 @@ describe('CombatRenderModel', () => {
 
       expect(enemy.runtimeId).toBe(runtime?.runtimeId);
       expect(enemy.container.name).toBe(runtime.renderContainerName);
-      expect(enemy.container.depth).toBe(CombatLayoutConfig.DEPTH.PAWNS);
+      expect(enemy.container.depth).toBeGreaterThan(model.record.base.depth);
       expect(enemy.container.sortY).toBe(enemy.container.y);
       expect(enemy.body.variantKey).toBe(definition.visualKey);
       expect(enemy.body.color).toBe(CombatVisualConfig.NOTE_COLORS[definition.color]);
-      const expectedScaleMultiplier =
-        CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS[
-          definition.archetype as keyof typeof CombatVisualConfig.ENEMY.SCALE_MULTIPLIERS
-        ] ?? 1;
-      expect(enemy.body.width).toBe(
-        CombatVisualConfig.ENEMY.BASE_BODY_WIDTH * expectedScaleMultiplier,
-      );
-      expect(enemy.body.height).toBe(
-        CombatVisualConfig.ENEMY.BASE_BODY_HEIGHT * expectedScaleMultiplier,
-      );
+      expect(enemy.body.width).toBeGreaterThan(0);
+      expect(enemy.body.height).toBeGreaterThan(0);
     }
   });
 

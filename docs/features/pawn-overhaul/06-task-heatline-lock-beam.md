@@ -2,7 +2,7 @@
 
 ## Task Intent
 
-This task introduces the beam runtime family through `Heatline`, the first finisher beam pawn. It delivers a short-lived lock-on beam that snapshots its target at cast time, ticks damage over time, and terminates early if the target dies.
+This task introduces the beam runtime family through `Heatline`, the first finisher beam pawn. It delivers a lock-on beam that snapshots its source state at cast time, ticks damage over time, and jumps to the current frontmost enemy if its target dies before the beam expires.
 
 This slice exists because beams are one of the four primary archetypes promised by the overhaul and require a runtime model distinct from projectiles and explosions. The player-facing result is that `Heatline` visibly sustains a beam onto the frontmost enemy, making finishers feel materially different from single-hit attacks.
 
@@ -12,7 +12,7 @@ This task should implement only the lock-on beam variant. Sweeping beams and slo
 
 - Beams are short-lived runtime effects with bound origins.
 - Beam origins follow the source slot world position as the record rotates.
-- `Lock-on beam` selects the frontmost enemy at cast time, has `durationMs`, applies damage ticks at `tickIntervalMs`, ends if the target dies, and does not retarget.
+- `Lock-on beam` selects the frontmost enemy at cast time, has `durationMs`, applies damage ticks at `tickIntervalMs`, and reacquires the current frontmost enemy if the target dies before expiry.
 - Finisher power snapshot is captured once at activation start and applies to the entire output of that activation, including beam lifetime damage.
 - If no valid enemy exists at activation time, the beam is not created but note-rule behavior still resolves.
 
@@ -45,16 +45,16 @@ This task should implement only the lock-on beam variant. Sweeping beams and slo
 - During updates:
   - recompute beam origin from the current slot world position
   - tick damage at the authored interval
-  - stop the beam when duration ends or target dies
-  - never retarget to a different enemy
+  - stop the beam when duration ends or when no replacement target exists
+  - retarget to the current frontmost enemy if the current target dies
 - Provide semantic events or presentation hooks for beam start and beam ticks.
 - Clear active beams on wave end.
 
 ## Acceptance Criteria
 
-- [ ] `Heatline` creates a short-lived lock-on beam that follows the source slot origin and damages the cast-time target over time.
+- [ ] `Heatline` creates a lock-on beam that follows the source slot origin, damages its current target over time, and can jump to a new frontmost enemy when needed.
 - [ ] Beam lifetime damage uses an activation-start snapshot rather than re-reading mutable note/buff state every tick.
-- [ ] Beams end immediately on target death, do not retarget, and are cleaned up on wave end.
+- [ ] Beams retarget on target death when another valid enemy exists, otherwise end cleanly, and are cleaned up on wave end.
 
 ## Technical Notes
 
@@ -69,7 +69,7 @@ This task should implement only the lock-on beam variant. Sweeping beams and slo
 3. Refactor `Heatline` activation to create a beam instance using authored duration/tick interval values.
 4. Store a source snapshot on beam creation and consume it on every beam tick.
 5. Add one-shot feedback events and any persistent render-model plumbing required by the combat view.
-6. Validate early termination when the target dies or disappears.
+6. Validate retargeting on target death and clean termination when no target remains.
 
 ## Additional Notes
 

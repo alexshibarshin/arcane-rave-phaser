@@ -19,6 +19,8 @@ export interface CombatSlotView {
   pawnGlow: Phaser.GameObjects.Image;
   uprightContainer: Phaser.GameObjects.Container;
   rotatingContent: Phaser.GameObjects.Container;
+  anchorLocalX: number;
+  anchorLocalY: number;
 }
 
 export interface CombatBaseHpBarView {
@@ -144,7 +146,7 @@ export function createCombatSceneViewGraph(
         }
 
         const matrix = slotView.uprightContainer.getWorldTransformMatrix();
-        const point = matrix.transformPoint(0, 0);
+        const point = matrix.transformPoint(slotView.anchorLocalX, slotView.anchorLocalY);
 
         return {
           x: point.x,
@@ -295,12 +297,15 @@ function renderRecord(
       uprightContainer,
     ]);
 
+    const construct = slot.presentation.upright.construct;
     slotViews.set(slot.index, {
       sectorPulse,
       zonePulse,
       pawnGlow,
       uprightContainer,
       rotatingContent: rotatingInnerAnchor,
+      anchorLocalX: construct?.spriteOffsetX ?? 0,
+      anchorLocalY: (construct?.spriteOffsetY ?? 0) - 2,
     });
   }
 

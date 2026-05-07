@@ -151,6 +151,9 @@ export interface CombatBeamAbilityDefinition {
   damage: number;
   durationMs: number;
   tickIntervalMs?: number;
+  sweepArcDeg?: number;
+  sweepLengthPx?: number;
+  sweepHitRadiusPx?: number;
   secondaryEffect?: CombatPawnSecondaryEffectDefinition;
 }
 
@@ -370,7 +373,7 @@ const combatContentConfig = {
         targeting: 'frontmost-enemy',
         damage: 20,
         projectileSpeed: 860,
-        projectileLifetimeMs: 850,
+        projectileLifetimeMs: 3000,
       },
     }),
     createGeneratorPawnDefinition({
@@ -398,14 +401,14 @@ const combatContentConfig = {
       damage: 16,
       artFrame: 2,
       primaryArchetype: 'beam',
-      tooltip: 'Locks a beam for 1.2 sec., ticking 16 damage every 0.2 sec.',
+      tooltip: 'Locks a beam for 3 sec., ticking 16 damage every 0.2 sec. If the target dies, it jumps to the next frontmost enemy.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'beam',
         pattern: 'lock-on-beam',
         targeting: 'frontmost-enemy',
         damage: 16,
-        durationMs: 1200,
+        durationMs: 3000,
         tickIntervalMs: 200,
       },
     }),
@@ -417,7 +420,7 @@ const combatContentConfig = {
       damage: 100,
       artFrame: 3,
       primaryArchetype: 'explosion',
-      tooltip: 'After 1 sec., calls down a meteor: 100 damage in a 150 radius. Leaves a burning zone for 2 sec.',
+      tooltip: 'After 0.5 sec., calls down a meteor: 100 damage in a 150 radius. Leaves a burning zone for 2 sec.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'explosion',
@@ -425,7 +428,7 @@ const combatContentConfig = {
         targeting: 'random-enemy',
         damage: 100,
         radius: 150,
-        delayMs: 1000,
+        delayMs: 500,
         secondaryEffect: {
           kind: 'burn-zone-on-detonation',
           zoneRadius: 110,
@@ -469,7 +472,7 @@ const combatContentConfig = {
         targeting: 'frontmost-enemy',
         damage: 20,
         projectileSpeed: 760,
-        projectileLifetimeMs: 700,
+        projectileLifetimeMs: 2000,
         projectileCount: 3,
         coneAngleDeg: 26,
         secondaryEffect: {
@@ -527,17 +530,20 @@ const combatContentConfig = {
       id: 'frost-sweep',
       displayName: 'Frost Sweep',
       color: 'blue',
-      damage: 26,
+      damage: 10,
       artFrame: 8,
       primaryArchetype: 'beam',
-      tooltip: 'Sweeps a freezing beam for 1 sec. New crossings take 26 damage and 45% slow for 1.5 sec.',
+      tooltip: 'Sweeps a freezing beam for 3 sec. Targets take 10 damage and 45% slow for 1.5 sec.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'beam',
         pattern: 'sweeping-beam',
         targeting: 'frontmost-enemy',
-        damage: 26,
-        durationMs: 1000,
+        damage: 10,
+        durationMs: 3000,
+        sweepArcDeg: 72,
+        sweepLengthPx: 520,
+        sweepHitRadiusPx: 24,
         secondaryEffect: {
           kind: 'slow-on-hit',
           slowMultiplier: 0.55,

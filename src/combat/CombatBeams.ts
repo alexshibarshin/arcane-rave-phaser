@@ -5,9 +5,9 @@ import { applyEnemySlow } from './CombatStatuses';
 import { pushCombatBeamStarted, pushCombatBeamTicked } from './CombatRuntimeEvents';
 import type { CombatBeamRuntime, CombatRuntime, CombatSourceSnapshot } from './CombatRuntime';
 
-const SWEEP_HALF_ARC_RAD = Math.PI / 5;
-const SWEEP_LENGTH_PX = 520;
-const SWEEP_HIT_RADIUS_PX = 24;
+const DEFAULT_SWEEP_ARC_DEG = 72;
+const DEFAULT_SWEEP_LENGTH_PX = 520;
+const DEFAULT_SWEEP_HIT_RADIUS_PX = 24;
 
 export function createBeam(
   runtime: CombatRuntime,
@@ -18,6 +18,9 @@ export function createBeam(
   durationMs: number,
   tickIntervalMs: number | null,
   beamType: 'lock-on' | 'sweeping',
+  sweepArcDeg: number | null,
+  sweepLengthPx: number | null,
+  sweepHitRadiusPx: number | null,
 ): void {
   const slot = runtime.slots[slotIndex];
   const origin = slot ? getSlotOrigin(slot) : null;
@@ -28,6 +31,10 @@ export function createBeam(
   }
 
   const targetAngle = Math.atan2(target.y - origin.y, target.x - origin.x);
+  const configuredSweepArcDeg = sweepArcDeg ?? DEFAULT_SWEEP_ARC_DEG;
+  const configuredSweepLengthPx = sweepLengthPx ?? DEFAULT_SWEEP_LENGTH_PX;
+  const configuredSweepHitRadiusPx = sweepHitRadiusPx ?? DEFAULT_SWEEP_HIT_RADIUS_PX;
+  const sweepHalfArcRad = (configuredSweepArcDeg * Math.PI) / 360;
   const beam: CombatBeamRuntime = {
     runtimeId: createRuntimeEffectId(runtime, 'beam'),
     pawnId: pawn.id,
@@ -41,9 +48,10 @@ export function createBeam(
     targetEnemyRuntimeId: beamType === 'lock-on' ? target.runtimeId : null,
     tickIntervalMs,
     nextTickAtMs: tickIntervalMs === null ? null : runtime.combatElapsedMs,
-    sweepStartAngleRad: beamType === 'sweeping' ? targetAngle - SWEEP_HALF_ARC_RAD : null,
-    sweepEndAngleRad: beamType === 'sweeping' ? targetAngle + SWEEP_HALF_ARC_RAD : null,
-    sweepLengthPx: beamType === 'sweeping' ? SWEEP_LENGTH_PX : null,
+    sweepStartAngleRad: beamType === 'sweeping' ? targetAngle - sweepHalfArcRad : null,
+    sweepEndAngleRad: beamType === 'sweeping' ? targetAngle + sweepHalfArcRad : null,
+    sweepLengthPx: beamType === 'sweeping' ? configuredSweepLengthPx : null,
+    sweepHitRadiusPx: beamType === 'sweeping' ? configuredSweepHitRadiusPx : null,
     previouslyIntersectedEnemyRuntimeIds: [],
     slowOnHit: pawn.ability.secondaryEffect?.kind === 'slow-on-hit'
       ? {
@@ -90,10 +98,18 @@ function tickLockOnBeam(
   beam: CombatBeamRuntime,
   pawn: CombatPawnDefinition,
 ): boolean {
-  const target = runtime.enemies.find((enemy) => enemy.runtimeId === beam.targetEnemyRuntimeId);
+  let target: CombatRuntime['enemies'][number] | null =
+    runtime.enemies.find((enemy) => enemy.runtimeId === beam.targetEnemyRuntimeId)
+    ?? null;
 
   if (!target || !target.spawned || target.state === 'dead' || target.currentHp <= 0) {
-    return false;
+    target = selectFrontmostEnemy(runtime);
+
+    if (!target) {
+      return false;
+    }
+
+    beam.targetEnemyRuntimeId = target.runtimeId;
   }
 
   if (beam.nextTickAtMs === null || beam.tickIntervalMs === null) {
@@ -114,7 +130,18 @@ function tickLockOnBeam(
     beam.nextTickAtMs += beam.tickIntervalMs;
   }
 
-  return target.currentHp > 0;
+  if (target.currentHp > 0) {
+    return true;
+  }
+
+  const replacementTarget = selectFrontmostEnemy(runtime);
+
+  if (!replacementTarget) {
+    return false;
+  }
+
+  beam.targetEnemyRuntimeId = replacementTarget.runtimeId;
+  return true;
 }
 
 function tickSweepingBeam(
@@ -125,7 +152,13 @@ function tickSweepingBeam(
   const slot = runtime.slots[beam.slotIndex];
   const origin = slot ? getSlotOrigin(slot) : null;
 
-  if (!origin || beam.sweepStartAngleRad === null || beam.sweepEndAngleRad === null || beam.sweepLengthPx === null) {
+  if (
+    !origin
+    || beam.sweepStartAngleRad === null
+    || beam.sweepEndAngleRad === null
+    || beam.sweepLengthPx === null
+    || beam.sweepHitRadiusPx === null
+  ) {
     return;
   }
 
@@ -141,7 +174,7 @@ function tickSweepingBeam(
       continue;
     }
 
-    if (!segmentHitsCircle(origin.x, origin.y, endX, endY, enemy.x, enemy.y, SWEEP_HIT_RADIUS_PX)) {
+    if (!segmentHitsCircle(origin.x, origin.y, endX, endY, enemy.x, enemy.y, beam.sweepHitRadiusPx)) {
       continue;
     }
 

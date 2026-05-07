@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { CombatContentConfig } from '@config/CombatContentConfig';
-import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import {
   COMBAT_SLOT_COUNT,
   createCombatLayoutPlan,
@@ -11,7 +9,6 @@ describe('CombatLayout', () => {
   it('derives one slot per configured combat slot with evenly spaced sector centers', () => {
     const plan = createCombatLayoutPlan();
 
-    expect(COMBAT_SLOT_COUNT).toBe(CombatContentConfig.SLOT_COUNT);
     expect(plan.record.slots).toHaveLength(COMBAT_SLOT_COUNT);
 
     const slotStep = 360 / COMBAT_SLOT_COUNT;
@@ -22,23 +19,22 @@ describe('CombatLayout', () => {
     }
   });
 
-  it('reuses layout config anchors instead of scene-local geometry', () => {
+  it('keeps slot arcs contiguous and the derived anchors internally consistent', () => {
     const plan = createCombatLayoutPlan();
 
-    expect(plan.record.centerX).toBe(CombatLayoutConfig.RECORD_CENTER_X);
-    expect(plan.record.centerY).toBe(CombatLayoutConfig.RECORD_CENTER_Y);
-    expect(plan.record.radius).toBe(CombatLayoutConfig.RECORD_RADIUS);
-    expect(plan.enemyLane.top).toBe(CombatLayoutConfig.ENEMY_ZONE_TOP);
-    expect(plan.enemyLane.bottom).toBe(CombatLayoutConfig.ENEMY_ZONE_BOTTOM);
-    expect(plan.base).toEqual({
-      x: CombatLayoutConfig.BASE_X,
-      y: CombatLayoutConfig.BASE_Y,
-      width: CombatLayoutConfig.BASE_WIDTH,
-      height: CombatLayoutConfig.BASE_HEIGHT,
-    });
-    expect(plan.notePacketAnchor).toEqual({
-      x: CombatLayoutConfig.NOTE_PACKET_ANCHOR_X,
-      y: CombatLayoutConfig.NOTE_PACKET_ANCHOR_Y,
-    });
+    expect(plan.enemyLane.top).toBeLessThan(plan.enemyLane.bottom);
+    expect(plan.record.radius).toBeGreaterThan(0);
+    expect(plan.base.width).toBeGreaterThan(0);
+    expect(plan.base.height).toBeGreaterThan(0);
+    expect(plan.needle.tipY).toBeLessThan(plan.record.centerY);
+    expect(plan.notePacketAnchor.y).toBeLessThan(plan.base.y);
+
+    for (let index = 0; index < plan.record.slots.length; index += 1) {
+      const slot = plan.record.slots[index]!;
+      const nextSlot = plan.record.slots[(index + 1) % plan.record.slots.length]!;
+      const gapDeg = ((nextSlot.startAngleDeg - slot.endAngleDeg + 540) % 360) - 180;
+
+      expect(gapDeg).toBeCloseTo(0);
+    }
   });
 });

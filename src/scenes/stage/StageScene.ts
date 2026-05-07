@@ -654,7 +654,8 @@ export class StageScene extends Phaser.Scene {
     pawnInstance: StagePawnInstance,
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
-    const sprite = createPawnSprite(this, pawn, 82);
+    const spriteSize = 82;
+    const sprite = createPawnSprite(this, pawn, spriteSize);
     sprite.y = -2;
 
     const stars = this.add.text(0, 46, '★'.repeat(pawnInstance.tier), {
@@ -668,7 +669,11 @@ export class StageScene extends Phaser.Scene {
     container.add([sprite, stars]);
     container.setSize(88, 92);
     container.setInteractive(
-      new Phaser.Geom.Circle(0, -2, 34),
+      new Phaser.Geom.Circle(
+        container.width / 2 + pawn.art.offsetX,
+        container.height / 2 + pawn.art.offsetY - 2,
+        spriteSize * 0.44,
+      ),
       Phaser.Geom.Circle.Contains,
     );
     this.input.setDraggable(container);
@@ -1404,7 +1409,7 @@ function getPawnTooltipDescription(
       return `Targeted burst for ${damage} damage in a ${pawn.ability.radius} radius.`;
     case 'beam':
       if (pawn.ability.pattern === 'lock-on-beam') {
-        return `Locks a beam for ${formatSeconds(pawn.ability.durationMs)}, ticking ${damage} damage every ${formatSeconds(pawn.ability.tickIntervalMs ?? 0)}.`;
+        return `Locks a beam for ${formatSeconds(pawn.ability.durationMs)}, ticking ${damage} damage every ${formatSeconds(pawn.ability.tickIntervalMs ?? 0)}. If the target dies, the beam jumps to the next frontmost enemy.`;
       }
       if (secondary?.kind === 'slow-on-hit') {
         return `Sweeps a beam for ${formatSeconds(pawn.ability.durationMs)}. New crossings take ${damage} damage and ${Math.round((1 - secondary.slowMultiplier) * 100)}% slow.`;

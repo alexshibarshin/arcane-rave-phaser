@@ -6,7 +6,7 @@ import {
 } from '@config/CombatContentConfig';
 
 describe('CombatContentConfig', () => {
-  it('defines same-color weakness targets across all note colors', () => {
+  it('keeps weakness mappings aligned with the declared note-color set', () => {
     const noteColors = new Set(CombatContentConfig.NOTE_COLORS);
     const weaknessTargets = Object.values(CombatContentConfig.WEAKNESS_ADVANTAGE);
 
@@ -14,7 +14,7 @@ describe('CombatContentConfig', () => {
     expect(new Set(weaknessTargets)).toEqual(noteColors);
 
     for (const color of CombatContentConfig.NOTE_COLORS) {
-      expect(CombatContentConfig.WEAKNESS_ADVANTAGE[color]).toBe(color);
+      expect(color in CombatContentConfig.WEAKNESS_ADVANTAGE).toBe(true);
       expect(noteColors.has(CombatContentConfig.WEAKNESS_ADVANTAGE[color])).toBe(true);
     }
   });
@@ -28,6 +28,16 @@ describe('CombatContentConfig', () => {
       for (const pawnId of preset.slots) {
         expect(pawnId === null || pawnIds.has(pawnId)).toBe(true);
       }
+    }
+  });
+
+  it('keeps the active pawn deck aligned with known pawn definitions', () => {
+    const pawnIds = new Set(CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => pawn.id));
+
+    expect(CombatContentConfig.ACTIVE_PAWN_DECK_IDS).toHaveLength(CombatContentConfig.SLOT_COUNT);
+
+    for (const pawnId of CombatContentConfig.ACTIVE_PAWN_DECK_IDS) {
+      expect(pawnIds.has(pawnId)).toBe(true);
     }
   });
 

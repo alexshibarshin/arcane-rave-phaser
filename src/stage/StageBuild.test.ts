@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CombatContentConfig } from '@config/CombatContentConfig';
 import {
   createStageBuildState,
   getStageRerollCost,
@@ -15,7 +16,7 @@ describe('StageBuild', () => {
   it('creates empty slots and shop offers for the build phase', () => {
     const build = createStageBuildState(() => 0);
 
-    expect(build.slots).toHaveLength(8);
+    expect(build.slots).toHaveLength(CombatContentConfig.SLOT_COUNT);
     expect(build.slots.every((slot) => slot === null)).toBe(true);
     expect(build.shopOffers).toEqual([
       'ruby-needle',

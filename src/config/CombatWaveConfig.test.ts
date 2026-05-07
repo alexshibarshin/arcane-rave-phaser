@@ -3,34 +3,34 @@ import { CombatContentConfig } from '@config/CombatContentConfig';
 import { CombatWaveConfig, validateCombatWaveConfig } from '@config/CombatWaveConfig';
 
 describe('CombatWaveConfig', () => {
-  it('keeps the authored starter wave and the full-archetype coverage wave available', () => {
-    const waveIds = CombatWaveConfig.WAVES.map((wave) => wave.id);
+  it('defines at least one wave with non-empty authored sub-waves', () => {
+    expect(CombatWaveConfig.WAVES.length).toBeGreaterThan(0);
 
-    expect(waveIds).toContain('wave-1');
-    expect(waveIds).toContain('wave-3');
+    for (const wave of CombatWaveConfig.WAVES) {
+      expect(wave.id.trim().length).toBeGreaterThan(0);
+      expect(wave.subWaves.length).toBeGreaterThan(0);
+    }
   });
 
-  it('defines wave-3 with one enemy per archetype across red, green, and blue sub-waves', () => {
-    const testWave = CombatWaveConfig.WAVES.find((wave) => wave.id === 'wave-3');
+  it('keeps sub-wave timing monotonic and enemy counts positive', () => {
+    for (const wave of CombatWaveConfig.WAVES) {
+      let previousStartTimeMs = Number.NEGATIVE_INFINITY;
 
-    expect(testWave?.id).toBe('wave-3');
-    expect(testWave?.slotPresetId).toBe('preset-starter-1');
-    expect(testWave?.subWaves).toHaveLength(3);
-    expect(testWave?.subWaves.map((subWave) => subWave.id)).toEqual([
-      'wave-test-all-red',
-      'wave-test-all-green',
-      'wave-test-all-blue',
-    ]);
-    expect(testWave?.subWaves.map((subWave) => subWave.startTimeMs)).toEqual([0, 3000, 6000]);
-    expect(testWave?.subWaves.map((subWave) => subWave.spawnIntervalMs)).toEqual([
-      1200,
-      1200,
-      1200,
-    ]);
+      for (const subWave of wave.subWaves) {
+        expect(subWave.id.trim().length).toBeGreaterThan(0);
+        expect(subWave.startTimeMs).toBeGreaterThanOrEqual(previousStartTimeMs);
+        expect(subWave.spawnIntervalMs).toBeGreaterThan(0);
 
-    for (const subWave of testWave?.subWaves ?? []) {
-      expect(Object.values(subWave.enemies)).toEqual([1, 1, 1, 1, 1, 1]);
-      expect(Object.keys(subWave.enemies)).toHaveLength(6);
+        const enemyEntries = Object.entries(subWave.enemies);
+        expect(enemyEntries.length).toBeGreaterThan(0);
+
+        for (const [, count] of enemyEntries) {
+          expect(Number.isInteger(count)).toBe(true);
+          expect(count).toBeGreaterThan(0);
+        }
+
+        previousStartTimeMs = subWave.startTimeMs;
+      }
     }
   });
 

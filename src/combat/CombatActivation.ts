@@ -252,6 +252,9 @@ function resolveBeamAbility(
     ability.durationMs,
     ability.tickIntervalMs ?? null,
     ability.pattern === 'lock-on-beam' ? 'lock-on' : 'sweeping',
+    ability.pattern === 'sweeping-beam' ? ability.sweepArcDeg ?? null : null,
+    ability.pattern === 'sweeping-beam' ? ability.sweepLengthPx ?? null : null,
+    ability.pattern === 'sweeping-beam' ? ability.sweepHitRadiusPx ?? null : null,
   );
 }
 

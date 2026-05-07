@@ -1,6 +1,7 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
-import { CombatContentConfig } from '@config/CombatContentConfig';
+import { CombatContentConfig, getCombatPawnDefinitionById } from '@config/CombatContentConfig';
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
+import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { resolveCombatActivations } from './CombatActivation';
@@ -26,6 +27,8 @@ import {
 } from './CombatRuntimeEvents';
 import { advanceCombatZones, clearCombatZones } from './CombatZones';
 import type { CombatSubWaveConfig, CombatWaveDefinition } from '@config/CombatWaveConfig';
+
+const SLOT_SPRITE_REST_OFFSET_Y_PX = -2;
 
 export type CombatState = 'preview' | 'running' | 'paused' | 'victory' | 'defeat';
 export type NoteColor = (typeof CombatContentConfig.NOTE_COLORS)[number];
@@ -145,6 +148,7 @@ export interface CombatBeamRuntime {
   sweepStartAngleRad: number | null;
   sweepEndAngleRad: number | null;
   sweepLengthPx: number | null;
+  sweepHitRadiusPx: number | null;
   previouslyIntersectedEnemyRuntimeIds: string[];
   slowOnHit: {
     slowMultiplier: number;
@@ -279,7 +283,6 @@ export function createCombatRuntime(
   const initialWave = getCombatWaveDefinition(waveIndex);
   const startAngle = initialWave?.startAngleDeg ?? CombatBalanceConfig.RECORD_START_ANGLE_DEG;
   const layout = createCombatLayoutPlan();
-  const slotAnchorRadius = layout.record.radius * 0.75;
   const slotPreset =
     CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
     ?? null;
@@ -329,12 +332,7 @@ export function createCombatRuntime(
         slotPawns[slot.index]?.pawnId ?? null,
         slotPawns[slot.index]?.tier ?? null,
       ),
-      worldPosition: getSlotWorldPosition(
-        layout.record.centerX,
-        layout.record.centerY,
-        slot.centerAngleDeg,
-        slotAnchorRadius,
-      ),
+      worldPosition: null,
       sectorCenterAngleDeg: slot.centerAngleDeg,
       activationVisualState: 'idle',
     })),
@@ -365,6 +363,7 @@ export function createCombatRuntime(
     },
   };
 
+  syncCombatSlotWorldPositions(runtime);
   initializeCombatWaveRuntime(runtime, random);
 
   return runtime;
@@ -413,6 +412,7 @@ export function advanceCombatRuntime(
     resetCombatFrameEffects(runtime);
     const forwardDeltaMs = advanceCombatTimeControl(runtime, deltaMs);
     const crossings = forwardDeltaMs > 0 ? advanceCombatRotation(runtime, forwardDeltaMs) : [];
+    syncCombatSlotWorldPositions(runtime);
     resolveCombatActivations(runtime, crossings);
     advanceCombatQueuedVolleys(runtime);
     advanceCombatProjectiles(runtime, forwardDeltaMs);
@@ -502,18 +502,29 @@ export function setCombatNotePacket(
       : Array.from({ length: clampedCount }, (_, index) => `note-packet:${nextColor}:${index}`);
 }
 
-function getSlotWorldPosition(
-  centerX: number,
-  centerY: number,
-  angleDeg: number,
-  radius: number,
-): { x: number; y: number } {
-  const radians = (angleDeg * Math.PI) / 180;
+export function syncCombatSlotWorldPositions(runtime: CombatRuntime): void {
+  const layout = createCombatLayoutPlan();
+  const slotAnchorRadius = layout.record.radius * CombatVisualConfig.SLOT.OUTER_ZONE_OFFSET_RATIO;
 
-  return {
-    x: centerX + Math.cos(radians) * radius,
-    y: centerY + Math.sin(radians) * radius,
-  };
+  for (const slot of runtime.slots) {
+    if (slot.sectorCenterAngleDeg === null) {
+      continue;
+    }
+
+    const radians = ((slot.sectorCenterAngleDeg + runtime.record.currentAngle) * Math.PI) / 180;
+    const pawnDefinition = slot.pawnId === null ? null : getCombatPawnDefinitionById(slot.pawnId);
+    const spriteOffsetX = pawnDefinition?.art.offsetX ?? 0;
+    const spriteOffsetY = pawnDefinition?.art.offsetY ?? 0;
+
+    slot.worldPosition = {
+      x: layout.record.centerX + Math.cos(radians) * slotAnchorRadius + spriteOffsetX,
+      y:
+        layout.record.centerY
+        + Math.sin(radians) * slotAnchorRadius
+        + spriteOffsetY
+        + SLOT_SPRITE_REST_OFFSET_Y_PX,
+    };
+  }
 }
 
 function advanceCombatTimeControl(runtime: CombatRuntime, deltaMs: number): number {
