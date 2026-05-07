@@ -90,6 +90,7 @@ export class StageScene extends Phaser.Scene {
   private recordInnerLabelLayer?: Phaser.GameObjects.Container;
   private shopPanel?: Phaser.GameObjects.Container;
   private shopCardsLayer?: Phaser.GameObjects.Container;
+  private shopEmptyLabel?: Phaser.GameObjects.Text;
   private rerollButton?: Phaser.GameObjects.Text;
   private tooltipContainer?: Phaser.GameObjects.Container;
   private tooltipSprite?: Phaser.GameObjects.Image;
@@ -320,9 +321,9 @@ export class StageScene extends Phaser.Scene {
 
       const glow = this.add.graphics();
       glow.setAlpha(0);
-      glow.fillStyle(0x8ef7ff, 0.18);
+      glow.fillStyle(0x8ef7ff, 0.35);
       glow.fillCircle(pawnAnchor.x, pawnAnchor.y, 46);
-      glow.lineStyle(3, 0x8ef7ff, 0.95);
+      glow.lineStyle(3, 0x8ef7ff, 1);
       glow.strokeCircle(pawnAnchor.x, pawnAnchor.y, 52);
 
       const zone = this.add.zone(pawnAnchor.x, pawnAnchor.y, 120, 120);
@@ -379,32 +380,32 @@ export class StageScene extends Phaser.Scene {
     const y = -height / 2;
 
     background.fillStyle(0x08111b, 0.98);
-    background.fillRoundedRect(x, y, width, height, 30);
+    background.fillRoundedRect(x, y, width, height, StagePresentationConfig.SHOP_BORDER_RADIUS);
     background.fillStyle(0x11263a, 0.38);
-    background.fillRoundedRect(x + 20, y + 18, width - 40, 52, 20);
+    background.fillRoundedRect(x + 20, y + 18, width - 40, 52, StagePresentationConfig.SHOP_BORDER_RADIUS);
     background.lineStyle(2, 0x57d9ff, 0.5);
-    background.strokeRoundedRect(x, y, width, height, 30);
+    background.strokeRoundedRect(x, y, width, height, StagePresentationConfig.SHOP_BORDER_RADIUS);
 
     const title = this.add.text(x + 32, y + 30, 'SHOP', {
       color: '#f5f7ff',
-      fontFamily: 'monospace',
+      fontFamily: 'Helvetica, Arial, sans-serif',
       fontSize: '28px',
     });
     const subtitle = this.add.text(
       x + 132,
-      y + 34,
+      y + 40,
       `Buy ${StageFlowConfig.SHOP_PURCHASE_COST}c  •  Move ${StageFlowConfig.REPOSITION_COST}c`,
       {
         color: '#7fbddb',
-        fontFamily: 'monospace',
+        fontFamily: 'Helvetica, Arial, sans-serif',
         fontSize: '15px',
       },
     );
 
-    this.rerollButton = this.add.text(x + width - 122, y + 32, '', {
+    this.rerollButton = this.add.text(x + width - 122, y + 30, '', {
       color: '#071019',
       backgroundColor: '#ffe08e',
-      fontFamily: 'monospace',
+      fontFamily: 'Helvetica, Arial, sans-serif',
       fontSize: '18px',
       align: 'center',
       padding: { left: 12, right: 12, top: 8, bottom: 8 },
@@ -435,7 +436,7 @@ export class StageScene extends Phaser.Scene {
 
     this.tooltipTitle = this.add.text(-width / 2 + leftColumnWidth / 2, -height / 2 + 22, '', {
       color: '#f5f7ff',
-      fontFamily: 'monospace',
+      fontFamily: 'Helvetica, Arial, sans-serif',
       fontSize: '20px',
       align: 'center',
       wordWrap: { width: leftColumnWidth - 24 },
@@ -697,14 +698,12 @@ export class StageScene extends Phaser.Scene {
   }
 
   private refreshShopCards(): void {
-    this.shopCardViews.forEach((card) => {
-      card.container.destroy();
-    });
-    this.shopCardViews.length = 0;
-
     if (!this.shopCardsLayer) {
       return;
     }
+
+    const oldCards = [...this.shopCardViews];
+    this.shopCardViews.length = 0;
 
     const cards = this.runtime.build.shopOffers;
     const totalWidth =
@@ -712,17 +711,66 @@ export class StageScene extends Phaser.Scene {
       + Math.max(0, cards.length - 1) * StagePresentationConfig.SHOP_CARD_GAP;
     const startX = -totalWidth / 2 + StagePresentationConfig.SHOP_CARD_WIDTH / 2;
 
-    cards.forEach((pawnId, offerIndex) => {
-      const pawn = findPawnDefinition(pawnId);
-      if (!pawn) {
+    const createNewCards = () => {
+      oldCards.forEach((card) => card.container.destroy());
+
+      if (cards.length === 0) {
+        if (!this.shopEmptyLabel) {
+          this.shopEmptyLabel = this.add.text(0, 34, 'No offers', {
+            color: '#7fbddb',
+            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontSize: '16px',
+            align: 'center',
+          }).setOrigin(0.5, 0.5);
+          this.shopCardsLayer?.add(this.shopEmptyLabel);
+        }
+        this.shopEmptyLabel.setVisible(true).setAlpha(1);
         return;
       }
 
-      const x = startX + offerIndex * (StagePresentationConfig.SHOP_CARD_WIDTH + StagePresentationConfig.SHOP_CARD_GAP);
-      const cardView = this.createShopCard(x, 30, offerIndex, pawn);
-      this.shopCardViews.push(cardView);
-      this.shopCardsLayer?.add(cardView.container);
-    });
+      if (this.shopEmptyLabel) {
+        this.shopEmptyLabel.setVisible(false);
+      }
+
+      cards.forEach((pawnId, offerIndex) => {
+        const pawn = findPawnDefinition(pawnId);
+        if (!pawn) {
+          return;
+        }
+
+        const x = startX + offerIndex * (StagePresentationConfig.SHOP_CARD_WIDTH + StagePresentationConfig.SHOP_CARD_GAP);
+        const cardView = this.createShopCard(x, 30, offerIndex, pawn);
+        cardView.container.setAlpha(0).setScale(0.92);
+        this.shopCardViews.push(cardView);
+        this.shopCardsLayer?.add(cardView.container);
+
+        this.tweens.add({
+          targets: cardView.container,
+          alpha: 1,
+          scaleX: 1,
+          scaleY: 1,
+          duration: 220,
+          delay: offerIndex * 50,
+          ease: 'Back.easeOut',
+        });
+      });
+    };
+
+    if (oldCards.length > 0) {
+      for (const card of oldCards) {
+        this.tweens.add({
+          targets: card.container,
+          alpha: 0,
+          scaleX: 0.92,
+          scaleY: 0.92,
+          duration: 110,
+          ease: 'Sine.easeIn',
+        });
+      }
+      this.time.delayedCall(120, createNewCards);
+    } else {
+      createNewCards();
+    }
   }
 
   private createShopCard(
@@ -738,25 +786,33 @@ export class StageScene extends Phaser.Scene {
     const left = -width / 2;
     const top = -height / 2;
     const accent = getPawnAccentColor(pawn.color);
+    const affordable = this.runtime.coins >= StageFlowConfig.SHOP_PURCHASE_COST;
+    const borderAlpha = affordable ? 0.88 : 0.48;
+    const radius = StagePresentationConfig.SHOP_BORDER_RADIUS;
 
     graphics.fillStyle(0x0b1520, 1);
-    graphics.fillRoundedRect(left, top, width, height, 22);
+    graphics.fillRoundedRect(left, top, width, height, radius);
     graphics.fillStyle(accent, 0.08);
-    graphics.fillRoundedRect(left + 12, top + 12, width - 24, 68, 18);
-    graphics.lineStyle(2, accent, 0.72);
-    graphics.strokeRoundedRect(left, top, width, height, 22);
+    graphics.fillRoundedRect(left + 12, top + 12, width - 24, 68, 16);
+    graphics.lineStyle(2, accent, borderAlpha);
+    graphics.strokeRoundedRect(left, top, width, height, radius);
     graphics.lineStyle(1, 0xffffff, 0.08);
-    graphics.strokeRoundedRect(left + 12, top + 12, width - 24, height - 24, 18);
+    graphics.strokeRoundedRect(left + 12, top + 12, width - 24, height - 24, 16);
+
+    const hoverGlow = this.add.graphics();
+    hoverGlow.lineStyle(2, accent, 1);
+    hoverGlow.strokeRoundedRect(left, top, width, height, radius);
+    hoverGlow.setAlpha(0);
 
     const title = this.add.text(0, top + 74, formatPawnTitle(pawn), {
       color: '#f5f7ff',
-      fontFamily: 'monospace',
+      fontFamily: 'Helvetica, Arial, sans-serif',
       fontSize: '17px',
       align: 'center',
     }).setOrigin(0.5, 0.5);
 
     const spriteFrame = createPawnSprite(this, pawn, 86);
-    spriteFrame.y = top + 6;
+    spriteFrame.y = top + 26;
 
     const ruleLabel = createRuleLabelContainer(this, pawn, accent);
     ruleLabel.x = 0;
@@ -765,13 +821,13 @@ export class StageScene extends Phaser.Scene {
     const priceChip = this.add.text(0, top + 137, `${StageFlowConfig.SHOP_PURCHASE_COST}c`, {
       color: '#071019',
       backgroundColor: '#ffe08e',
-      fontFamily: 'monospace',
+      fontFamily: 'Helvetica, Arial, sans-serif',
       fontSize: '16px',
       align: 'center',
       padding: { left: 10, right: 10, top: 5, bottom: 5 },
     }).setOrigin(0.5, 0.5);
 
-    container.add([graphics, spriteFrame, title, ruleLabel, priceChip]);
+    container.add([graphics, hoverGlow, spriteFrame, title, ruleLabel, priceChip]);
     container.setSize(width, height);
     container.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, width, height),
@@ -789,6 +845,20 @@ export class StageScene extends Phaser.Scene {
     if (container.input) {
       container.input.cursor = 'grab';
     }
+
+    container.on('pointerover', () => {
+      if (this.tooltipLockedByDrag) return;
+      this.tweens.killTweensOf(container);
+      this.tweens.killTweensOf(hoverGlow);
+      this.tweens.add({ targets: container, scaleX: 1.04, scaleY: 1.04, duration: 120, ease: 'Sine.easeOut' });
+      this.tweens.add({ targets: hoverGlow, alpha: 1, duration: 120, ease: 'Sine.easeOut' });
+    });
+    container.on('pointerout', () => {
+      this.tweens.killTweensOf(container);
+      this.tweens.killTweensOf(hoverGlow);
+      this.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 150, ease: 'Sine.easeOut' });
+      this.tweens.add({ targets: hoverGlow, alpha: 0, duration: 150, ease: 'Sine.easeOut' });
+    });
 
     this.bindPawnInspection(container, { pawnId: pawn.id, tier: 1 });
 
@@ -1339,7 +1409,7 @@ function getPhaseLabel(phase: StageRuntime['phase']): string {
 
 function getStatusLabel(runtime: StageRuntime): string {
   if (runtime.phase === 'build') {
-    return 'Drag shop cards onto empty slots or matching same-tier pawns to merge. Drag placed pawns to move, swap, or merge. Use reroll to refresh the shop.';
+    return 'Drag cards to slots to buy. Hold for pawn details.';
   }
 
   if (runtime.phase === 'combat') {
