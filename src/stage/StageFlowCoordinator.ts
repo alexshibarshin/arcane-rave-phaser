@@ -19,12 +19,17 @@ export interface StageFlowCoordinationState {
   isTransitioning: boolean;
   pendingCombatLaunch: boolean;
   pendingBuildIntro: boolean;
+  pendingCombatResolution: {
+    outcome: StageCombatOutcome;
+    chronoRemaining: number;
+  } | null;
 }
 
 export type StageFlowIntent =
   | { type: 'stage:initialized' }
   | { type: 'stage:start-wave-requested' }
-  | { type: 'stage:combat-ended'; outcome: StageCombatOutcome; chronoRemaining: number };
+  | { type: 'stage:combat-ended'; outcome: StageCombatOutcome; chronoRemaining: number }
+  | { type: 'stage:combat-return-finished' };
 
 export type StageFlowCommand =
   | {
@@ -38,6 +43,10 @@ export type StageFlowCommand =
   | {
       type: 'stage:play-build-phase-intro';
       payload: { fromCombat: boolean };
+    }
+  | {
+      type: 'stage:play-combat-phase-return';
+      payload: { outcome: StageCombatOutcome };
     }
   | {
       type: 'stage:play-combat-phase-outro';
@@ -71,6 +80,7 @@ export function createStageFlowCoordinationState(): StageFlowCoordinationState {
     isTransitioning: false,
     pendingCombatLaunch: false,
     pendingBuildIntro: false,
+    pendingCombatResolution: null,
   };
 }
 
@@ -84,6 +94,7 @@ export function dispatchStageFlowIntent(
       coordination.pendingBuildIntro = true;
       coordination.pendingCombatLaunch = false;
       coordination.isTransitioning = false;
+      coordination.pendingCombatResolution = null;
       return [
         createSnapshotCommand(runtime),
         {
@@ -100,6 +111,7 @@ export function dispatchStageFlowIntent(
       coordination.isTransitioning = true;
       coordination.pendingCombatLaunch = true;
       coordination.pendingBuildIntro = false;
+      coordination.pendingCombatResolution = null;
 
       return [
         {
@@ -118,47 +130,88 @@ export function dispatchStageFlowIntent(
         return [];
       }
 
-      const previousPhase = runtime.phase;
-      resolveStageCombatOutcome(runtime, {
-        outcome: intent.outcome,
-        rewardCoins: StageFlowConfig.WAVE_CLEAR_REWARD_COINS,
-        chronoRemaining: intent.chronoRemaining,
-      });
+      if (intent.outcome === 'victory') {
+        coordination.isTransitioning = true;
+        coordination.pendingCombatLaunch = false;
+        coordination.pendingBuildIntro = false;
+        coordination.pendingCombatResolution = {
+          outcome: intent.outcome,
+          chronoRemaining: intent.chronoRemaining,
+        };
 
-      coordination.isTransitioning = false;
-      coordination.pendingCombatLaunch = false;
-      coordination.pendingBuildIntro = true;
-
-      const commands: StageFlowCommand[] = [
-        {
-          type: 'stage:stop-combat-phase-scenes',
-          payload: {
-            sceneKeys: [SceneKeys.HUD, SceneKeys.COMBAT],
-          },
-        },
-      ];
-
-      if (runtime.phase !== previousPhase) {
-        commands.push({
-          type: 'stage:publish-phase-changed',
-          payload: { phase: runtime.phase },
-        });
+        return [{
+          type: 'stage:play-combat-phase-return',
+          payload: { outcome: intent.outcome },
+        }];
       }
 
-      commands.push(
-        {
-          type: 'stage:refresh-build-phase',
-        },
-        createSnapshotCommand(runtime),
-        {
-          type: 'stage:play-build-phase-intro',
-          payload: { fromCombat: true },
-        },
-      );
+      return resolveCombatReturn(runtime, coordination, {
+        outcome: intent.outcome,
+        chronoRemaining: intent.chronoRemaining,
+      });
+    }
 
-      return commands;
+    case 'stage:combat-return-finished': {
+      if (runtime.phase !== 'combat' || coordination.pendingCombatResolution === null) {
+        return [];
+      }
+
+      const resolution = coordination.pendingCombatResolution;
+      coordination.pendingCombatResolution = null;
+
+      return resolveCombatReturn(runtime, coordination, resolution);
     }
   }
+}
+
+function resolveCombatReturn(
+  runtime: StageRuntime,
+  coordination: StageFlowCoordinationState,
+  resolution: {
+    outcome: StageCombatOutcome;
+    chronoRemaining: number;
+  },
+): StageFlowCommand[] {
+  const previousPhase = runtime.phase;
+  resolveStageCombatOutcome(runtime, {
+    outcome: resolution.outcome,
+    rewardCoins: StageFlowConfig.WAVE_CLEAR_REWARD_COINS,
+    chronoRemaining: resolution.chronoRemaining,
+  });
+
+  coordination.isTransitioning = false;
+  coordination.pendingCombatLaunch = false;
+  coordination.pendingBuildIntro = true;
+  coordination.pendingCombatResolution = null;
+
+  const commands: StageFlowCommand[] = [
+    {
+      type: 'stage:stop-combat-phase-scenes',
+      payload: {
+        sceneKeys: [SceneKeys.HUD, SceneKeys.COMBAT],
+      },
+    },
+  ];
+
+  if (runtime.phase !== previousPhase) {
+    commands.push({
+      type: 'stage:publish-phase-changed',
+      payload: { phase: runtime.phase },
+    });
+  }
+
+  commands.push(
+    {
+      type: 'stage:refresh-build-phase',
+    },
+    createSnapshotCommand(runtime),
+    {
+      type: 'stage:play-build-phase-intro',
+      payload: { fromCombat: true },
+    },
+  );
+
+  return commands;
 }
 
 function createSnapshotCommand(runtime: StageRuntime): Extract<

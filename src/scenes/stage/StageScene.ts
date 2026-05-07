@@ -103,6 +103,7 @@ export class StageScene extends Phaser.Scene {
   private activeDropSlotIndex: number | null = null;
   private inspectedPawn: StagePawnTooltipState | null = null;
   private tooltipHoldTimer?: Phaser.Time.TimerEvent;
+  private combatReturnTimer?: Phaser.Time.TimerEvent;
   private tooltipLockedByDrag = false;
   private transientStatusText: string | null = null;
   private lastPresentedCoins: number | null = null;
@@ -907,18 +908,20 @@ export class StageScene extends Phaser.Scene {
       ? StagePresentationConfig.COMBAT_TO_BUILD_TWEEN_MS
       : StagePresentationConfig.BUILD_TO_COMBAT_TWEEN_MS;
     const recordStartY = fromCombat
-      ? StagePresentationConfig.BUILD_RECORD_CENTER_Y + 84
+      ? StagePresentationConfig.COMBAT_TO_BUILD_RECORD_START_Y
       : StagePresentationConfig.BUILD_RECORD_CENTER_Y;
     const previewStartY = fromCombat
-      ? StagePresentationConfig.PREVIEW_CARD_Y - 32
+      ? StagePresentationConfig.PREVIEW_CARD_Y - 72
       : StagePresentationConfig.PREVIEW_CARD_Y;
     const shopStartY = fromCombat
-      ? StagePresentationConfig.SHOP_PANEL_Y + 240
+      ? StagePresentationConfig.SHOP_PANEL_Y + 300
       : StagePresentationConfig.SHOP_PANEL_Y + 170;
 
-    this.cameras.main.setZoom(fromCombat ? 0.94 : 1);
+    this.cameras.main.setZoom(fromCombat ? StagePresentationConfig.COMBAT_TO_BUILD_CAMERA_START_ZOOM : 1);
     this.recordContainer.setY(recordStartY);
-    this.recordContainer.setScale(fromCombat ? 0.95 : 1);
+    this.recordContainer.setScale(
+      fromCombat ? StagePresentationConfig.COMBAT_TO_BUILD_RECORD_START_SCALE : 1,
+    );
     this.recordContainer.setAlpha(1);
     this.previewCard.setY(previewStartY);
     this.previewCard.setAlpha(fromCombat ? 0 : 1);
@@ -936,7 +939,7 @@ export class StageScene extends Phaser.Scene {
       y: StagePresentationConfig.BUILD_RECORD_CENTER_Y,
       scale: 1,
       duration,
-      ease: 'Back.easeOut',
+      ease: fromCombat ? 'Cubic.easeOut' : 'Back.easeOut',
     });
     this.tweens.add({
       targets: this.previewCard,
@@ -1058,6 +1061,28 @@ export class StageScene extends Phaser.Scene {
     this.tooltipHoldTimer = undefined;
   }
 
+  private playCombatPhaseReturn(
+    outcome: 'victory' | 'defeat',
+    onComplete: () => void,
+  ): void {
+    this.combatReturnTimer?.remove(false);
+    this.combatReturnTimer = undefined;
+
+    const delayMs = outcome === 'victory'
+      ? StagePresentationConfig.COMBAT_VICTORY_HOLD_MS
+      : 0;
+
+    if (delayMs <= 0) {
+      onComplete();
+      return;
+    }
+
+    this.combatReturnTimer = this.time.delayedCall(delayMs, () => {
+      this.combatReturnTimer = undefined;
+      onComplete();
+    });
+  }
+
   private publishSnapshot(): void {
     const canStartWave = this.canStageStartWave();
     const currentWave = Math.min(this.runtime.currentWaveIndex + 1, Math.max(1, this.runtime.totalWaves));
@@ -1152,6 +1177,11 @@ export class StageScene extends Phaser.Scene {
         case 'stage:play-build-phase-intro':
           this.playBuildPhaseIntro(command.payload.fromCombat);
           break;
+        case 'stage:play-combat-phase-return':
+          this.playCombatPhaseReturn(command.payload.outcome, () => {
+            this.runStageFlowIntent({ type: 'stage:combat-return-finished' });
+          });
+          return;
         case 'stage:play-combat-phase-outro':
           this.transientStatusText = null;
           this.playCombatPhaseOutro(() => {
@@ -1273,6 +1303,8 @@ export class StageScene extends Phaser.Scene {
   }
 
   private handleShutdown(): void {
+    this.combatReturnTimer?.remove(false);
+    this.combatReturnTimer = undefined;
     off('stage:start-wave-requested', this.handleStartWaveRequested);
     off('combat:ended', this.handleCombatEnded);
     this.startWaveButton?.off('pointerdown', this.handleStartWavePressed);

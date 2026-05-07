@@ -45,6 +45,7 @@ describe('StageFlowCoordinator', () => {
       isTransitioning: false,
       pendingCombatLaunch: false,
       pendingBuildIntro: true,
+      pendingCombatResolution: null,
     });
   });
 
@@ -66,6 +67,7 @@ describe('StageFlowCoordinator', () => {
       isTransitioning: true,
       pendingCombatLaunch: true,
       pendingBuildIntro: false,
+      pendingCombatResolution: null,
     });
     expect(commands[3]).toMatchObject({
       type: 'stage:launch-combat-phase',
@@ -83,7 +85,7 @@ describe('StageFlowCoordinator', () => {
     });
   });
 
-  it('resolves combat, stops combat scenes, refreshes build state, and reopens build intro after victory', () => {
+  it('queues a combat return transition after victory before resolving the build phase', () => {
     const runtime = createStageRuntime({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }, () => 0);
     const coordination = createStageFlowCoordinationState();
     requestStageWaveStart(runtime);
@@ -92,6 +94,43 @@ describe('StageFlowCoordinator', () => {
       type: 'stage:combat-ended',
       outcome: 'victory',
       chronoRemaining: 55,
+    });
+
+    expect(getCommandTypes(commands)).toEqual([
+      'stage:play-combat-phase-return',
+    ]);
+    expect(runtime.phase).toBe('combat');
+    expect(runtime.currentWaveIndex).toBe(0);
+    expect(runtime.coins).toBe(StageFlowConfig.INITIAL_COINS);
+    expect(runtime.chrono.current).toBe(CombatTimeControlConfig.CHRONO_START);
+    expect(runtime.lastCombatOutcome).toBeNull();
+    expect(coordination).toEqual<StageFlowCoordinationState>({
+      isTransitioning: true,
+      pendingCombatLaunch: false,
+      pendingBuildIntro: false,
+      pendingCombatResolution: {
+        outcome: 'victory',
+        chronoRemaining: 55,
+      },
+    });
+    expect(commands[0]).toMatchObject({
+      type: 'stage:play-combat-phase-return',
+      payload: { outcome: 'victory' },
+    });
+  });
+
+  it('resolves queued victory return into build once the combat return finishes', () => {
+    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }, () => 0);
+    const coordination = createStageFlowCoordinationState();
+    requestStageWaveStart(runtime);
+    dispatchStageFlowIntent(runtime, coordination, {
+      type: 'stage:combat-ended',
+      outcome: 'victory',
+      chronoRemaining: 55,
+    });
+
+    const commands = dispatchStageFlowIntent(runtime, coordination, {
+      type: 'stage:combat-return-finished',
     });
 
     expect(getCommandTypes(commands)).toEqual([
@@ -112,10 +151,7 @@ describe('StageFlowCoordinator', () => {
       isTransitioning: false,
       pendingCombatLaunch: false,
       pendingBuildIntro: true,
-    });
-    expect(commands[0]).toMatchObject({
-      type: 'stage:stop-combat-phase-scenes',
-      payload: { sceneKeys: [SceneKeys.HUD, SceneKeys.COMBAT] },
+      pendingCombatResolution: null,
     });
     expect(commands[1]).toMatchObject({
       type: 'stage:publish-phase-changed',
@@ -141,6 +177,7 @@ describe('StageFlowCoordinator', () => {
       isTransitioning: true,
       pendingCombatLaunch: false,
       pendingBuildIntro: false,
+      pendingCombatResolution: null,
     });
 
     expect(
@@ -155,6 +192,7 @@ describe('StageFlowCoordinator', () => {
       isTransitioning: true,
       pendingCombatLaunch: false,
       pendingBuildIntro: false,
+      pendingCombatResolution: null,
     });
   });
 });
