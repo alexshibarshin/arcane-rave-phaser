@@ -1,5 +1,7 @@
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
+import type { StageConfig } from '@config/StageConfig';
+import { SLOT_MODIFIER_CONFIG } from '@config/SlotModifierConfig';
 import {
   drawStageShopOffers,
   createStageBuildState,
@@ -12,6 +14,7 @@ import {
   rerollStageShop,
   type StageBuildState,
 } from './StageBuild';
+import { generateStageSlotModifiers, type SlotModifierAssignment } from './StageSlotModifiers';
 import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
 
 export type StagePhase = 'build' | 'combat' | 'stage_complete' | 'stage_failed';
@@ -28,11 +31,7 @@ export interface StageRuntime {
   };
   lastCombatOutcome: StageCombatOutcome | null;
   build: StageBuildState;
-}
-
-export interface CreateStageRuntimeOptions {
-  totalWaves: number;
-  initialCoins: number;
+  slotModifiers: SlotModifierAssignment[];
 }
 
 export interface ResolveStageCombatOutcomeOptions {
@@ -43,11 +42,11 @@ export interface ResolveStageCombatOutcomeOptions {
 }
 
 export function createStageRuntime(
-  options: CreateStageRuntimeOptions,
+  stageConfig: StageConfig,
   random: () => number = Math.random,
 ): StageRuntime {
-  const totalWaves = Math.max(0, options.totalWaves);
-  const initialCoins = Math.max(0, options.initialCoins);
+  const totalWaves = Math.max(0, stageConfig.totalWaves);
+  const initialCoins = Math.max(0, stageConfig.initialCoins);
 
   return {
     phase: totalWaves > 0 ? 'build' : 'stage_complete',
@@ -60,6 +59,11 @@ export function createStageRuntime(
     },
     lastCombatOutcome: null,
     build: createStageBuildState(random),
+    slotModifiers: generateStageSlotModifiers(
+      random,
+      stageConfig,
+      SLOT_MODIFIER_CONFIG.modifiers,
+    ),
   };
 }
 
@@ -186,6 +190,10 @@ export function getStageCombatLoadoutSlots(runtime: StageRuntime): CombatLoadout
 
 export function getStageCombatLoadoutTiers(runtime: StageRuntime): Array<number | null> {
   return runtime.build.slots.map((slot) => slot?.tier ?? null);
+}
+
+export function getStageSlotModifiers(runtime: StageRuntime): SlotModifierAssignment[] {
+  return runtime.slotModifiers;
 }
 
 export function getStageShopRerollCost(runtime: StageRuntime): number {

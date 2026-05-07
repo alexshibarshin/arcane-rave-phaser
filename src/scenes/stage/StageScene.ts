@@ -9,6 +9,7 @@ import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
+import { STAGE_CONFIGS } from '@config/StageConfig';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { emit, off, on } from '@events/EventBus';
@@ -117,10 +118,7 @@ export class StageScene extends Phaser.Scene {
 
   create(): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
-    this.runtime = createStageRuntime({
-      totalWaves: CombatWaveConfig.WAVES.length,
-      initialCoins: StageFlowConfig.INITIAL_COINS,
-    });
+    this.runtime = createStageRuntime(STAGE_CONFIGS[0]!);
 
     this.renderBuildPhaseLayout();
     this.bindDragEvents();

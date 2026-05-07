@@ -12,12 +12,27 @@ import {
   requestStageWaveStart,
   resolveStageCombatOutcome,
 } from '@stage/StageRuntime';
+import { STAGE_CONFIGS, type StageConfig } from '@config/StageConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 
+function makeStageConfig(overrides: Partial<StageConfig>): StageConfig {
+  const base = STAGE_CONFIGS[0]!;
+  return {
+    id: base.id,
+    displayName: base.displayName,
+    totalWaves: base.totalWaves,
+    initialCoins: base.initialCoins,
+    waveDefinitions: base.waveDefinitions,
+    slotModifierCountWeights: base.slotModifierCountWeights,
+    slotModifierWeightOverrides: base.slotModifierWeightOverrides,
+    ...overrides,
+  };
+}
+
 describe('StageRuntime', () => {
   it('creates a build-phase runtime for authored stages', () => {
-    const runtime = createStageRuntime({ totalWaves: 3, initialCoins: 6 }, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 3, initialCoins: 6 }), () => 0);
 
     expect(runtime).toEqual({
       phase: 'build',
@@ -39,12 +54,13 @@ describe('StageRuntime', () => {
         shopPurchaseCounts: {},
         rerollCount: 0,
       },
+      slotModifiers: [],
     });
     expect(canStageStartWave(runtime)).toBe(true);
   });
 
   it('starts combat only from build phase with a valid next wave', () => {
-    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 });
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }));
 
     expect(requestStageWaveStart(runtime)).toBe(true);
     expect(runtime.phase).toBe('combat');
@@ -52,7 +68,7 @@ describe('StageRuntime', () => {
   });
 
   it('returns to build, increments wave, and grants reward after non-final victory', () => {
-    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 }, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), () => 0);
     purchaseStagePawnIntoSlot(runtime, 0, 0);
     requestStageWaveStart(runtime);
 
@@ -80,7 +96,7 @@ describe('StageRuntime', () => {
   });
 
   it('uses the current build slots as the combat loadout', () => {
-    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 }, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), () => 0);
     purchaseStagePawnIntoSlot(runtime, 0, 0);
 
     expect(getStageCombatLoadout(runtime)[0]).toBe('ruby-needle');
@@ -88,7 +104,7 @@ describe('StageRuntime', () => {
   });
 
   it('keeps merged pawn tiers aligned with pawn ids in the combat loadout snapshot', () => {
-    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 12 }, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), () => 0);
 
     purchaseStagePawnIntoSlot(runtime, 0, 0);
     purchaseStagePawnIntoSlot(runtime, 0, 1);
@@ -104,7 +120,7 @@ describe('StageRuntime', () => {
   });
 
   it('grants merge reward coins when buying a matching pawn from the shop into a merge', () => {
-    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 10 }, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 10 }), () => 0);
 
     purchaseStagePawnIntoSlot(runtime, 0, 0);
 
@@ -118,7 +134,7 @@ describe('StageRuntime', () => {
     (StageFlowConfig as { MERGE_REWARD_COINS: number }).MERGE_REWARD_COINS = 0;
 
     try {
-      const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 12 }, () => 0);
+      const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), () => 0);
 
       purchaseStagePawnIntoSlot(runtime, 0, 0);
       purchaseStagePawnIntoSlot(runtime, 0, 1);
@@ -131,7 +147,7 @@ describe('StageRuntime', () => {
   });
 
   it('rerolls the shop, spends coins, and increases reroll cost inside the build phase', () => {
-    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 }, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), () => 0);
 
     expect(getStageShopRerollCost(runtime)).toBe(1);
     expect(rerollStageShopOffers(runtime, () => 0.5)).toBe(true);
@@ -146,7 +162,7 @@ describe('StageRuntime', () => {
   });
 
   it('completes the stage after final-wave victory', () => {
-    const runtime = createStageRuntime({ totalWaves: 1, initialCoins: 6 });
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 1, initialCoins: 6 }));
     requestStageWaveStart(runtime);
 
     const nextPhase = resolveStageCombatOutcome(runtime, {
@@ -164,7 +180,7 @@ describe('StageRuntime', () => {
   });
 
   it('fails the stage on defeat without granting reward', () => {
-    const runtime = createStageRuntime({ totalWaves: 2, initialCoins: 6 });
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }));
     requestStageWaveStart(runtime);
 
     const nextPhase = resolveStageCombatOutcome(runtime, {
