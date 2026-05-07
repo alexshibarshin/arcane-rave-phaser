@@ -4,6 +4,7 @@ import type {
   AoeRadiusScaleParams,
   BeamCountBonusParams,
   ColorOutputNoteBonusParams,
+  DoubleActivationParams,
   OutputNoteBonusParams,
   ProjectileBonusParams,
 } from '@config/SlotModifierConfig';
@@ -17,6 +18,8 @@ export interface SlotModifierMutations {
   radiusMultiplier: number;
   extraBeamCount: number;
   doubleActivation: boolean;
+  extraActivations: number;
+  activationDelayMs: number;
 }
 
 const DEFAULT_SLOT_MODIFIER_MUTATIONS: SlotModifierMutations = {
@@ -27,6 +30,8 @@ const DEFAULT_SLOT_MODIFIER_MUTATIONS: SlotModifierMutations = {
   radiusMultiplier: 1,
   extraBeamCount: 0,
   doubleActivation: false,
+  extraActivations: 0,
+  activationDelayMs: 0,
 };
 
 export function resolveSlotModifierMutations(
@@ -112,11 +117,16 @@ export function resolveSlotModifierMutations(
         extraBeamCount: params.extraBeamCount,
       };
     }
-    case 'double-activation':
+    case 'double-activation': {
+      const params = modifier.effectParams as DoubleActivationParams;
+
       return {
         ...DEFAULT_SLOT_MODIFIER_MUTATIONS,
-        doubleActivation: true,
+        doubleActivation: params.activationCount > 1,
+        extraActivations: Math.max(0, params.activationCount - 1),
+        activationDelayMs: Math.max(0, params.activationDelayMs),
       };
+    }
     default:
       return DEFAULT_SLOT_MODIFIER_MUTATIONS;
   }

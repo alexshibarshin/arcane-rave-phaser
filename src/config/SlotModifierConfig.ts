@@ -1,3 +1,4 @@
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatContentConfig, type NoteColor } from '@config/CombatContentConfig';
 
 export type SlotModifierRarity = 'common' | 'premium';
@@ -34,6 +35,7 @@ export interface BeamCountBonusParams {
 
 export interface DoubleActivationParams {
   activationCount: number;
+  activationDelayMs: number;
 }
 
 export type SlotModifierEffectParams =
@@ -144,7 +146,10 @@ const modifiers: SlotModifierDefinition[] = [
     shortDescription: 'This slot activates twice per cycle.',
     iconKey: 'mod-double-activation',
     effectKind: 'double-activation',
-    effectParams: { activationCount: 2 },
+    effectParams: {
+      activationCount: 2,
+      activationDelayMs: CombatBalanceConfig.DOUBLE_ACTIVATION_DELAY_MS,
+    },
   },
 ];
 
@@ -233,9 +238,12 @@ export function validateSlotModifierConfig(
       }
       case 'double-activation': {
         const params = mod.effectParams as DoubleActivationParams;
-        if (typeof params.activationCount !== 'number') {
+        if (
+          typeof params.activationCount !== 'number'
+          || typeof params.activationDelayMs !== 'number'
+        ) {
           throw new Error(
-            `Slot modifier "${mod.id}" is missing required param activationCount.`,
+            `Slot modifier "${mod.id}" is missing required double-activation params.`,
           );
         }
         break;

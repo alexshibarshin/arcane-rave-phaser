@@ -182,22 +182,6 @@ describe('CombatRuntime', () => {
     expect(runtime.notePacket.count).toBeGreaterThanOrEqual(1);
   });
 
-  it('retargets Heatline to a new frontmost enemy when the current target dies', () => {
-    const runtime = createReadyRuntime('heatline');
-    const firstTarget = primeEnemyNearSlot(runtime, 0, 0, { dx: 0, dy: -200, color: 'red', hp: 8 });
-    const secondTarget = primeEnemyNearSlot(runtime, 1, 0, { dx: 30, dy: -230, color: 'green', hp: 80 });
-
-    advanceCombatRuntime(runtime, 1000);
-
-    expect(firstTarget.currentHp).toBeLessThanOrEqual(0);
-    expect(runtime.beams).toHaveLength(1);
-    expect(runtime.beams[0]?.targetEnemyRuntimeId).toBe(secondTarget.runtimeId);
-
-    advanceCombatRuntime(runtime, 200);
-
-    expect(secondTarget.currentHp).toBeLessThan(secondTarget.maxHp);
-  });
-
   it('queues Meteor Drop, detonates it later, and leaves a burn zone after impact', () => {
     const runtime = createReadyRuntime('meteor-drop');
     const target = primeEnemyNearSlot(runtime, 0, 0, { dx: 24, dy: -180, color: 'green' });

@@ -13,7 +13,6 @@ import { spawnExtraBeams } from './CombatExtraBeam';
 import { createImmediateTargetedExplosion, queueDelayedExplosion } from './CombatExplosions';
 import { applyNextSlotDamageBuff, consumePendingSlotDamageBuff, readPendingSlotDamageBuff } from './CombatPawnBuffs';
 import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from './CombatProjectiles';
-import { rewindCombatRotation } from './CombatRotation';
 import { resolveSlotModifierMutations, type SlotModifierMutations } from './CombatSlotModifierResolver';
 import {
   createDirectionToEnemy,
@@ -33,6 +32,7 @@ import { createTargetedZone } from './CombatZones';
 import {
   setCombatNotePacket,
   type CombatRuntime,
+  type CombatScheduledActivationRuntime,
   type CombatSlotRuntime,
   type NoteColor,
 } from './CombatRuntime';
@@ -45,6 +45,9 @@ const pawnDefinitionsById = new Map(
 export function resolveCombatActivations(
   runtime: CombatRuntime,
   crossings: CombatSlotCrossing[],
+  options: {
+    scheduledActivations?: CombatScheduledActivationRuntime[];
+  } = {},
 ): void {
   for (const crossing of crossings) {
     const slot = runtime.slots[crossing.slotIndex];
@@ -53,70 +56,41 @@ export function resolveCombatActivations(
       continue;
     }
 
-    slot.activationVisualState = 'active';
-    pushCombatSlotActivated(runtime, slot.slotIndex);
+    resolveSlotActivation(runtime, slot, { allowDoubleActivation: true });
+  }
 
-    if (slot.pawnId === null) {
-      consumePendingSlotDamageBuff(runtime, slot.slotIndex);
+  for (const scheduledActivation of options.scheduledActivations ?? []) {
+    const slot = runtime.slots[scheduledActivation.slotIndex];
+
+    if (!slot) {
       continue;
     }
 
-    const pawn = pawnDefinitionsById.get(slot.pawnId);
-
-    if (!pawn) {
-      consumePendingSlotDamageBuff(runtime, slot.slotIndex);
-      continue;
-    }
-
-    const pendingBuff = readPendingSlotDamageBuff(runtime, slot.slotIndex);
-    const consumedNotes = pawn.type === 'finisher'
-      ? getFinisherConsumedNotes(runtime, pawn.color)
-      : 0;
-    const finisherDamageMultiplier = pawn.type === 'finisher'
-      ? getFinisherConsumedNotesMultiplier(consumedNotes)
-      : 1;
-    const nextSlotBuffBonusPercent = pendingBuff?.damageBonusPercent ?? 0;
-    const sourceSnapshot = {
-      damageMultiplier:
-        finisherDamageMultiplier
-        * (1 + nextSlotBuffBonusPercent)
-        * getTierDamageMultiplier(slot.pawnTier),
-      finisherConsumedNotes: consumedNotes,
-      finisherDamageMultiplier,
-      nextSlotBuffBonusPercent,
-    } as const;
-
-    pushCombatPawnResolved(runtime, slot.slotIndex, pawn.id, pawn.type);
-
-    if (pawn.type === 'finisher') {
-      pushCombatFinisherConsumedNotes(runtime, {
-        slotIndex: slot.slotIndex,
-        pawnId: pawn.id,
-        color: pawn.color,
-        consumedNotes,
-        multiplier: finisherDamageMultiplier,
-      });
-    }
-
-    resolvePawnAbility(runtime, slot, pawn, sourceSnapshot);
-    applyNoteRuleMutation(runtime, slot, pawn);
-    consumePendingSlotDamageBuff(runtime, slot.slotIndex);
-
-    const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
-    if (mutations.doubleActivation) {
-      resolveDoubleActivation(runtime, slot, pawn);
-    }
+    resolveSlotActivation(runtime, slot, { allowDoubleActivation: false });
   }
 }
 
-function resolveDoubleActivation(
+function resolveSlotActivation(
   runtime: CombatRuntime,
   slot: CombatSlotRuntime,
-  pawn: CombatPawnDefinition,
+  options: {
+    allowDoubleActivation: boolean;
+  },
 ): void {
-  const rewindAngleDeg = 45;
-  const rewindDeltaMs = (rewindAngleDeg / runtime.record.rotationSpeedDegPerSecond) * 1000;
-  rewindCombatRotation(runtime, rewindDeltaMs, 1);
+  slot.activationVisualState = 'active';
+  pushCombatSlotActivated(runtime, slot.slotIndex);
+
+  if (slot.pawnId === null) {
+    consumePendingSlotDamageBuff(runtime, slot.slotIndex);
+    return;
+  }
+
+  const pawn = pawnDefinitionsById.get(slot.pawnId);
+
+  if (!pawn) {
+    consumePendingSlotDamageBuff(runtime, slot.slotIndex);
+    return;
+  }
 
   const pendingBuff = readPendingSlotDamageBuff(runtime, slot.slotIndex);
   const consumedNotes = pawn.type === 'finisher'
@@ -151,6 +125,32 @@ function resolveDoubleActivation(
   resolvePawnAbility(runtime, slot, pawn, sourceSnapshot);
   applyNoteRuleMutation(runtime, slot, pawn);
   consumePendingSlotDamageBuff(runtime, slot.slotIndex);
+
+  if (!options.allowDoubleActivation) {
+    return;
+  }
+
+  const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
+
+  if (!mutations.doubleActivation || mutations.extraActivations <= 0) {
+    return;
+  }
+
+  scheduleDoubleActivation(runtime, slot.slotIndex, mutations.extraActivations, mutations.activationDelayMs);
+}
+
+function scheduleDoubleActivation(
+  runtime: CombatRuntime,
+  slotIndex: number,
+  extraActivations: number,
+  activationDelayMs: number,
+): void {
+  for (let index = 0; index < extraActivations; index += 1) {
+    runtime.scheduledActivations.push({
+      slotIndex,
+      triggerAtMs: runtime.combatElapsedMs + activationDelayMs * (index + 1),
+    });
+  }
 }
 
 export function resolvePawnAbility(

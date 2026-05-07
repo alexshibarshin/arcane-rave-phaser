@@ -188,6 +188,11 @@ export interface CombatPawnBuffRuntime {
   damageBonusPercent: number;
 }
 
+export interface CombatScheduledActivationRuntime {
+  slotIndex: number;
+  triggerAtMs: number;
+}
+
 export interface CombatSubWaveSpawnBag {
   enemyRuntimeIds: string[];
   nextSpawnAtMs: number;
@@ -245,6 +250,7 @@ export interface CombatRuntime {
   zones: CombatZoneRuntime[];
   enemyStatuses: Map<string, CombatEnemyStatusRuntime>;
   pawnBuffs: Array<CombatPawnBuffRuntime | null>;
+  scheduledActivations: CombatScheduledActivationRuntime[];
   wave: CombatWaveRuntime;
   outcome: {
     victory: boolean;
@@ -356,6 +362,7 @@ export function createCombatRuntime(
     zones: [],
     enemyStatuses: new Map(),
     pawnBuffs: Array.from({ length: CombatContentConfig.SLOT_COUNT }, () => null),
+    scheduledActivations: [],
     wave: createInitialCombatWaveState(waveIndex, totalWaves, initialWave),
     outcome: {
       victory: false,
@@ -436,6 +443,7 @@ export function advanceCombatRuntime(
     const crossings = forwardDeltaMs > 0 ? advanceCombatRotation(runtime, forwardDeltaMs) : [];
     syncCombatSlotWorldPositions(runtime);
     resolveCombatActivations(runtime, crossings);
+    advanceCombatScheduledActivations(runtime);
     advanceCombatQueuedVolleys(runtime);
     advanceCombatProjectiles(runtime, forwardDeltaMs);
     advanceCombatPendingExplosions(runtime);
@@ -612,4 +620,26 @@ function clearCombatTransientState(runtime: CombatRuntime): void {
   clearCombatZones(runtime);
   clearCombatEnemyStatuses(runtime);
   clearCombatPawnBuffs(runtime);
+  runtime.scheduledActivations = [];
+}
+
+function advanceCombatScheduledActivations(runtime: CombatRuntime): void {
+  if (runtime.scheduledActivations.length === 0) {
+    return;
+  }
+
+  const dueActivations = runtime.scheduledActivations
+    .filter((activation) => activation.triggerAtMs <= runtime.combatElapsedMs)
+    .sort((left, right) => left.triggerAtMs - right.triggerAtMs);
+
+  if (dueActivations.length === 0) {
+    return;
+  }
+
+  runtime.scheduledActivations = runtime.scheduledActivations
+    .filter((activation) => activation.triggerAtMs > runtime.combatElapsedMs);
+
+  resolveCombatActivations(runtime, [], {
+    scheduledActivations: dueActivations,
+  });
 }

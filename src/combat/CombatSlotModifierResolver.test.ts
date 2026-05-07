@@ -17,6 +17,8 @@ describe('resolveSlotModifierMutations', () => {
       radiusMultiplier: 1,
       extraBeamCount: 0,
       doubleActivation: false,
+      extraActivations: 0,
+      activationDelayMs: 0,
     });
   });
 
@@ -34,6 +36,8 @@ describe('resolveSlotModifierMutations', () => {
       radiusMultiplier: 1.5,
       extraBeamCount: 0,
       doubleActivation: false,
+      extraActivations: 0,
+      activationDelayMs: 0,
     });
   });
 
@@ -71,6 +75,8 @@ describe('resolveSlotModifierMutations', () => {
       radiusMultiplier: 1.5,
       extraBeamCount: 0,
       doubleActivation: false,
+      extraActivations: 0,
+      activationDelayMs: 0,
     });
   });
 
@@ -88,6 +94,8 @@ describe('resolveSlotModifierMutations', () => {
       radiusMultiplier: 1.5,
       extraBeamCount: 0,
       doubleActivation: false,
+      extraActivations: 0,
+      activationDelayMs: 0,
     });
   });
 
@@ -105,6 +113,8 @@ describe('resolveSlotModifierMutations', () => {
       radiusMultiplier: 1,
       extraBeamCount: 0,
       doubleActivation: false,
+      extraActivations: 0,
+      activationDelayMs: 0,
     });
   });
 
@@ -122,6 +132,8 @@ describe('resolveSlotModifierMutations', () => {
       radiusMultiplier: 1,
       extraBeamCount: 0,
       doubleActivation: true,
+      extraActivations: 1,
+      activationDelayMs: 400,
     });
   });
 
@@ -139,6 +151,8 @@ describe('resolveSlotModifierMutations', () => {
       radiusMultiplier: 1,
       extraBeamCount: 0,
       doubleActivation: false,
+      extraActivations: 0,
+      activationDelayMs: 0,
     });
   });
 
@@ -156,6 +170,8 @@ describe('resolveSlotModifierMutations', () => {
       radiusMultiplier: 1,
       extraBeamCount: 1,
       doubleActivation: false,
+      extraActivations: 0,
+      activationDelayMs: 0,
     });
   });
 
