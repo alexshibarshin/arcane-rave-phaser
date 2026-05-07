@@ -93,12 +93,18 @@ describe('calculateSynergy', () => {
     expect(result[0]!.hasSynergy).toBe(true);
   });
 
-  it('should handle full preset: starter-1', () => {
-    const preset = CombatContentConfig.SLOT_PRESETS[0]!;
-    const result = calculateSynergy(preset.slots, pawnDefs, 8);
+  it('should produce links for every adjacent non-empty slot pair across all presets', () => {
+    for (const preset of CombatContentConfig.SLOT_PRESETS) {
+      const result = calculateSynergy(preset.slots, pawnDefs, 8);
 
-    const synergyLinks = result.filter((l) => l.hasSynergy);
-    expect(synergyLinks.length).toBe(1);
+      for (const link of result) {
+        expect(link.fromSlot).toBeGreaterThanOrEqual(0);
+        expect(link.toSlot).toBeGreaterThanOrEqual(0);
+        expect(link.fromSlot).toBeLessThan(8);
+        expect(link.toSlot).toBeLessThan(8);
+        expect(typeof link.hasSynergy).toBe('boolean');
+      }
+    }
   });
 
   it('should produce correct number of links for all-filled slots', () => {

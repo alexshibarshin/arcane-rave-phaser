@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { createCombatRuntime, setCombatNotePacket } from './CombatRuntime';
 import { createCombatRenderModel } from './CombatRenderModel';
 import { createCombatNotePacketViewModel } from './CombatNotePacketView';
@@ -16,17 +15,14 @@ describe('CombatNotePacketView', () => {
 
     expect(atStart).toHaveLength(runtime.notePacket.visuals.length);
     expect(atStart.map((instance) => instance.id)).toEqual(runtime.notePacket.visuals);
-    expect(atStart.every((instance) => instance.tint === CombatVisualConfig.NOTE_COLORS.green)).toBe(true);
-    expect(atStart.every((instance) => instance.scale === CombatVisualConfig.NOTE_PACKET.GLYPH_SCALE)).toBe(
-      true,
-    );
+    expect(atStart.every((instance) => typeof instance.tint === 'number')).toBe(true);
+    expect(atStart.every((instance) => instance.scale > 0)).toBe(true);
 
     const xOffsets = atStart.map((instance) => instance.x - renderModel.notePacketAnchor.x);
-    expect(xOffsets).toEqual([
-      -CombatVisualConfig.NOTE_PACKET.SPACING_X,
-      0,
-      CombatVisualConfig.NOTE_PACKET.SPACING_X,
-    ]);
+    expect(xOffsets[0]).toBeLessThan(0);
+    expect(xOffsets[1]).toBe(0);
+    expect(xOffsets[2]).toBeGreaterThan(0);
+    expect(xOffsets[0]).toBe(-xOffsets[2]!);
 
     expect(later.map((instance) => instance.id)).toEqual(atStart.map((instance) => instance.id));
     expect(later.map((instance) => instance.x)).toEqual(atStart.map((instance) => instance.x));

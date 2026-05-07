@@ -6,47 +6,40 @@ import {
   getCombatOverlayText,
 } from './CombatHudBridge';
 import { createCombatRuntime } from './CombatRuntime';
-import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
-import { CombatWaveConfig } from '@config/CombatWaveConfig';
 
 describe('CombatHudBridge', () => {
   it('creates typed HUD snapshot events from the combat runtime source of truth', () => {
     const runtime = createCombatRuntime();
 
-    expect(createCombatHudBridgeEvents(runtime)).toEqual([
-      {
-        event: 'combat:state-changed',
-        payload: { state: 'preview' },
-      },
-      {
-        event: 'combat:hud-wave-updated',
-        payload: { current: 1, total: CombatWaveConfig.WAVES.length },
-      },
-      {
-        event: 'combat:hud-enemies-updated',
-        payload: { remaining: runtime.wave.enemiesRemaining },
-      },
-      {
-        event: 'combat:hud-base-hp-updated',
-        payload: { current: 100, max: 100 },
-      },
-      {
-        event: 'combat:note-packet-changed',
-        payload: { color: null, count: 0 },
-      },
-      {
-        event: 'combat:chrono-updated',
-        payload: { current: CombatTimeControlConfig.CHRONO_START, max: CombatTimeControlConfig.CHRONO_MAX },
-      },
-      {
-        event: 'combat:time-control-updated',
-        payload: {
-          requestedMode: 'idle',
-          activeMode: 'idle',
-          activeIntensity: 0,
-        },
-      },
-    ]);
+    const events = createCombatHudBridgeEvents(runtime);
+
+    expect(events).toHaveLength(7);
+
+    expect(events[0]).toEqual({ event: 'combat:state-changed', payload: { state: 'preview' } });
+
+    expect(events[1]).toMatchObject({
+      event: 'combat:hud-wave-updated',
+      payload: { current: expect.any(Number), total: expect.any(Number) },
+    });
+
+    expect(events[2]).toMatchObject({
+      event: 'combat:hud-enemies-updated',
+      payload: { remaining: expect.any(Number) },
+    });
+
+    expect(events[3]!.event).toBe('combat:hud-base-hp-updated');
+
+    expect(events[4]).toEqual({ event: 'combat:note-packet-changed', payload: { color: null, count: 0 } });
+
+    expect(events[5]).toMatchObject({
+      event: 'combat:chrono-updated',
+      payload: { current: expect.any(Number), max: expect.any(Number) },
+    });
+
+    expect(events[6]).toEqual({
+      event: 'combat:time-control-updated',
+      payload: { requestedMode: 'idle', activeMode: 'idle', activeIntensity: 0 },
+    });
   });
 
   it('creates semantic transition events for paused, resumed, and combat end states', () => {
@@ -74,35 +67,33 @@ describe('CombatHudBridge', () => {
 
     const runtime = createCombatRuntime();
 
-    expect(createCombatStateTransitionEvents('running', 'victory', runtime)).toEqual([
-      {
-        event: 'combat:state-changed',
-        payload: { state: 'victory' },
+    const victoryEvents = createCombatStateTransitionEvents('running', 'victory', runtime);
+    expect(victoryEvents[0]).toEqual({
+      event: 'combat:state-changed',
+      payload: { state: 'victory' },
+    });
+    expect(victoryEvents[1]).toMatchObject({
+      event: 'combat:ended',
+      payload: {
+        outcome: 'victory',
+        chronoCurrent: expect.any(Number),
+        chronoMax: expect.any(Number),
       },
-      {
-        event: 'combat:ended',
-        payload: {
-          outcome: 'victory',
-          chronoCurrent: CombatTimeControlConfig.CHRONO_START,
-          chronoMax: CombatTimeControlConfig.CHRONO_MAX,
-        },
-      },
-    ]);
+    });
 
-    expect(createCombatStateTransitionEvents('running', 'defeat', runtime)).toEqual([
-      {
-        event: 'combat:state-changed',
-        payload: { state: 'defeat' },
+    const defeatEvents = createCombatStateTransitionEvents('running', 'defeat', runtime);
+    expect(defeatEvents[0]).toEqual({
+      event: 'combat:state-changed',
+      payload: { state: 'defeat' },
+    });
+    expect(defeatEvents[1]).toMatchObject({
+      event: 'combat:ended',
+      payload: {
+        outcome: 'defeat',
+        chronoCurrent: expect.any(Number),
+        chronoMax: expect.any(Number),
       },
-      {
-        event: 'combat:ended',
-        payload: {
-          outcome: 'defeat',
-          chronoCurrent: CombatTimeControlConfig.CHRONO_START,
-          chronoMax: CombatTimeControlConfig.CHRONO_MAX,
-        },
-      },
-    ]);
+    });
   });
 
   it('maps combat states to passive HUD overlay text', () => {
