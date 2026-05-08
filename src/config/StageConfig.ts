@@ -1,6 +1,29 @@
 import { CombatWaveConfig, type CombatWaveDefinition } from '@config/CombatWaveConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 
+export interface SubWaveDefinition {
+  id: string;
+  startTimeMs: number;
+  spawnIntervalMs: number;
+  enemies: Record<string, number>;
+}
+
+export interface StageWaveDefinition {
+  kind: 'normal' | 'elite' | 'boss';
+  tags: string[];
+  specialEnemyId: string | null;
+  subWaves: SubWaveDefinition[];
+}
+
+export interface StageWavePreviewModel {
+  waveNumber: number;
+  totalWaves: number;
+  waveKind: 'normal' | 'elite' | 'boss';
+  tags: string[];
+  specialEnemyId: string | null;
+  specialEnemyName: string | null;
+}
+
 export interface SlotModifierCountWeights {
   0: number;
   1: number;
@@ -16,6 +39,11 @@ export interface StageConfig {
   waveDefinitions: CombatWaveDefinition[];
   slotModifierCountWeights: SlotModifierCountWeights;
   slotModifierWeightOverrides?: Record<string, number>;
+  stageTags?: string[];
+  eliteEnemyId?: string;
+  bossEnemyId?: string;
+  hpMultipliers?: number[];
+  waves?: StageWaveDefinition[];
 }
 
 const stageConfigs: StageConfig[] = [

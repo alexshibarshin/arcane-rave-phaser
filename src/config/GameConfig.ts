@@ -21,4 +21,5 @@ export const SceneKeys = {
   UI: 'UIScene',
   COMBAT: 'CombatScene',
   HUD: 'HUDScene',
+  LOBBY: 'LobbyScene',
 } as const;

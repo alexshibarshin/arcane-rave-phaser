@@ -5,4 +5,5 @@ export const appSceneKeys = [
   SceneKeys.STAGE,
   SceneKeys.COMBAT,
   SceneKeys.HUD,
+  SceneKeys.LOBBY,
 ] as const;
