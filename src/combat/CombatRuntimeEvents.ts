@@ -5,6 +5,17 @@ import type {
   NoteColor,
 } from './CombatRuntime';
 
+/**
+ * Frame-buffered discrete combat events.
+ *
+ * These are produced by pure simulation modules during
+ * {@link advanceCombatRuntime} and published atomically at
+ * end-of-frame via {@link publishPendingCombatEvents}.
+ *
+ * Snapshot events ({@link CombatHudBridgeEvent}) and state
+ * transitions are published separately — they are NOT buffered
+ * through this channel.
+ */
 export type CombatRuntimeEvent =
   | {
     event: 'combat:slot-activated';
@@ -12,10 +23,6 @@ export type CombatRuntimeEvent =
   }
   | {
     event: 'combat:base-damaged';
-    payload: { current: number; max: number };
-  }
-  | {
-    event: 'combat:hud-base-hp-updated';
     payload: { current: number; max: number };
   }
   | {
@@ -37,10 +44,6 @@ export type CombatRuntimeEvent =
   | {
     event: 'combat:enemy-died';
     payload: { enemyId: string; remaining: number };
-  }
-  | {
-    event: 'combat:note-packet-changed';
-    payload: { color: NoteColor | null; count: number };
   }
   | {
     event: 'combat:note-packet-color-broke';
@@ -185,16 +188,6 @@ export function pushCombatEnemyDied(
   });
 }
 
-export function pushCombatNotePacketChanged(runtime: CombatRuntime): void {
-  pushCombatRuntimeEvent(runtime, {
-    event: 'combat:note-packet-changed',
-    payload: {
-      color: runtime.notePacket.color,
-      count: runtime.notePacket.count,
-    },
-  });
-}
-
 export function pushCombatNotePacketColorBroke(
   runtime: CombatRuntime,
   previousColor: NoteColor,
@@ -263,10 +256,6 @@ export function pushCombatBaseDamaged(runtime: CombatRuntime): void {
 
   pushCombatRuntimeEvent(runtime, {
     event: 'combat:base-damaged',
-    payload,
-  });
-  pushCombatRuntimeEvent(runtime, {
-    event: 'combat:hud-base-hp-updated',
     payload,
   });
 }
@@ -366,13 +355,6 @@ export function pushCombatBaseHealed(
     event: 'combat:base-healed',
     payload: {
       amount,
-      current: runtime.baseHp,
-      max: CombatBalanceConfig.BASE_HP,
-    },
-  });
-  pushCombatRuntimeEvent(runtime, {
-    event: 'combat:hud-base-hp-updated',
-    payload: {
       current: runtime.baseHp,
       max: CombatBalanceConfig.BASE_HP,
     },

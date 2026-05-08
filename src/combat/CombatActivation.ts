@@ -10,7 +10,6 @@ import {
   pushCombatFinisherConsumedNotes,
   pushCombatFinisherOutputNoteEmitted,
   pushCombatGeneratorNotesEmitted,
-  pushCombatNotePacketChanged,
   pushCombatNotePacketColorBroke,
   pushCombatPawnResolved,
   pushCombatSlotActivated,
@@ -189,7 +188,6 @@ function applyGeneratorPacketMutation(
   if (previousColor === null || previousCount <= 0) {
     setCombatNotePacket(runtime, color, Math.min(baseCount, CombatBalanceConfig.NOTE_PACKET_CAPACITY));
     pushCombatGeneratorNotesEmitted(runtime, slot, pawnId, color, emittedNotes);
-    pushCombatNotePacketChanged(runtime);
     return;
   }
 
@@ -199,14 +197,12 @@ function applyGeneratorPacketMutation(
 
     setCombatNotePacket(runtime, color, nextCount);
     pushCombatGeneratorNotesEmitted(runtime, slot, pawnId, color, emittedNotes);
-    pushCombatNotePacketChanged(runtime);
     return;
   }
 
   pushCombatNotePacketColorBroke(runtime, previousColor, color);
   setCombatNotePacket(runtime, color, Math.min(baseCount, CombatBalanceConfig.NOTE_PACKET_CAPACITY));
   pushCombatGeneratorNotesEmitted(runtime, slot, pawnId, color, emittedNotes);
-  pushCombatNotePacketChanged(runtime);
 }
 
 function applyFinisherPacketMutation(
@@ -227,7 +223,6 @@ function applyFinisherPacketMutation(
     emittedNotes,
   );
   pushCombatFinisherOutputNoteEmitted(runtime, slot, pawn.id, pawn.outputNoteColor, emittedNotes);
-  pushCombatNotePacketChanged(runtime);
 }
 
 function getFinisherConsumedNotes(runtime: CombatRuntime, color: NoteColor): number {
