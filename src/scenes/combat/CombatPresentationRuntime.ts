@@ -1,28 +1,27 @@
 import Phaser from 'phaser';
-import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
-import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
-import { CombatVisualConfig } from '@config/CombatVisualConfig';
-import { CombatVfxConfig } from '@config/CombatVfxConfig';
-import {
-  COMBAT_NOTE_GLYPH_TEXTURE_KEY,
-} from '@combat/CombatNoteGlyph';
-import { createCombatNotePacketViewModel } from '@combat/CombatNotePacketView';
 import type { CombatRuntime } from '@combat/CombatRuntime';
 import type { CombatRuntimeEvent } from '@combat/CombatRuntimeEvents';
-import { getCombatBaseHpBarFillMetrics } from '@combat/CombatBaseHpBar';
-import { CombatDamageNumber } from '@combat/CombatDamageNumber';
-import {
-  COMBAT_VFX_BEAM_TEXTURE_KEY,
-  COMBAT_VFX_GLOW_TEXTURE_KEY,
-  COMBAT_VFX_RING_TEXTURE_KEY,
-} from '@combat/CombatVfxTextures';
 import {
   CombatVfxSystem,
-  type CombatVfxAnchor,
   type CombatVfxSnapshot,
 } from '@combat/CombatVfxSystem';
 import { getCombatPresentationDelta } from '@combat/CombatSceneLifecycle';
 import type { CombatSceneViewGraph } from './CombatSceneViewGraph';
+import { CombatSlotVfxRenderer } from './presentation/CombatSlotVfxRenderer';
+import { CombatEnemyPresenter } from './presentation/CombatEnemyPresenter';
+import { CombatBasePresenter } from './presentation/CombatBasePresenter';
+import { CombatBaseHpBarPresenter } from './presentation/CombatBaseHpBarPresenter';
+import { CombatNotePacketPresenter } from './presentation/CombatNotePacketPresenter';
+import { CombatBeamRenderer } from './presentation/CombatBeamRenderer';
+import { CombatProjectileRenderer } from './presentation/CombatProjectileRenderer';
+import { CombatZoneRenderer } from './presentation/CombatZoneRenderer';
+import { CombatPendingExplosionRenderer } from './presentation/CombatPendingExplosionRenderer';
+import { CombatNoteFlightRenderer } from './presentation/CombatNoteFlightRenderer';
+import { CombatEnemyHitFlashRenderer } from './presentation/CombatEnemyHitFlashRenderer';
+import { CombatPacketBreakRenderer } from './presentation/CombatPacketBreakRenderer';
+import { CombatBaseHitFlashRenderer } from './presentation/CombatBaseHitFlashRenderer';
+import { CombatDamageNumberRenderer } from './presentation/CombatDamageNumberRenderer';
+import { CombatResultEmphasisRenderer } from './presentation/CombatResultEmphasisRenderer';
 
 export type CombatPresentationEvent =
   | CombatRuntimeEvent
@@ -48,24 +47,25 @@ export function createCombatPresentationRuntime(
     getNotePacketAnchor: () => options.viewGraph.anchors.getNotePacketAnchor(),
     getBaseAnchor: () => options.viewGraph.anchors.getBaseAnchor(),
   });
+
+  const slotVfx = new CombatSlotVfxRenderer();
+  const enemyPresenter = new CombatEnemyPresenter();
+  const basePresenter = new CombatBasePresenter();
+  const baseHpBarPresenter = new CombatBaseHpBarPresenter();
+  const notePacketPresenter = new CombatNotePacketPresenter();
+  const beamRenderer = new CombatBeamRenderer();
+  const projectileRenderer = new CombatProjectileRenderer();
+  const zoneRenderer = new CombatZoneRenderer();
+  const explosionRenderer = new CombatPendingExplosionRenderer();
+  const noteFlightRenderer = new CombatNoteFlightRenderer();
+  const enemyHitRenderer = new CombatEnemyHitFlashRenderer();
+  const packetBreakRenderer = new CombatPacketBreakRenderer();
+  const baseHitRenderer = new CombatBaseHitFlashRenderer();
+  const damageNumberRenderer = new CombatDamageNumberRenderer();
+  const resultEmphasisRenderer = new CombatResultEmphasisRenderer();
+
   let notePacketElapsedMs = 0;
   let lastCombatElapsedMs = 0;
-  let resultEmphasisWash: Phaser.GameObjects.Rectangle | undefined;
-  const liveBeamViews = new Map<string, Phaser.GameObjects.Image>();
-  const liveBeamPool: Phaser.GameObjects.Image[] = [];
-  const projectileViews = new Map<string, Phaser.GameObjects.Image>();
-  const projectilePool: Phaser.GameObjects.Image[] = [];
-  const zoneViews = new Map<string, Phaser.GameObjects.Graphics>();
-  const pendingExplosionViews = new Map<string, Phaser.GameObjects.Graphics>();
-  const noteFlightViews = new Map<string, Phaser.GameObjects.Image>();
-  const noteFlightPool: Phaser.GameObjects.Image[] = [];
-  const enemyHitViews = new Map<string, Phaser.GameObjects.Image>();
-  const enemyHitPool: Phaser.GameObjects.Image[] = [];
-  const packetBreakViews = new Map<string, Phaser.GameObjects.Image>();
-  const packetBreakPool: Phaser.GameObjects.Image[] = [];
-  const baseHitViews = new Map<string, Phaser.GameObjects.Image>();
-  const baseHitPool: Phaser.GameObjects.Image[] = [];
-  const damageNumbers: CombatDamageNumber[] = [];
 
   return {
     sync(runtime, deltaMs) {
@@ -79,38 +79,42 @@ export function createCombatPresentationRuntime(
       const recordRotation = Phaser.Math.DegToRad(runtime.record.currentAngle);
 
       options.viewGraph.record.container.setRotation(recordRotation);
-      syncSlotVfxPresentation(options.viewGraph, recordRotation, vfxSnapshot);
-      syncEnemyPresentation(options.viewGraph, runtime, presentationDelta);
-      syncBasePresentation(options.viewGraph, runtime);
-      syncBaseHpBarPresentation(options.viewGraph, runtime);
-      syncNotePacketPresentation(options.scene, options.viewGraph, runtime, notePacketElapsedMs, vfxSnapshot);
-      syncProjectilePresentation(options.scene, options.viewGraph, runtime, projectileViews, projectilePool);
-      syncBeamPresentation(options.scene, options.viewGraph, runtime, liveBeamViews, liveBeamPool);
-      syncZonePresentation(options.scene, options.viewGraph, runtime, zoneViews);
-      syncPendingExplosionPresentation(options.scene, options.viewGraph, runtime, pendingExplosionViews);
-      syncNoteFlightPresentation(options.scene, options.viewGraph, noteFlightViews, noteFlightPool, vfxSnapshot);
-      syncEnemyHitPresentation(options.scene, options.viewGraph, enemyHitViews, enemyHitPool, vfxSnapshot);
-      syncPacketBreakPresentation(options.scene, options.viewGraph, packetBreakViews, packetBreakPool, vfxSnapshot);
-      syncBaseHitPresentation(options.scene, options.viewGraph, baseHitViews, baseHitPool, vfxSnapshot);
-      syncDamageNumberPresentation(runtime, damageNumbers);
-      resultEmphasisWash = syncResultEmphasisPresentation(
+
+      // Scene-graph presenters
+      slotVfx.sync(options.viewGraph, recordRotation, vfxSnapshot);
+      enemyPresenter.sync(options.viewGraph, runtime, presentationDelta);
+      basePresenter.sync(options.viewGraph, runtime);
+      baseHpBarPresenter.sync(options.viewGraph, runtime);
+      notePacketPresenter.sync(
         options.scene,
-        resultEmphasisWash,
         options.viewGraph,
+        runtime,
+        notePacketElapsedMs,
         vfxSnapshot,
       );
 
-      for (const enemy of runtime.enemies) {
-        if (enemy.state === 'dead') {
-          const enemyView = options.viewGraph.enemies.getEnemyView(enemy.runtimeId);
+      // Entity renderers
+      projectileRenderer.sync(options.scene, options.viewGraph, runtime);
+      beamRenderer.sync(options.scene, options.viewGraph, runtime);
+      zoneRenderer.sync(options.scene, options.viewGraph, runtime);
+      explosionRenderer.sync(options.scene, options.viewGraph, runtime);
 
-          if (enemyView && enemyView.animation.deathProgress >= 1) {
-            options.viewGraph.enemies.removeEnemyView(enemy.runtimeId);
-          }
-        }
-      }
+      // VfxSnapshot-driven renderers
+      noteFlightRenderer.sync(options.scene, options.viewGraph, vfxSnapshot);
+      enemyHitRenderer.sync(options.scene, options.viewGraph, vfxSnapshot);
+      packetBreakRenderer.sync(options.scene, options.viewGraph, vfxSnapshot);
+      baseHitRenderer.sync(options.scene, options.viewGraph, vfxSnapshot);
+
+      // Damage numbers + result emphasis
+      damageNumberRenderer.sync(runtime);
+      resultEmphasisRenderer.sync(options.scene, options.viewGraph, vfxSnapshot);
+
+      // Dead enemy cleanup
+      enemyPresenter.syncDeadRemoval(options.viewGraph, runtime);
     },
+
     handleEvent(event) {
+      // Route to VFX system (produces snapshot consumed in next sync)
       switch (event.event) {
         case 'combat:slot-activated':
         case 'combat:enemy-hit':
@@ -126,667 +130,29 @@ export function createCombatPresentationRuntime(
           break;
       }
 
-      if (event.event === 'combat:enemy-hit') {
-        const enemyView = options.viewGraph.enemies.getEnemyView(event.payload.enemyId);
-        const y = enemyView?.container.y ?? 0;
-        const x = enemyView?.container.x ?? 0;
-        const config = CombatVisualConfig.DAMAGE_NUMBER;
-
-        options.viewGraph.enemies.markEnemyHit(
-          event.payload.enemyId,
-          lastCombatElapsedMs,
-          event.payload.currentHp,
-          event.payload.maxHp,
-        );
-
-        damageNumbers.push(new CombatDamageNumber(
-          options.scene,
-          x,
-          y + CombatVisualConfig.ENEMY.HP_BAR_OFFSET_Y + config.ENEMY_OFFSET_Y,
-          event.payload.damage,
-          lastCombatElapsedMs,
-          {
-            fontSizePx: config.FONT_SIZE_PX,
-            floatDurationMs: config.FLOAT_DURATION_MS,
-            floatDistanceY: config.FLOAT_DISTANCE_Y,
-          },
-        ));
-        options.viewGraph.effects.damageNumberLayer.add(damageNumbers[damageNumbers.length - 1]!.text);
-      }
-
-      if (event.event === 'combat:base-damaged') {
-        const config = CombatVisualConfig.DAMAGE_NUMBER;
-        const damage = Math.max(0, event.payload.max - event.payload.current);
-        const hpBar = options.viewGraph.base.hpBar;
-
-        damageNumbers.push(new CombatDamageNumber(
-          options.scene,
-          hpBar.x + config.BASE_OFFSET_X,
-          hpBar.y + config.BASE_OFFSET_Y,
-          damage,
-          lastCombatElapsedMs,
-          {
-            fontSizePx: config.FONT_SIZE_PX,
-            floatDurationMs: config.FLOAT_DURATION_MS,
-            floatDistanceY: config.FLOAT_DISTANCE_Y,
-          },
-        ));
-        options.viewGraph.effects.damageNumberLayer.add(damageNumbers[damageNumbers.length - 1]!.text);
-      }
-
-      if (event.event === 'combat:base-healed') {
-        const config = CombatVisualConfig.DAMAGE_NUMBER;
-        const hpBar = options.viewGraph.base.hpBar;
-
-        damageNumbers.push(new CombatDamageNumber(
-          options.scene,
-          hpBar.x + config.BASE_OFFSET_X,
-          hpBar.y + config.BASE_OFFSET_Y - 30,
-          -event.payload.amount,
-          lastCombatElapsedMs,
-          {
-            fontSizePx: config.FONT_SIZE_PX,
-            floatDurationMs: config.FLOAT_DURATION_MS,
-            floatDistanceY: config.FLOAT_DISTANCE_Y,
-          },
-        ));
-        damageNumbers[damageNumbers.length - 1]!.text.setColor('#7ef2a1');
-        options.viewGraph.effects.damageNumberLayer.add(damageNumbers[damageNumbers.length - 1]!.text);
-      }
+      // Damage numbers spawn from certain events
+      damageNumberRenderer.handleEvent(options.viewGraph, event, lastCombatElapsedMs);
     },
+
     destroy() {
-      clearPooledImageMaps(liveBeamViews, liveBeamPool);
-      clearPooledImageMaps(projectileViews, projectilePool);
-      clearGraphicsMap(zoneViews);
-      clearGraphicsMap(pendingExplosionViews);
-      clearPooledImageMaps(noteFlightViews, noteFlightPool);
-      clearPooledImageMaps(enemyHitViews, enemyHitPool);
-      clearPooledImageMaps(packetBreakViews, packetBreakPool);
-      clearPooledImageMaps(baseHitViews, baseHitPool);
-      damageNumbers.forEach((damageNumber) => damageNumber.destroy());
-      damageNumbers.length = 0;
-      resultEmphasisWash?.destroy();
-      resultEmphasisWash = undefined;
-      options.viewGraph.notePacket.view.glyphs.forEach((glyph) => glyph.destroy());
-      options.viewGraph.notePacket.view.glyphs.clear();
+      slotVfx.destroy();
+      enemyPresenter.destroy();
+      basePresenter.destroy();
+      baseHpBarPresenter.destroy();
+      notePacketPresenter.destroyGlyphs(options.viewGraph);
+      notePacketPresenter.destroy();
+      beamRenderer.destroy();
+      projectileRenderer.destroy();
+      zoneRenderer.destroy();
+      explosionRenderer.destroy();
+      noteFlightRenderer.destroy();
+      enemyHitRenderer.destroy();
+      packetBreakRenderer.destroy();
+      baseHitRenderer.destroy();
+      damageNumberRenderer.destroy();
+      resultEmphasisRenderer.destroy();
     },
   };
 }
 
-function syncSlotVfxPresentation(
-  viewGraph: CombatSceneViewGraph,
-  recordRotation: number,
-  vfxSnapshot: CombatVfxSnapshot,
-): void {
-  const slotActivations = new Map(
-    vfxSnapshot.slotActivations.map((activation) => [activation.slotIndex, activation]),
-  );
 
-  for (const [slotIndex, slotView] of viewGraph.record.slotViews.entries()) {
-    slotView.uprightContainer.setRotation(-recordRotation);
-    const activation = slotActivations.get(slotIndex);
-
-    if (!activation) {
-      slotView.sectorPulse.setAlpha(0);
-      slotView.zonePulse.setAlpha(0);
-      slotView.pawnGlow.setAlpha(0);
-      slotView.uprightContainer.setScale(1);
-      slotView.rotatingContent.setScale(1);
-      continue;
-    }
-
-    const alpha =
-      CombatBalanceConfig.SLOT_ACTIVATION_MAX_ALPHA * (0.35 + activation.sectorAlpha * 0.65);
-
-    slotView.sectorPulse.setAlpha(alpha);
-    slotView.zonePulse.setAlpha(alpha * 0.85 * activation.ruleZoneAlpha);
-    slotView.pawnGlow.setAlpha(activation.pawnGlowAlpha * 0.85);
-    slotView.uprightContainer.setScale(activation.scale);
-    slotView.rotatingContent.setScale(
-      1 + activation.sectorAlpha * CombatVfxConfig.SLOT.ROTATING_SCALE_BOOST,
-    );
-  }
-}
-
-function syncEnemyPresentation(
-  viewGraph: CombatSceneViewGraph,
-  runtime: CombatRuntime,
-  deltaMs: number,
-): void {
-  const elapsedMs = runtime.combatElapsedMs;
-
-  for (const enemy of runtime.enemies) {
-    const existingView = viewGraph.enemies.getEnemyView(enemy.runtimeId);
-
-    // Once a dead enemy finishes its death presentation and its view is removed,
-    // do not materialize a fresh shell from the still-present runtime entry.
-    if (enemy.state === 'dead' && existingView === null) {
-      continue;
-    }
-
-    viewGraph.enemies.syncEnemyView(enemy, {
-      deltaMs,
-      elapsedMs,
-      needlePoint: {
-        x: viewGraph.needle.tipX,
-        y: viewGraph.needle.tipY,
-      },
-    });
-  }
-}
-
-function syncBasePresentation(
-  viewGraph: CombatSceneViewGraph,
-  runtime: CombatRuntime,
-): void {
-  const base = viewGraph.base;
-  const sprite = base.root;
-  const elapsedMs = runtime.combatElapsedMs;
-  const activeMode = runtime.time.activeMode;
-  const intensity = runtime.time.activeIntensity;
-
-  const idleBobY = Math.sin(elapsedMs * 0.0021) * 4;
-  const idleScale = 1 + Math.sin(elapsedMs * 0.0016 + 0.35) * 0.012;
-  const idleAngle = Math.sin(elapsedMs * 0.0011) * 1.2;
-
-  let activeShiftX = 0;
-  let activeBobY = 0;
-  let activeScaleX = 1;
-  let activeScaleY = 1;
-  let activeAngle = 0;
-
-  if (activeMode === 'fast-forward') {
-    const pulse = elapsedMs * 0.0105;
-
-    activeShiftX = Math.sin(pulse * 0.75) * 2.5 * intensity;
-    activeBobY = Math.sin(pulse) * 10 * intensity;
-    activeScaleX = 1 + Math.sin(pulse + 0.5) * 0.03 * intensity;
-    activeScaleY = 1 + Math.cos(pulse * 1.35) * 0.038 * intensity;
-    activeAngle = Math.sin(pulse * 0.9) * 3.2 * intensity;
-    sprite.setTint(0xffe6b3);
-  } else if (activeMode === 'rewind') {
-    const pulse = elapsedMs * 0.0082;
-
-    activeShiftX = Math.sin(pulse * 1.35) * 5.5 * intensity;
-    activeBobY = Math.cos(pulse * 0.9) * 5 * intensity;
-    activeScaleX = 1 + Math.sin(pulse * 1.2) * 0.018 * intensity;
-    activeScaleY = 1 + Math.cos(pulse * 1.8) * 0.024 * intensity;
-    activeAngle = -2.2 * intensity + Math.sin(pulse) * 2.4 * intensity;
-    sprite.setTint(0xbfe7ff);
-  } else {
-    sprite.clearTint();
-  }
-
-  sprite.setPosition(
-    base.restX + activeShiftX,
-    base.restY + idleBobY + activeBobY,
-  );
-  sprite.setScale(idleScale * activeScaleX, idleScale * activeScaleY);
-  sprite.setAngle(idleAngle + activeAngle);
-}
-
-function syncBaseHpBarPresentation(
-  viewGraph: CombatSceneViewGraph,
-  runtime: CombatRuntime,
-): void {
-  const hpBar = viewGraph.base.hpBar;
-  const innerPadding = 3;
-  const innerWidth = hpBar.width - innerPadding * 2;
-  const innerHeight = hpBar.height - innerPadding * 2;
-  const metrics = getCombatBaseHpBarFillMetrics(runtime.baseHp, CombatBalanceConfig.BASE_HP, innerWidth);
-
-  hpBar.fill.clear();
-  hpBar.fill.fillStyle(0x58f29b, 1);
-  hpBar.fill.fillRoundedRect(
-    hpBar.x + innerPadding,
-    hpBar.y + innerPadding,
-    metrics.width,
-    innerHeight,
-    8,
-  );
-  hpBar.label.setText(`BASE HP ${runtime.baseHp}/${CombatBalanceConfig.BASE_HP}`);
-}
-
-function syncDamageNumberPresentation(
-  runtime: CombatRuntime,
-  damageNumbers: CombatDamageNumber[],
-): void {
-  const elapsed = runtime.combatElapsedMs;
-
-  for (let index = damageNumbers.length - 1; index >= 0; index -= 1) {
-    const damageNumber = damageNumbers[index]!;
-    const ageMs = elapsed - damageNumber.startTime;
-
-    damageNumber.update(ageMs);
-
-    if (!damageNumber.isComplete(ageMs)) {
-      continue;
-    }
-
-    damageNumber.destroy();
-    damageNumbers.splice(index, 1);
-  }
-}
-
-function syncNotePacketPresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  runtime: CombatRuntime,
-  notePacketElapsedMs: number,
-  vfxSnapshot: CombatVfxSnapshot,
-): void {
-  const notePacketView = viewGraph.notePacket.view;
-  const instances = createCombatNotePacketViewModel(
-    runtime.notePacket,
-    {
-      x: notePacketView.anchorX,
-      y: notePacketView.anchorY,
-    },
-    notePacketElapsedMs,
-  );
-  const activeIds = new Set(instances.map((instance) => instance.id));
-  const packetIntakeActive = vfxSnapshot.noteFlights.some(
-    (flight) => flight.direction === 'packet-to-slot',
-  );
-
-  for (const [id, glyph] of notePacketView.glyphs.entries()) {
-    if (activeIds.has(id)) {
-      continue;
-    }
-
-    glyph.destroy();
-    notePacketView.glyphs.delete(id);
-  }
-
-  for (let index = 0; index < instances.length; index += 1) {
-    const instance = instances[index]!;
-    let glyph = notePacketView.glyphs.get(instance.id);
-
-    if (!glyph) {
-      glyph = scene.add.image(instance.x, instance.y, COMBAT_NOTE_GLYPH_TEXTURE_KEY);
-      glyph.setOrigin(0.5, 0.5);
-      notePacketView.glyphs.set(instance.id, glyph);
-    }
-
-    glyph.setDepth(notePacketView.depth + index * 0.01);
-    glyph.setPosition(instance.x, instance.y);
-    glyph.setTint(instance.tint);
-    glyph.setAlpha(packetIntakeActive ? 0.15 : 1);
-    glyph.setScale(instance.scale);
-  }
-}
-
-function syncBeamPresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  runtime: CombatRuntime,
-  beamViews: Map<string, Phaser.GameObjects.Image>,
-  beamPool: Phaser.GameObjects.Image[],
-): void {
-  const activeIds = new Set(runtime.beams.map((beam) => beam.runtimeId));
-
-  reclaimImageViews(beamViews, beamPool, activeIds);
-
-  for (const beam of runtime.beams) {
-    let beamView = beamViews.get(beam.runtimeId);
-
-    if (!beamView) {
-      beamView = acquirePooledImage(scene, viewGraph, beamPool, COMBAT_VFX_BEAM_TEXTURE_KEY);
-      beamView.setBlendMode(Phaser.BlendModes.ADD);
-      beamViews.set(beam.runtimeId, beamView);
-    }
-
-    let from: { x: number; y: number };
-    let to: { x: number; y: number } | null = null;
-
-    if (beam.beamType === 'sweeping') {
-      from = { x: beam.originX, y: beam.originY };
-    } else {
-      const slotAnchor = viewGraph.anchors.getSlotAnchor(beam.slotIndex);
-      if (!slotAnchor) {
-        beamView.setVisible(false);
-        continue;
-      }
-      from = { x: slotAnchor.x, y: slotAnchor.y };
-    }
-
-    if (beam.beamType === 'lock-on') {
-      to = beam.targetEnemyRuntimeId ? viewGraph.anchors.getEnemyAnchor(beam.targetEnemyRuntimeId) : null;
-    } else if (beam.sweepStartAngleRad !== null && beam.sweepEndAngleRad !== null && beam.sweepLengthPx !== null) {
-      const progress = Math.min(
-        1,
-        Math.max(0, (runtime.combatElapsedMs - beam.startedAtMs) / Math.max(1, beam.expiresAtMs - beam.startedAtMs)),
-      );
-      const angle = beam.sweepStartAngleRad + (beam.sweepEndAngleRad - beam.sweepStartAngleRad) * progress;
-      to = {
-        x: from.x + Math.cos(angle) * beam.sweepLengthPx,
-        y: from.y + Math.sin(angle) * beam.sweepLengthPx,
-      };
-    }
-
-    if (!to) {
-      beamView.setVisible(false);
-      continue;
-    }
-
-    const deltaX = to.x - from.x;
-    const deltaY = to.y - from.y;
-    const length = Math.hypot(deltaX, deltaY);
-    beamView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.05);
-    beamView.setTint(CombatVisualConfig.NOTE_COLORS[beam.color]);
-    beamView.setAlpha(0.9);
-    beamView.setPosition((from.x + to.x) / 2, (from.y + to.y) / 2);
-    beamView.setRotation(Math.atan2(deltaY, deltaX));
-    beamView.setScale(length / CombatVfxConfig.TEXTURES.BEAM_WIDTH_PX, beam.beamType === 'lock-on' ? 0.9 : 0.65);
-    beamView.setVisible(true);
-  }
-}
-
-function syncProjectilePresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  runtime: CombatRuntime,
-  projectileViews: Map<string, Phaser.GameObjects.Image>,
-  projectilePool: Phaser.GameObjects.Image[],
-): void {
-  const activeIds = new Set(runtime.projectiles.map((projectile) => projectile.runtimeId));
-  reclaimImageViews(projectileViews, projectilePool, activeIds);
-
-  for (const projectile of runtime.projectiles) {
-    let projectileView = projectileViews.get(projectile.runtimeId);
-    if (!projectileView) {
-      projectileView = acquirePooledImage(scene, viewGraph, projectilePool, COMBAT_VFX_GLOW_TEXTURE_KEY);
-      projectileView.setBlendMode(Phaser.BlendModes.ADD);
-      projectileViews.set(projectile.runtimeId, projectileView);
-    }
-
-    projectileView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.12);
-    projectileView.setPosition(projectile.x, projectile.y);
-    projectileView.setTint(CombatVisualConfig.NOTE_COLORS[projectile.color]);
-    projectileView.setAlpha(0.95);
-    projectileView.setScale(0.22, 0.22);
-    projectileView.setVisible(true);
-  }
-}
-
-function syncZonePresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  runtime: CombatRuntime,
-  zoneViews: Map<string, Phaser.GameObjects.Graphics>,
-): void {
-  const activeIds = new Set(runtime.zones.map((zone) => zone.runtimeId));
-  reclaimGraphicsViews(zoneViews, activeIds);
-
-  for (const zone of runtime.zones) {
-    let zoneView = zoneViews.get(zone.runtimeId);
-    if (!zoneView) {
-      zoneView = scene.add.graphics();
-      viewGraph.effects.transientLayer.add(zoneView);
-      zoneViews.set(zone.runtimeId, zoneView);
-    }
-
-    const pulse = 0.92 + Math.sin(runtime.combatElapsedMs * 0.006 + zone.centerX * 0.01) * 0.05;
-    zoneView.clear();
-    zoneView.setDepth(CombatLayoutConfig.DEPTH.VFX - 0.03);
-    zoneView.fillStyle(CombatVisualConfig.NOTE_COLORS[zone.color], 0.12);
-    zoneView.fillCircle(zone.centerX, zone.centerY, zone.radius * pulse);
-    zoneView.lineStyle(3, CombatVisualConfig.NOTE_COLORS[zone.color], 0.85);
-    zoneView.strokeCircle(zone.centerX, zone.centerY, zone.radius * pulse);
-    zoneView.lineStyle(1, 0xffffff, 0.22);
-    zoneView.strokeCircle(zone.centerX, zone.centerY, zone.radius * 0.72);
-  }
-}
-
-function syncPendingExplosionPresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  runtime: CombatRuntime,
-  pendingExplosionViews: Map<string, Phaser.GameObjects.Graphics>,
-): void {
-  const activeIds = new Set(runtime.pendingExplosions.map((explosion) => explosion.runtimeId));
-  reclaimGraphicsViews(pendingExplosionViews, activeIds);
-
-  for (const explosion of runtime.pendingExplosions) {
-    let explosionView = pendingExplosionViews.get(explosion.runtimeId);
-    if (!explosionView) {
-      explosionView = scene.add.graphics();
-      viewGraph.effects.transientLayer.add(explosionView);
-      pendingExplosionViews.set(explosion.runtimeId, explosionView);
-    }
-
-    const progress = Math.min(1, Math.max(0, 1 - (explosion.detonateAtMs - runtime.combatElapsedMs) / Math.max(1, explosion.detonateAtMs - (explosion.detonateAtMs - 1000))));
-    explosionView.clear();
-    explosionView.setDepth(CombatLayoutConfig.DEPTH.VFX - 0.01);
-    explosionView.fillStyle(CombatVisualConfig.NOTE_COLORS[explosion.color], 0.08 + progress * 0.08);
-    explosionView.fillCircle(explosion.centerX, explosion.centerY, explosion.radius);
-    explosionView.lineStyle(3, CombatVisualConfig.NOTE_COLORS[explosion.color], 0.9);
-    explosionView.strokeCircle(explosion.centerX, explosion.centerY, explosion.radius * (0.72 + progress * 0.28));
-    explosionView.lineStyle(1, 0xffffff, 0.28);
-    explosionView.strokeCircle(explosion.centerX, explosion.centerY, explosion.radius * (0.3 + progress * 0.25));
-  }
-}
-
-function syncNoteFlightPresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  noteFlightViews: Map<string, Phaser.GameObjects.Image>,
-  noteFlightPool: Phaser.GameObjects.Image[],
-  vfxSnapshot: CombatVfxSnapshot,
-): void {
-  const activeIds = new Set(vfxSnapshot.noteFlights.map((flight) => flight.id));
-
-  reclaimImageViews(noteFlightViews, noteFlightPool, activeIds);
-
-  for (const flight of vfxSnapshot.noteFlights) {
-    let flightView = noteFlightViews.get(flight.id);
-
-    if (!flightView) {
-      flightView = acquirePooledImage(scene, viewGraph, noteFlightPool, COMBAT_NOTE_GLYPH_TEXTURE_KEY);
-      flightView.setBlendMode(Phaser.BlendModes.ADD);
-      noteFlightViews.set(flight.id, flightView);
-    }
-
-    flightView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.1);
-    flightView.setPosition(flight.x, flight.y);
-    flightView.setTint(CombatVisualConfig.NOTE_COLORS[flight.color]);
-    flightView.setAlpha(flight.alpha);
-    flightView.setScale(flight.scale);
-    flightView.setVisible(true);
-  }
-}
-
-function syncEnemyHitPresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  enemyHitViews: Map<string, Phaser.GameObjects.Image>,
-  enemyHitPool: Phaser.GameObjects.Image[],
-  vfxSnapshot: CombatVfxSnapshot,
-): void {
-  const activeIds = new Set(vfxSnapshot.enemyHitFlashes.map((flash) => flash.id));
-
-  reclaimImageViews(enemyHitViews, enemyHitPool, activeIds);
-
-  for (const flash of vfxSnapshot.enemyHitFlashes) {
-    let flashView = enemyHitViews.get(flash.id);
-
-    if (!flashView) {
-      flashView = acquirePooledImage(scene, viewGraph, enemyHitPool, COMBAT_VFX_RING_TEXTURE_KEY);
-      flashView.setBlendMode(Phaser.BlendModes.ADD);
-      enemyHitViews.set(flash.id, flashView);
-    }
-
-    flashView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.2);
-    flashView.setPosition(flash.x, flash.y);
-    flashView.setTint(CombatVisualConfig.NOTE_COLORS[flash.color]);
-    flashView.setAlpha(flash.alpha);
-    flashView.setScale(flash.scale);
-    flashView.setVisible(true);
-  }
-}
-
-function syncPacketBreakPresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  packetBreakViews: Map<string, Phaser.GameObjects.Image>,
-  packetBreakPool: Phaser.GameObjects.Image[],
-  vfxSnapshot: CombatVfxSnapshot,
-): void {
-  const activeIds = new Set(vfxSnapshot.packetBreakBursts.map((burst) => burst.id));
-
-  reclaimImageViews(packetBreakViews, packetBreakPool, activeIds);
-
-  for (const burst of vfxSnapshot.packetBreakBursts) {
-    let burstView = packetBreakViews.get(burst.id);
-
-    if (!burstView) {
-      burstView = acquirePooledImage(scene, viewGraph, packetBreakPool, COMBAT_VFX_RING_TEXTURE_KEY);
-      burstView.setBlendMode(Phaser.BlendModes.ADD);
-      packetBreakViews.set(burst.id, burstView);
-    }
-
-    burstView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.3);
-    burstView.setPosition(burst.x, burst.y);
-    burstView.setTint(CombatVisualConfig.NOTE_COLORS[burst.nextColor]);
-    burstView.setAlpha(burst.alpha);
-    burstView.setScale(burst.scale);
-    burstView.setVisible(true);
-  }
-}
-
-function syncBaseHitPresentation(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  baseHitViews: Map<string, Phaser.GameObjects.Image>,
-  baseHitPool: Phaser.GameObjects.Image[],
-  vfxSnapshot: CombatVfxSnapshot,
-): void {
-  const activeIds = new Set(vfxSnapshot.baseHitFlashes.map((flash) => flash.id));
-
-  reclaimImageViews(baseHitViews, baseHitPool, activeIds);
-
-  for (const flash of vfxSnapshot.baseHitFlashes) {
-    let flashView = baseHitViews.get(flash.id);
-
-    if (!flashView) {
-      flashView = acquirePooledImage(scene, viewGraph, baseHitPool, COMBAT_VFX_GLOW_TEXTURE_KEY);
-      flashView.setBlendMode(Phaser.BlendModes.ADD);
-      baseHitViews.set(flash.id, flashView);
-    }
-
-    flashView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.4);
-    flashView.setPosition(flash.x, flash.y);
-    flashView.setTint(0xff8f7a);
-    flashView.setAlpha(flash.alpha * 0.8);
-    flashView.setScale(flash.scale * 1.3);
-    flashView.setVisible(true);
-  }
-}
-
-function syncResultEmphasisPresentation(
-  scene: Phaser.Scene,
-  resultEmphasisWash: Phaser.GameObjects.Rectangle | undefined,
-  viewGraph: CombatSceneViewGraph,
-  vfxSnapshot: CombatVfxSnapshot,
-): Phaser.GameObjects.Rectangle | undefined {
-  const emphasis = vfxSnapshot.resultEmphasis;
-
-  if (!emphasis) {
-    resultEmphasisWash?.setVisible(false);
-    return resultEmphasisWash;
-  }
-
-  if (!resultEmphasisWash) {
-    resultEmphasisWash = scene.add.rectangle(
-      scene.scale.width / 2,
-      scene.scale.height / 2,
-      scene.scale.width,
-      scene.scale.height,
-      0xffffff,
-      0,
-    );
-    resultEmphasisWash.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.5);
-    viewGraph.effects.transientLayer.add(resultEmphasisWash);
-  }
-
-  resultEmphasisWash.setVisible(true);
-  resultEmphasisWash.setFillStyle(
-    emphasis.outcome === 'victory'
-      ? CombatVfxConfig.RESULT.VICTORY_TINT
-      : CombatVfxConfig.RESULT.DEFEAT_TINT,
-    emphasis.alpha * 0.16,
-  );
-  resultEmphasisWash.setScale(emphasis.scale);
-
-  return resultEmphasisWash;
-}
-
-function acquirePooledImage(
-  scene: Phaser.Scene,
-  viewGraph: CombatSceneViewGraph,
-  pool: Phaser.GameObjects.Image[],
-  textureKey: string,
-): Phaser.GameObjects.Image {
-  const image = pool.pop() ?? scene.add.image(0, 0, textureKey);
-
-  image.setTexture(textureKey);
-  image.setOrigin(0.5, 0.5);
-  image.setVisible(true);
-  viewGraph.effects.transientLayer.add(image);
-  return image;
-}
-
-function reclaimImageViews(
-  activeViews: Map<string, Phaser.GameObjects.Image>,
-  pool: Phaser.GameObjects.Image[],
-  activeIds: Set<string>,
-): void {
-  for (const [id, view] of activeViews.entries()) {
-    if (activeIds.has(id)) {
-      continue;
-    }
-
-    view.setVisible(false);
-    activeViews.delete(id);
-    pool.push(view);
-  }
-}
-
-function clearPooledImageMaps(
-  activeViews: Map<string, Phaser.GameObjects.Image>,
-  pool: Phaser.GameObjects.Image[],
-): void {
-  for (const view of activeViews.values()) {
-    view.destroy();
-  }
-
-  for (const view of pool) {
-    view.destroy();
-  }
-
-  activeViews.clear();
-  pool.length = 0;
-}
-
-function reclaimGraphicsViews(
-  activeViews: Map<string, Phaser.GameObjects.Graphics>,
-  activeIds: Set<string>,
-): void {
-  for (const [id, view] of activeViews.entries()) {
-    if (activeIds.has(id)) {
-      continue;
-    }
-
-    view.destroy();
-    activeViews.delete(id);
-  }
-}
-
-function clearGraphicsMap(
-  activeViews: Map<string, Phaser.GameObjects.Graphics>,
-): void {
-  for (const view of activeViews.values()) {
-    view.destroy();
-  }
-  activeViews.clear();
-}
