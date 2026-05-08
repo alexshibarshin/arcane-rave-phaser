@@ -46,10 +46,8 @@ const waveTest2SubWaves: CombatSubWaveConfig[] = [
     enemies: {
       'enemy-red-basic': 1,
       'enemy-red-tank': 1,
-      'enemy-red-fast': 1,
-      'enemy-red-ranged': 1,
+      'enemy-red-fast': 2,
       'enemy-red-swarm': 1,
-      'enemy-red-boss': 1,
     },
   },
   {
@@ -59,10 +57,8 @@ const waveTest2SubWaves: CombatSubWaveConfig[] = [
     enemies: {
       'enemy-green-basic': 1,
       'enemy-green-tank': 1,
-      'enemy-green-fast': 1,
-      'enemy-green-ranged': 1,
+      'enemy-green-fast': 2,
       'enemy-green-swarm': 1,
-      'enemy-green-boss': 1,
     },
   },
 ];
@@ -75,10 +71,8 @@ const waveTestAllSubWaves: CombatSubWaveConfig[] = [
     enemies: {
       'enemy-red-basic': 1,
       'enemy-red-tank': 1,
-      'enemy-red-fast': 1,
-      'enemy-red-ranged': 1,
+      'enemy-red-fast': 2,
       'enemy-red-swarm': 1,
-      'enemy-red-boss': 1,
     },
   },
   {
@@ -88,10 +82,8 @@ const waveTestAllSubWaves: CombatSubWaveConfig[] = [
     enemies: {
       'enemy-green-basic': 1,
       'enemy-green-tank': 1,
-      'enemy-green-fast': 1,
-      'enemy-green-ranged': 1,
+      'enemy-green-fast': 2,
       'enemy-green-swarm': 1,
-      'enemy-green-boss': 1,
     },
   },
   {
@@ -101,10 +93,8 @@ const waveTestAllSubWaves: CombatSubWaveConfig[] = [
     enemies: {
       'enemy-blue-basic': 1,
       'enemy-blue-tank': 1,
-      'enemy-blue-fast': 1,
-      'enemy-blue-ranged': 1,
+      'enemy-blue-fast': 2,
       'enemy-blue-swarm': 1,
-      'enemy-blue-boss': 1,
     },
   },
 ];
