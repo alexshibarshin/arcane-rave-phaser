@@ -162,8 +162,8 @@ export class StageDragController {
         kind: 'shop-offer',
         offerIndex: shopCard.offerIndex,
         pawnId: shopCard.pawnId,
-        homeX: gameObject.x,
-        homeY: gameObject.y,
+        homeX: gameObject.getData('homeX') as number,
+        homeY: gameObject.getData('homeY') as number,
       };
     }
 
@@ -176,8 +176,8 @@ export class StageDragController {
         slotIndex: slotView.slotIndex,
         pawnId: pawnInstance?.pawnId ?? '',
         tier: pawnInstance?.tier ?? 1,
-        homeX: gameObject.x,
-        homeY: gameObject.y,
+        homeX: gameObject.getData('homeX') as number,
+        homeY: gameObject.getData('homeY') as number,
       };
     }
 

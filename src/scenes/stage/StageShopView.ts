@@ -212,6 +212,8 @@ export class StageShopView {
 
     container.add([graphics, hoverGlow, spriteFrame, title, ruleLabel, priceChip]);
     container.setSize(width, height);
+    container.setData('homeX', x);
+    container.setData('homeY', y);
     container.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, width, height),
       Phaser.Geom.Rectangle.Contains,

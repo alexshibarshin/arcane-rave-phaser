@@ -233,6 +233,8 @@ export class StageRecordView {
 
     container.add([sprite, stars]);
     container.setSize(88, 92);
+    container.setData('homeX', x);
+    container.setData('homeY', y);
     container.setInteractive(
       new Phaser.Geom.Circle(
         container.width / 2 + pawn.art.offsetX,
