@@ -23,11 +23,14 @@ export class StageShopView {
   readonly cardsLayer: Phaser.GameObjects.Container;
 
   private emptyLabel?: Phaser.GameObjects.Text;
+  private onCardsCreated?: () => void;
 
   constructor(
     private readonly scene: Phaser.Scene,
     onReroll: () => void,
+    onCardsCreated?: () => void,
   ) {
+    this.onCardsCreated = onCardsCreated;
     const width = StagePresentationConfig.SHOP_PANEL_WIDTH;
     const height = StagePresentationConfig.SHOP_PANEL_HEIGHT;
     this.container = scene.add.container(scene.scale.width / 2, StagePresentationConfig.SHOP_PANEL_Y);
@@ -131,6 +134,8 @@ export class StageShopView {
           ease: 'Back.easeOut',
         });
       });
+
+      this.onCardsCreated?.();
     };
 
     if (oldCards.length > 0) {

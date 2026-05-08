@@ -220,7 +220,14 @@ export class StageScene extends Phaser.Scene {
     this.recordView.createSynergySystem();
     this.recordView.createModifierIcons(this.runtime);
 
-    this.shopView = new StageShopView(this, this.handleRerollPressed);
+    this.shopView = new StageShopView(this, this.handleRerollPressed, () => {
+      for (const cardView of this.shopView.cardViews) {
+        this.tooltipController.bindPawnInspection(cardView.container, {
+          pawnId: cardView.pawnId,
+          tier: 1,
+        });
+      }
+    });
 
     this.tooltipController = new StageTooltipController(this, this.recordView, () => this.runtime);
 
@@ -265,7 +272,21 @@ export class StageScene extends Phaser.Scene {
       this.runtime.coins,
       getStageShopRerollCost(this.runtime),
     );
+    this.bindTooltipsToPawns();
     this.syncPresentation();
+  }
+
+  private bindTooltipsToPawns(): void {
+    for (const slotView of this.recordView.slotViews) {
+      if (!slotView.pawnContainer) continue;
+      const pawnInstance = this.runtime.build.slots[slotView.slotIndex];
+      if (!pawnInstance) continue;
+      this.tooltipController.bindPawnInspection(slotView.pawnContainer, {
+        pawnId: pawnInstance.pawnId,
+        tier: pawnInstance.tier,
+        slotIndex: slotView.slotIndex,
+      });
+    }
   }
 
   /* ------------------------------------------------------------------ */
