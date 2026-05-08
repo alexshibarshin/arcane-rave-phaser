@@ -22,6 +22,7 @@ export interface StageRecordSlotView {
   anchorY: number;
   zone: Phaser.GameObjects.Zone;
   glow: Phaser.GameObjects.Graphics;
+  mergeHighlight: Phaser.GameObjects.Graphics;
   pawnContainer?: Phaser.GameObjects.Container;
   innerLabel?: Phaser.GameObjects.Container;
 }
@@ -102,7 +103,10 @@ export class StageRecordView {
       zone.setOrigin(0.5, 0.5);
       zone.setInteractive();
 
-      this.container.add([slotArc, slotChip, label, glow, zone]);
+      const mergeHighlight = this.scene.add.graphics();
+      mergeHighlight.setAlpha(0);
+
+      this.container.add([slotArc, slotChip, label, glow, zone, mergeHighlight]);
 
       this.slotViews.push({
         slotIndex,
@@ -110,6 +114,7 @@ export class StageRecordView {
         anchorY: pawnAnchor.y,
         zone,
         glow,
+        mergeHighlight,
       });
     }
 
@@ -256,6 +261,38 @@ export class StageRecordView {
     return container;
   }
 
+  showMergeHighlights(slotIndices: number[], accentColor: number): void {
+    for (const slotView of this.slotViews) {
+      if (slotIndices.includes(slotView.slotIndex)) {
+        this.drawMergeHighlightRing(slotView.mergeHighlight, slotView.anchorX, slotView.anchorY, accentColor);
+        slotView.mergeHighlight.setAlpha(1);
+      } else {
+        slotView.mergeHighlight.setAlpha(0);
+      }
+    }
+  }
+
+  hideMergeHighlights(): void {
+    for (const slotView of this.slotViews) {
+      slotView.mergeHighlight.setAlpha(0);
+    }
+  }
+
+  private drawMergeHighlightRing(
+    gfx: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    accentColor: number,
+  ): void {
+    gfx.clear();
+    gfx.fillStyle(accentColor, 0.15);
+    gfx.fillCircle(x, y, 52);
+    gfx.lineStyle(3, accentColor, 0.65);
+    gfx.strokeCircle(x, y, 50);
+    gfx.lineStyle(2, accentColor, 0.35);
+    gfx.strokeCircle(x, y, 62);
+  }
+
   getSlotPawnContainer(slotIndex: number): Phaser.GameObjects.Container | undefined {
     return this.slotViews[slotIndex]?.pawnContainer;
   }
@@ -272,6 +309,7 @@ export class StageRecordView {
       view.pawnContainer = undefined;
       view.innerLabel?.destroy();
       view.innerLabel = undefined;
+      view.mergeHighlight.destroy();
     });
   }
 }

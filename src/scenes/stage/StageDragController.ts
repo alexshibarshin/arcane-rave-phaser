@@ -7,6 +7,8 @@ import {
   mergeStagePawnSlots,
   repositionStagePawn,
 } from '@stage/StageRuntime';
+import { getMergeTargets, getMergeTargetsForPawn } from '@stage/StageBuild';
+import { findPawnDefinition, getPawnAccentColor } from './StageRenderHelpers';
 import type { StageRecordView } from './StageRecordView';
 import type { StageShopView } from './StageShopView';
 import type { StageTooltipController } from './StageTooltipController';
@@ -63,6 +65,7 @@ export class StageDragController {
         gameObject.setDepth(5000);
         gameObject.setScale(1.06);
         this.tooltipController.setDragLocked(true);
+        this.updateMergeHighlights(payload);
       },
     );
 
@@ -196,9 +199,30 @@ export class StageDragController {
     });
   }
 
+  private updateMergeHighlights(payload: DragPayload): void {
+    const runtime = this.getRuntime();
+    let targetIndices: number[];
+
+    if (payload.kind === 'slot-pawn') {
+      targetIndices = getMergeTargets(runtime.build, payload.slotIndex);
+    } else {
+      targetIndices = getMergeTargetsForPawn(runtime.build, { pawnId: payload.pawnId, tier: 1 });
+    }
+
+    if (targetIndices.length === 0) {
+      this.recordView.hideMergeHighlights();
+      return;
+    }
+
+    const def = findPawnDefinition(payload.pawnId);
+    const accentColor = def ? getPawnAccentColor(def.color) : 0x8ef7ff;
+    this.recordView.showMergeHighlights(targetIndices, accentColor);
+  }
+
   private clearSlotHighlights(): void {
     this.activeDropSlotIndex = null;
     this.recordView.slotViews.forEach((slotView) => slotView.glow.setAlpha(0));
+    this.recordView.hideMergeHighlights();
   }
 
   private getClosestSlotIndex(worldX: number, worldY: number): number | null {

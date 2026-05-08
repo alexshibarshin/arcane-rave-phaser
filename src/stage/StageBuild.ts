@@ -147,6 +147,35 @@ export function getStageBuildSlotPawnIds(
   return build.slots.map((slot) => slot?.pawnId ?? null);
 }
 
+export function getMergeTargets(
+  build: StageBuildState,
+  sourceSlotIndex: number,
+): number[] {
+  const sourcePawn = build.slots[sourceSlotIndex];
+  if (!sourcePawn) {
+    return [];
+  }
+  return getMergeTargetsForPawn(build, sourcePawn, sourceSlotIndex);
+}
+
+export function getMergeTargetsForPawn(
+  build: StageBuildState,
+  pawn: StagePawnInstance,
+  excludeSlotIndex?: number,
+): number[] {
+  const targets: number[] = [];
+  for (let i = 0; i < build.slots.length; i += 1) {
+    if (excludeSlotIndex !== undefined && i === excludeSlotIndex) {
+      continue;
+    }
+    const candidate = build.slots[i];
+    if (candidate && canMergeStagePawns(pawn, candidate)) {
+      targets.push(i);
+    }
+  }
+  return targets;
+}
+
 export function rerollStageShop(
   build: StageBuildState,
   coins: number,

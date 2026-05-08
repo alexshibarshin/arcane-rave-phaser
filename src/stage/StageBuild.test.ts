@@ -4,6 +4,8 @@ import {
   createStageBuildState,
   getStageRerollCost,
   getStageBuildSlotPawnIds,
+  getMergeTargets,
+  getMergeTargetsForPawn,
   mergeStagePawn,
   moveStagePawn,
   purchaseStagePawn,
@@ -169,6 +171,173 @@ describe('StageBuild', () => {
     expect(build.slots[0]?.tier).toBe(2);
     expect(typeof build.slots[0]?.pawnId).toBe('string');
     expect(build.shopOffers).toEqual([]);
+  });
+
+  describe('getMergeTargets', () => {
+    it('returns empty array when source slot is empty', () => {
+      const build: StageBuildState = {
+        slots: [
+          null,
+          { pawnId: 'pawn-A', tier: 1 },
+          null, null, null, null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargets(build, 0)).toEqual([]);
+    });
+
+    it('returns empty array when source pawn is at max tier', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-A', tier: 3 },
+          { pawnId: 'pawn-A', tier: 1 },
+          null, null, null, null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargets(build, 0)).toEqual([]);
+    });
+
+    it('returns indices of mergeable same-id same-tier pawns', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-A', tier: 1 },
+          { pawnId: 'pawn-B', tier: 1 },
+          { pawnId: 'pawn-A', tier: 1 },
+          { pawnId: 'pawn-A', tier: 2 },
+          null,
+          null,
+          null,
+          null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargets(build, 0)).toEqual([2]);
+    });
+
+    it('excludes the source slot and non-matching tiers', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-A', tier: 2 },
+          { pawnId: 'pawn-A', tier: 2 },
+          { pawnId: 'pawn-A', tier: 1 },
+          null, null, null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargets(build, 0)).toEqual([1]);
+    });
+
+    it('returns empty array when no merge targets exist', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-A', tier: 1 },
+          { pawnId: 'pawn-B', tier: 1 },
+          { pawnId: 'pawn-C', tier: 1 },
+          null, null, null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargets(build, 0)).toEqual([]);
+    });
+
+    it('delegates to getMergeTargetsForPawn with self-exclusion', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-A', tier: 1 },
+          { pawnId: 'pawn-A', tier: 1 },
+          null, null, null, null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      const result = getMergeTargets(build, 0);
+      expect(result).toEqual([1]);
+      expect(result).toEqual(getMergeTargetsForPawn(build, { pawnId: 'pawn-A', tier: 1 }, 0));
+    });
+  });
+
+  describe('getMergeTargetsForPawn', () => {
+    it('returns all matching same-id same-tier slots when no exclusion is given', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-A', tier: 1 },
+          { pawnId: 'pawn-B', tier: 1 },
+          { pawnId: 'pawn-A', tier: 1 },
+          { pawnId: 'pawn-A', tier: 2 },
+          { pawnId: 'pawn-A', tier: 1 },
+          null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargetsForPawn(build, { pawnId: 'pawn-A', tier: 1 })).toEqual([0, 2, 4]);
+    });
+
+    it('excludes the given slot index when provided', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-A', tier: 1 },
+          { pawnId: 'pawn-A', tier: 1 },
+          { pawnId: 'pawn-A', tier: 1 },
+          null, null, null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargetsForPawn(build, { pawnId: 'pawn-A', tier: 1 }, 0)).toEqual([1, 2]);
+    });
+
+    it('returns empty when nothing matches the given pawn', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-B', tier: 1 },
+          { pawnId: 'pawn-C', tier: 2 },
+          null, null, null, null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargetsForPawn(build, { pawnId: 'pawn-A', tier: 1 })).toEqual([]);
+    });
+
+    it('excludes max-tier pawns from results', () => {
+      const build: StageBuildState = {
+        slots: [
+          { pawnId: 'pawn-A', tier: 3 },
+          { pawnId: 'pawn-A', tier: 1 },
+          null, null, null, null, null, null,
+        ],
+        shopOffers: [],
+        shopPurchaseCounts: {},
+        rerollCount: 0,
+      };
+
+      expect(getMergeTargetsForPawn(build, { pawnId: 'pawn-A', tier: 1 })).toEqual([1]);
+    });
   });
 
   it('rerolls the shop and increases reroll cost for the current build phase', () => {
