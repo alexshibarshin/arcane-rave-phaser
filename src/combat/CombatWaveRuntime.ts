@@ -57,9 +57,9 @@ export function spawnCombatEnemies(
       enemy.spawned = true;
       enemy.state = 'moving';
       enemy.nextAttackAtMs = 0;
-      enemy.x = selectEnemySpawnX(random, runtime.spawn.lastSpawnX);
+      enemy.x = selectEnemySpawnX(random, runtime.wave.lastSpawnX);
       enemy.y = CombatLayoutConfig.ENEMY_SPAWN_Y;
-      runtime.spawn.lastSpawnX = enemy.x;
+      runtime.wave.lastSpawnX = enemy.x;
       bag.nextSpawnAtMs += bag.intervalMs;
     }
   }
@@ -99,6 +99,7 @@ export function createInitialCombatWaveState(
     pendingSubWaves: [...(initialWave?.subWaves ?? [])],
     spawnBags: new Map(),
     enemiesRemaining: countWaveEnemies(initialWave),
+    lastSpawnX: null,
   };
 }
 

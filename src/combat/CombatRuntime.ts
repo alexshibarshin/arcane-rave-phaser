@@ -207,18 +207,13 @@ export interface CombatWaveRuntime {
   pendingSubWaves: CombatSubWaveConfig[];
   spawnBags: Map<string, CombatSubWaveSpawnBag>;
   enemiesRemaining: number;
+  lastSpawnX: number | null;
 }
 
 export interface CombatRuntime {
   state: CombatState;
   combatElapsedMs: number;
   waveElapsedMs: number;
-  spawn: {
-    pendingEnemyRuntimeIds: string[];
-    nextSpawnAtMs: number;
-    lastSpawnX: number | null;
-    intervalMs: number;
-  };
   preview: {
     elapsedMs: number;
     durationMs: number;
@@ -311,12 +306,6 @@ export function createCombatRuntime(
     state: 'preview',
     combatElapsedMs: 0,
     waveElapsedMs: 0,
-    spawn: {
-      pendingEnemyRuntimeIds: [],
-      nextSpawnAtMs: 0,
-      lastSpawnX: null,
-      intervalMs: 900,
-    },
     preview: {
       elapsedMs: 0,
       durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
