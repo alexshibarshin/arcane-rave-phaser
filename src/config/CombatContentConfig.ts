@@ -123,7 +123,7 @@ export type CombatPawnSecondaryEffectDefinition =
 export interface CombatProjectileAbilityDefinition {
   primaryArchetype: 'projectile';
   pattern: CombatProjectilePattern;
-  targeting: 'frontmost-enemy';
+  targeting: CombatTargetingRule;
   damage: number;
   projectileSpeed: number;
   projectileLifetimeMs: number;
@@ -147,7 +147,7 @@ export interface CombatExplosionAbilityDefinition {
 export interface CombatBeamAbilityDefinition {
   primaryArchetype: 'beam';
   pattern: CombatBeamPattern;
-  targeting: 'frontmost-enemy';
+  targeting: CombatTargetingRule;
   damage: number;
   durationMs: number;
   tickIntervalMs?: number;

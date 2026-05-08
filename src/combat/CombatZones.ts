@@ -1,6 +1,6 @@
-import { getCombatPawnDefinitionById, type CombatPawnDefinition } from '@config/CombatContentConfig';
+import { getCombatPawnDefinitionById, type CombatPawnDefinition, type CombatTargetingRule } from '@config/CombatContentConfig';
 import { applyCombatHit } from './CombatDamage';
-import { createRuntimeEffectId, selectFrontmostEnemy, selectRandomEnemy } from './CombatTargeting';
+import { createRuntimeEffectId, resolveTarget } from './CombatTargeting';
 import { pushCombatZoneSpawned, pushCombatZoneTicked } from './CombatRuntimeEvents';
 import type { CombatRuntime, CombatSourceSnapshot, CombatZoneRuntime } from './CombatRuntime';
 
@@ -13,11 +13,9 @@ export function createTargetedZone(
   radius: number,
   durationMs: number,
   tickIntervalMs: number,
-  targeting: 'frontmost-enemy' | 'random-enemy',
+  targeting: CombatTargetingRule,
 ): void {
-  const target = targeting === 'random-enemy'
-    ? selectRandomEnemy(runtime)
-    : selectFrontmostEnemy(runtime);
+  const target = resolveTarget(runtime, targeting);
 
   if (!target) {
     return;

@@ -1,6 +1,6 @@
 import type { CombatPawnDefinition, CombatProjectileAbilityDefinition } from '@config/CombatContentConfig';
 import { queueProjectileVolley, spawnShotgunProjectiles, spawnSingleProjectile } from '@combat/CombatProjectiles';
-import { createDirectionToEnemy, getSlotOrigin, selectFrontmostEnemy } from '@combat/CombatTargeting';
+import { createDirectionToEnemy, getSlotOrigin, resolveTarget } from '@combat/CombatTargeting';
 import type { CombatAbilityExecutor, CombatAbilityExecuteParams } from './executors';
 
 export class ProjectileExecutor implements CombatAbilityExecutor {
@@ -15,7 +15,7 @@ function resolveProjectileAbility(
   ability: CombatProjectileAbilityDefinition,
 ): void {
   const origin = getSlotOrigin(params.slot);
-  const target = selectFrontmostEnemy(params.runtime);
+  const target = resolveTarget(params.runtime, ability.targeting);
 
   if (!origin || !target) {
     return;

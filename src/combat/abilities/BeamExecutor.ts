@@ -1,4 +1,4 @@
-import type { CombatBeamAbilityDefinition, CombatPawnDefinition } from '@config/CombatContentConfig';
+import type { CombatBeamAbilityDefinition, CombatPawnDefinition, CombatTargetingRule } from '@config/CombatContentConfig';
 import { createBeam } from '@combat/CombatBeams';
 import { spawnExtraBeams } from '@combat/CombatExtraBeam';
 import type { CombatAbilityExecutor, CombatAbilityExecuteParams } from './executors';
@@ -7,7 +7,7 @@ export class BeamExecutor implements CombatAbilityExecutor {
   execute(params: CombatAbilityExecuteParams): void {
     const ability = params.pawn.ability as CombatBeamAbilityDefinition;
 
-    resolveBeamAbility(params, ability);
+    resolveBeamAbility(params, ability, ability.targeting);
 
     if (params.mutations.extraBeamCount > 0) {
       spawnExtraBeams(
@@ -25,6 +25,7 @@ export class BeamExecutor implements CombatAbilityExecutor {
 function resolveBeamAbility(
   params: CombatAbilityExecuteParams,
   ability: CombatBeamAbilityDefinition,
+  targeting: CombatTargetingRule,
 ): void {
   createBeam(
     params.runtime,
@@ -38,5 +39,6 @@ function resolveBeamAbility(
     ability.pattern === 'sweeping-beam' ? ability.sweepArcDeg ?? null : null,
     ability.pattern === 'sweeping-beam' ? ability.sweepLengthPx ?? null : null,
     ability.pattern === 'sweeping-beam' ? ability.sweepHitRadiusPx ?? null : null,
+    targeting,
   );
 }

@@ -1,7 +1,8 @@
 import { getCombatPawnDefinitionById, type CombatPawnDefinition } from '@config/CombatContentConfig';
 import { applyCombatHit } from './CombatDamage';
 import { spawnZone } from './CombatZones';
-import { createRuntimeEffectId, selectFrontmostEnemy, selectRandomEnemy } from './CombatTargeting';
+import { createRuntimeEffectId, resolveTarget } from './CombatTargeting';
+import type { CombatTargetingRule } from '@config/CombatContentConfig';
 import {
   pushCombatDelayedExplosionSpawned,
 } from './CombatRuntimeEvents';
@@ -18,11 +19,9 @@ export function createImmediateTargetedExplosion(
   sourceSnapshot: CombatSourceSnapshot,
   damage: number,
   radius: number,
-  targeting: 'frontmost-enemy' | 'random-enemy',
+  targeting: CombatTargetingRule,
 ): void {
-  const target = targeting === 'random-enemy'
-    ? selectRandomEnemy(runtime)
-    : selectFrontmostEnemy(runtime);
+  const target = resolveTarget(runtime, targeting);
 
   if (!target) {
     return;
@@ -57,11 +56,9 @@ export function queueDelayedExplosion(
   damage: number,
   radius: number,
   delayMs: number,
-  targeting: 'frontmost-enemy' | 'random-enemy',
+  targeting: CombatTargetingRule,
 ): void {
-  const target = targeting === 'random-enemy'
-    ? selectRandomEnemy(runtime)
-    : selectFrontmostEnemy(runtime);
+  const target = resolveTarget(runtime, targeting);
 
   if (!target) {
     return;

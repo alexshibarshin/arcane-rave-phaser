@@ -5,10 +5,9 @@ import {
   createRuntimeEffectId,
   createVolleyAngles,
   getSlotOrigin,
+  resolveTarget,
   rotateDirection,
   segmentIntersectsEnemy,
-  selectFrontmostEnemy,
-  selectFrontmostEnemyExcluding,
 } from './CombatTargeting';
 import {
   applyEnemySlow,
@@ -98,7 +97,7 @@ export function advanceCombatProjectiles(runtime: CombatRuntime, deltaMs: number
     resolveProjectileHit(runtime, projectile, hitEnemy.runtimeId);
 
     if (projectile.bounceRemaining > 0 && hitEnemy.currentHp > 0) {
-      const nextTarget = selectFrontmostEnemyExcluding(runtime, [hitEnemy.runtimeId]);
+      const nextTarget = resolveTarget(runtime, 'frontmost-enemy', { excludedEnemyRuntimeIds: [hitEnemy.runtimeId] });
 
       if (nextTarget) {
         const nextDirection = createDirectionToEnemy(projectile.x, projectile.y, nextTarget);
@@ -155,7 +154,7 @@ export function spawnShotgunProjectiles(
 ): void {
   const slot = runtime.slots[slotIndex];
   const origin = slot ? getSlotOrigin(slot) : null;
-  const target = selectFrontmostEnemy(runtime);
+  const target = resolveTarget(runtime, 'frontmost-enemy');
 
   if (!slot || !origin || !target) {
     return;
@@ -225,7 +224,7 @@ export function clearCombatProjectiles(runtime: CombatRuntime): void {
 function emitVolleyShot(runtime: CombatRuntime, volley: CombatQueuedVolleyRuntime): void {
   const slot = runtime.slots[volley.slotIndex];
   const origin = slot ? getSlotOrigin(slot) : null;
-  const target = selectFrontmostEnemy(runtime);
+  const target = resolveTarget(runtime, 'frontmost-enemy');
   const pawn = getCombatPawnDefinitionById(volley.pawnId);
 
   if (!slot || !origin || !target || !pawn) {

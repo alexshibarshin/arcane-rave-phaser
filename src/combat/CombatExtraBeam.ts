@@ -1,6 +1,6 @@
 import type { CombatBeamAbilityDefinition, CombatPawnDefinition } from '@config/CombatContentConfig';
 import { createBeam, DEFAULT_SWEEP_ARC_DEG } from './CombatBeams';
-import { selectFrontmostEnemy, selectFrontmostEnemyExcluding } from './CombatTargeting';
+import { resolveTarget } from './CombatTargeting';
 import type { CombatBeamRuntime, CombatRuntime, CombatSourceSnapshot } from './CombatRuntime';
 
 export function spawnExtraBeams(
@@ -31,18 +31,19 @@ function spawnExtraLockOnBeam(
   const firstTargetId = existingBeam?.targetEnemyRuntimeId;
 
   if (!firstTargetId) {
-    const fallbackTarget = selectFrontmostEnemy(runtime);
+    const fallbackTarget = resolveTarget(runtime, ability.targeting);
     if (fallbackTarget) {
       createBeam(
         runtime, pawn, slotIndex, sourceSnapshot, ability.damage, ability.durationMs,
         ability.tickIntervalMs ?? null, 'lock-on', null, null, null,
+        ability.targeting,
         fallbackTarget,
       );
     }
     return;
   }
 
-  const secondTarget = selectFrontmostEnemyExcluding(runtime, [firstTargetId]);
+  const secondTarget = resolveTarget(runtime, ability.targeting, { excludedEnemyRuntimeIds: [firstTargetId] });
 
   if (!secondTarget) {
     return;
@@ -51,6 +52,7 @@ function spawnExtraLockOnBeam(
   createBeam(
     runtime, pawn, slotIndex, sourceSnapshot, ability.damage, ability.durationMs,
     ability.tickIntervalMs ?? null, 'lock-on', null, null, null,
+    ability.targeting,
     secondTarget,
   );
 }
@@ -71,6 +73,7 @@ function spawnExtraSweepingBeam(
     reverseSweepArcDeg,
     ability.sweepLengthPx ?? null,
     ability.sweepHitRadiusPx ?? null,
+    ability.targeting,
   );
 }
 

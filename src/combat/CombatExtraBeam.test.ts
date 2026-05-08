@@ -58,6 +58,7 @@ describe('createBeam targetOverride', () => {
       null,
       null,
       null,
+      'frontmost-enemy',
       backEnemy,
     );
 
@@ -98,6 +99,7 @@ describe('createBeam targetOverride', () => {
       null,
       null,
       null,
+      'frontmost-enemy',
     );
 
     expect(runtime.beams).toHaveLength(1);

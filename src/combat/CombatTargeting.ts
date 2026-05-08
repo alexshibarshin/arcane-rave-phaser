@@ -1,8 +1,32 @@
+import type { CombatTargetingRule } from '@config/CombatContentConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import type { CombatEnemyRuntime, CombatRuntime, CombatSlotRuntime } from './CombatRuntime';
 
 const ENEMY_COLLISION_RADIUS_PX = 22;
 const combatLayout = createCombatLayoutPlan();
+
+export interface ResolveTargetOptions {
+  excludedEnemyRuntimeIds?: string[];
+  random?: () => number;
+}
+
+const TARGETING_STRATEGIES: Record<
+  CombatTargetingRule,
+  (runtime: CombatRuntime, options: ResolveTargetOptions) => CombatEnemyRuntime | null
+> = {
+  'frontmost-enemy': (runtime, options) =>
+    selectFrontmostEnemyExcluding(runtime, options.excludedEnemyRuntimeIds ?? []),
+  'random-enemy': (runtime, options) =>
+    selectRandomEnemy(runtime, options.random),
+};
+
+export function resolveTarget(
+  runtime: CombatRuntime,
+  rule: CombatTargetingRule,
+  options: ResolveTargetOptions = {},
+): CombatEnemyRuntime | null {
+  return TARGETING_STRATEGIES[rule](runtime, options);
+}
 
 export function selectFrontmostEnemy(runtime: CombatRuntime): CombatEnemyRuntime | null {
   return selectFrontmostEnemyExcluding(runtime, []);

@@ -1,6 +1,7 @@
 import { getCombatPawnDefinitionById, type CombatPawnDefinition } from '@config/CombatContentConfig';
 import { applyCombatHit } from './CombatDamage';
-import { createRuntimeEffectId, getSlotOrigin, selectFrontmostEnemy } from './CombatTargeting';
+import { createRuntimeEffectId, getSlotOrigin, resolveTarget } from './CombatTargeting';
+import type { CombatTargetingRule } from '@config/CombatContentConfig';
 import { applyEnemySlow } from './CombatStatuses';
 import { pushCombatBeamStarted, pushCombatBeamTicked } from './CombatRuntimeEvents';
 import type { CombatBeamRuntime, CombatEnemyRuntime, CombatRuntime, CombatSourceSnapshot } from './CombatRuntime';
@@ -23,12 +24,13 @@ export function createBeam(
   sweepArcDeg: number | null,
   sweepLengthPx: number | null,
   sweepHitRadiusPx: number | null,
+  targeting: CombatTargetingRule,
   targetOverride?: CombatEnemyRuntime | null,
 ): void {
   const slot = runtime.slots[slotIndex];
   const origin = slot ? getSlotOrigin(slot) : null;
   const target = beamType === 'lock-on'
-    ? (targetOverride ?? selectFrontmostEnemy(runtime))
+    ? (targetOverride ?? resolveTarget(runtime, targeting))
     : null;
 
   if (!slot || !origin || (beamType === 'lock-on' && !target)) {
@@ -109,7 +111,7 @@ function tickLockOnBeam(
     ?? null;
 
   if (!target || !target.spawned || target.state === 'dead' || target.currentHp <= 0) {
-    target = selectFrontmostEnemy(runtime);
+    target = resolveTarget(runtime, 'frontmost-enemy');
 
     if (!target) {
       return false;
@@ -140,7 +142,7 @@ function tickLockOnBeam(
     return true;
   }
 
-  const replacementTarget = selectFrontmostEnemy(runtime);
+  const replacementTarget = resolveTarget(runtime, 'frontmost-enemy');
 
   if (!replacementTarget) {
     return false;
