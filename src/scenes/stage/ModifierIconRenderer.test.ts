@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
-import type { StageRuntime } from '@stage/StageRuntime';
 import { createModifierIcons } from './ModifierIconRenderer';
+import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 
 class FakeGraphics {
   fillStyle(): this { return this; }
@@ -75,61 +75,42 @@ function createFakeScene() {
   };
 }
 
-function createRuntime(
-  phase: StageRuntime['phase'],
-  slotModifiers: StageRuntime['slotModifiers'],
-): StageRuntime {
-  return {
-    phase,
-    currentWaveIndex: 0,
-    totalWaves: 1,
-    coins: 0,
-    chrono: { current: 0, max: 0 },
-    lastCombatOutcome: null,
-    build: {
-      slots: Array.from({ length: 8 }, () => null),
-      shopOffers: [],
-      shopPurchaseCounts: {},
-      rerollCount: 0,
-    },
-    slotModifiers,
-  };
-}
-
 describe('createModifierIcons', () => {
   it('creates one icon per slot modifier and positions it outside the record rim', () => {
     const scene = createFakeScene();
     const recordGroup = new FakeContainer(0, 0);
-    const runtime = createRuntime('build', [
+    const slotModifiers: SlotModifierAssignment[] = [
       { slotIndex: 0, modifierId: 'plus-one-output-note' },
       { slotIndex: 2, modifierId: 'plus-one-projectile' },
-    ]);
+    ];
+    const recordRadius = StagePresentationConfig.BUILD_RECORD_RADIUS;
 
-    const views = createModifierIcons(scene as never, runtime, recordGroup as never);
+    const views = createModifierIcons(scene as never, slotModifiers, recordGroup as never, recordRadius);
 
     expect(views).toHaveLength(2);
     expect(recordGroup.list).toHaveLength(2);
 
     expect(views[0]?.slotIndex).toBe(0);
-    expect(getDistanceFromCenter(views[0]!.container)).toBeGreaterThan(StagePresentationConfig.BUILD_RECORD_RADIUS);
+    expect(getDistanceFromCenter(views[0]!.container)).toBeGreaterThan(recordRadius);
     expect(getAngleDeg(views[0]!.container)).toBeCloseTo(-90, 5);
 
     expect(views[1]?.slotIndex).toBe(2);
-    expect(getDistanceFromCenter(views[1]!.container)).toBeGreaterThan(StagePresentationConfig.BUILD_RECORD_RADIUS);
+    expect(getDistanceFromCenter(views[1]!.container)).toBeGreaterThan(recordRadius);
     expect(getAngleDeg(views[1]!.container)).toBeCloseTo(0, 5);
   });
 
-  it('hides icons when the stage runtime is not in build phase', () => {
+  it('icons are always visible regardless of phase', () => {
     const scene = createFakeScene();
     const recordGroup = new FakeContainer(0, 0);
-    const runtime = createRuntime('combat', [
+    const slotModifiers: SlotModifierAssignment[] = [
       { slotIndex: 5, modifierId: 'double-activation' },
-    ]);
+    ];
+    const recordRadius = StagePresentationConfig.BUILD_RECORD_RADIUS;
 
-    const views = createModifierIcons(scene as never, runtime, recordGroup as never);
+    const views = createModifierIcons(scene as never, slotModifiers, recordGroup as never, recordRadius);
 
     expect(views).toHaveLength(1);
-    expect(views[0]?.container.visible).toBe(false);
+    expect(views[0]?.container.visible).toBe(true);
   });
 });
 

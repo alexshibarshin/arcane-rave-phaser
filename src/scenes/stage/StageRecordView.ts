@@ -140,7 +140,12 @@ export class StageRecordView {
 
   createModifierIcons(runtime: StageRuntime): void {
     this.modifierIconViews.length = 0;
-    const icons = createModifierIcons(this.scene, runtime, this.container);
+    const icons = createModifierIcons(
+      this.scene,
+      runtime.slotModifiers,
+      this.container,
+      StagePresentationConfig.BUILD_RECORD_RADIUS,
+    );
     for (const icon of icons) {
       this.modifierIconViews.push(icon);
     }

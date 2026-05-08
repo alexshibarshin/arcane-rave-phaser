@@ -22,6 +22,7 @@ import type { InputSystem } from '@systems/InputSystem';
 import type { SimulationSystem } from '@systems/SimulationSystem';
 import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import { createCombatSceneViewGraph, type CombatSceneViewGraph } from './CombatSceneViewGraph';
+import { createModifierIcons } from '@scenes/stage/ModifierIconRenderer';
 import { resolveCombatSceneSlotPawnIds } from './resolveCombatSceneSlotPawnIds';
 import {
   createCombatPresentationRuntime,
@@ -240,6 +241,16 @@ export class CombatScene extends GameScene {
       })),
       slotPawnIds: this.slotPawnIds,
     });
+
+    if (this.slotModifiers && this.slotModifiers.length > 0) {
+      createModifierIcons(
+        this,
+        this.slotModifiers,
+        this.viewGraph.record.container,
+        CombatLayoutConfig.RECORD_RADIUS,
+      );
+    }
+
     this.presentationRuntime = createCombatPresentationRuntime({
       scene: this,
       viewGraph: this.viewGraph,

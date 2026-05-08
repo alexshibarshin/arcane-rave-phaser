@@ -4,8 +4,7 @@ import {
   SLOT_MODIFIER_CONFIG,
   type SlotModifierDefinition,
 } from '@config/SlotModifierConfig';
-import { StagePresentationConfig } from '@config/StagePresentationConfig';
-import type { StageRuntime } from '@stage/StageRuntime';
+import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 
 const ICON_OFFSET_PX = 40;
 const ICON_RADIUS_PX = 28;
@@ -18,15 +17,15 @@ export interface ModifierIconView {
 
 export function createModifierIcons(
   scene: Phaser.Scene,
-  stageRuntime: StageRuntime,
+  slotModifiers: SlotModifierAssignment[],
   recordGroup: Phaser.GameObjects.Container,
+  recordRadius: number,
 ): ModifierIconView[] {
   const views: ModifierIconView[] = [];
   const slotCount = CombatContentConfig.SLOT_COUNT;
-  const iconDistance = StagePresentationConfig.BUILD_RECORD_RADIUS + ICON_OFFSET_PX;
-  const visible = stageRuntime.phase === 'build';
+  const iconDistance = recordRadius + ICON_OFFSET_PX;
 
-  for (const assignment of stageRuntime.slotModifiers) {
+  for (const assignment of slotModifiers) {
     const modifier = SLOT_MODIFIER_CONFIG.getModifierById(assignment.modifierId);
     if (!modifier) {
       continue;
@@ -49,7 +48,7 @@ export function createModifierIcons(
     container.setInteractive({ radius: ICON_RADIUS_PX + 8 }, (_hitArea, x, y) => {
       return Math.hypot(x, y) <= ICON_RADIUS_PX + 8;
     });
-    container.setVisible(visible);
+    container.setVisible(true);
     recordGroup.add(container);
 
     views.push({
