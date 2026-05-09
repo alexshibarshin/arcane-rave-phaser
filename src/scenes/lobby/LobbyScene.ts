@@ -161,7 +161,7 @@ export class LobbyScene extends Phaser.Scene {
     const bg = this.add.graphics();
     const border = this.add.graphics();
 
-    // Background
+    // Background (added first → bottom layer)
     const bgColor = model.isSelected ? BG_SELECTED : BG_DEFAULT;
     const borderColor = model.isSelected ? BORDER_SELECTED : BORDER_DEFAULT;
     const borderWidth = model.isSelected ? 2 : 1;
@@ -169,7 +169,10 @@ export class LobbyScene extends Phaser.Scene {
     this.drawCardBg(bg, bgColor);
     this.drawCardBorder(border, borderColor, borderWidth);
 
-    // Stars
+    container.add(bg);
+    container.add(border);
+
+    // Stars (on top of bg/border)
     const starTexts = this.buildStarTexts(model.stars);
     starTexts.forEach((t) => container.add(t));
 
@@ -228,8 +231,6 @@ export class LobbyScene extends Phaser.Scene {
       }
     });
 
-    container.add(bg);
-    container.add(border);
     return container;
   }
 
