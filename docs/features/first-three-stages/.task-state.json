@@ -1,0 +1,241 @@
+{
+  "01-task-config-types-and-registry": {
+    "status": "completed",
+    "iteration": 0,
+    "blockedBy": [],
+    "startedAt": null,
+    "completedAt": "\"2026-05-09T12:41:36Z\"",
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "02-task-enemy-definitions": {
+    "status": "completed",
+    "iteration": 0,
+    "blockedBy": [
+      "01-task-config-types-and-registry"
+    ],
+    "startedAt": null,
+    "completedAt": "\"2026-05-09T12:41:36Z\"",
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "03-task-special-enemies": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "02-task-enemy-definitions"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "04-task-pawn-rebalance": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "05-task-economy-and-modifier-staging": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "01-task-config-types-and-registry"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "06-task-session-progress-and-stars": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "07-task-stage-runtime-plumbing": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "01-task-config-types-and-registry",
+      "02-task-enemy-definitions",
+      "03-task-special-enemies"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "08-task-flow-coordinator-plumbing": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "07-task-stage-runtime-plumbing"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "09-task-combat-integration": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "08-task-flow-coordinator-plumbing"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "10-task-stage-1-redline-routine": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "01-task-config-types-and-registry",
+      "02-task-enemy-definitions",
+      "03-task-special-enemies"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "11-task-stage-2-blue-noise-rush": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "01-task-config-types-and-registry",
+      "02-task-enemy-definitions",
+      "03-task-special-enemies"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "12-task-stage-3-greenroom-collapse": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "01-task-config-types-and-registry",
+      "02-task-enemy-definitions",
+      "03-task-special-enemies"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "13-task-scene-flow-integration": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "06-task-session-progress-and-stars",
+      "08-task-flow-coordinator-plumbing",
+      "10-task-stage-1-redline-routine"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "14-task-lobby-cards": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "01-task-config-types-and-registry",
+      "06-task-session-progress-and-stars"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "15-task-lobby-detail-and-result": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "03-task-special-enemies",
+      "14-task-lobby-cards"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "16-task-wave-preview-ui": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "07-task-stage-runtime-plumbing",
+      "15-task-lobby-detail-and-result"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "17-task-enemy-visual-differentiation": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "03-task-special-enemies",
+      "09-task-combat-integration"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "18-task-docs-update": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  },
+  "19-task-test-cleanup": {
+    "status": "pending",
+    "iteration": 0,
+    "blockedBy": [
+      "01-task-config-types-and-registry",
+      "02-task-enemy-definitions",
+      "14-task-lobby-cards",
+      "15-task-lobby-detail-and-result",
+      "16-task-wave-preview-ui",
+      "17-task-enemy-visual-differentiation"
+    ],
+    "startedAt": null,
+    "completedAt": null,
+    "reviewFeedback": null,
+    "summary": null,
+    "gitCommit": null
+  }
+}
