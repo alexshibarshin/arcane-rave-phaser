@@ -1,5 +1,6 @@
 import { SceneKeys } from '@config/GameConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import type { EventMap } from '@events/EventBus';
 import {
   canStageStartWave,
@@ -15,6 +16,9 @@ import {
 import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
 import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import { createStageWavePreview } from '@stage/StageWavePreview';
+import { buildStageWaveEnemyPayload, type StageWaveEnemyPayload } from '@stage/StageRuntime';
+import { calculateStageStars } from '../session/calculateStageStars';
+import type { SubWaveDefinition } from '@config/StageConfig';
 
 export interface StageFlowCoordinationState {
   isTransitioning: boolean;
@@ -23,13 +27,14 @@ export interface StageFlowCoordinationState {
   pendingCombatResolution: {
     outcome: StageCombatOutcome;
     chronoRemaining: number;
+    remainingBaseHp: number;
   } | null;
 }
 
 export type StageFlowIntent =
   | { type: 'stage:initialized' }
   | { type: 'stage:start-wave-requested' }
-  | { type: 'stage:combat-ended'; outcome: StageCombatOutcome; chronoRemaining: number }
+  | { type: 'stage:combat-ended'; outcome: StageCombatOutcome; chronoRemaining: number; remainingBaseHp: number }
   | { type: 'stage:combat-return-finished' };
 
 export type StageFlowCommand =
@@ -65,6 +70,8 @@ export type StageFlowCommand =
         slotPawnIds: Array<string | null>;
         slotPawnTiers: Array<number | null>;
         slotModifiers: SlotModifierAssignment[];
+        subWaves: SubWaveDefinition[];
+        enemyStatOverrides: Record<string, { maxHp: number }>;
       };
     }
   | {
@@ -75,6 +82,14 @@ export type StageFlowCommand =
     }
   | {
       type: 'stage:refresh-build-phase';
+    }
+  | {
+      type: 'stage:return-to-lobby';
+      payload: {
+        stageId: string;
+        stars: number;
+        remainingBaseHp: number;
+      };
     };
 
 export function createStageFlowCoordinationState(): StageFlowCoordinationState {
@@ -139,6 +154,7 @@ export function dispatchStageFlowIntent(
         coordination.pendingCombatResolution = {
           outcome: intent.outcome,
           chronoRemaining: intent.chronoRemaining,
+          remainingBaseHp: intent.remainingBaseHp,
         };
 
         return [{
@@ -150,6 +166,7 @@ export function dispatchStageFlowIntent(
       return resolveCombatReturn(runtime, coordination, {
         outcome: intent.outcome,
         chronoRemaining: intent.chronoRemaining,
+        remainingBaseHp: intent.remainingBaseHp,
       });
     }
 
@@ -172,6 +189,7 @@ function resolveCombatReturn(
   resolution: {
     outcome: StageCombatOutcome;
     chronoRemaining: number;
+    remainingBaseHp: number;
   },
 ): StageFlowCommand[] {
   const previousPhase = runtime.phase;
@@ -194,6 +212,25 @@ function resolveCombatReturn(
       },
     },
   ];
+
+  const isTerminalPhase =
+    runtime.phase === 'stage_complete' || runtime.phase === 'stage_failed';
+
+  if (isTerminalPhase) {
+    const { stars } = calculateStageStars(
+      resolution.remainingBaseHp,
+      CombatBalanceConfig.BASE_HP,
+    );
+
+    commands.push({
+      type: 'stage:return-to-lobby',
+      payload: {
+        stageId: runtime.stageConfig.id,
+        stars,
+        remainingBaseHp: resolution.remainingBaseHp,
+      },
+    });
+  }
 
   if (runtime.phase !== previousPhase) {
     commands.push({
@@ -230,6 +267,11 @@ function createLaunchCombatCommand(runtime: StageRuntime): Extract<
   StageFlowCommand,
   { type: 'stage:launch-combat-phase' }
 > {
+  const waveEnemyPayload: StageWaveEnemyPayload = buildStageWaveEnemyPayload(
+    runtime.stageConfig,
+    runtime.currentWaveIndex,
+  );
+
   return {
     type: 'stage:launch-combat-phase',
     payload: {
@@ -243,6 +285,8 @@ function createLaunchCombatCommand(runtime: StageRuntime): Extract<
       slotPawnIds: getStageCombatLoadout(runtime),
       slotPawnTiers: getStageCombatLoadoutTiers(runtime),
       slotModifiers: getStageSlotModifiers(runtime),
+      subWaves: waveEnemyPayload.subWaves,
+      enemyStatOverrides: waveEnemyPayload.enemyStatOverrides,
     },
   };
 }

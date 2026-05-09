@@ -325,12 +325,13 @@ export class StageScene extends Phaser.Scene {
   };
 
   private readonly handleCombatEnded = (
-    payload: { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number },
+    payload: { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number; remainingBaseHp: number },
   ): void => {
     this.runStageFlowIntent({
       type: 'stage:combat-ended',
       outcome: payload.outcome,
       chronoRemaining: payload.chronoCurrent,
+      remainingBaseHp: payload.remainingBaseHp,
     });
   };
 
@@ -526,6 +527,9 @@ export class StageScene extends Phaser.Scene {
           this.transientStatusText = null;
           this.refreshBuildUI();
           break;
+        case 'stage:return-to-lobby':
+          // TODO (task 13): write to SessionProgressStore and start LobbyScene
+          break;
       }
     }
   }
@@ -541,6 +545,8 @@ export class StageScene extends Phaser.Scene {
     slotPawnIds: Array<string | null>;
     slotPawnTiers: Array<number | null>;
     slotModifiers: SlotModifierAssignment[];
+    subWaves: Array<{ id: string; startTimeMs: number; spawnIntervalMs: number; enemies: Record<string, number> }>;
+    enemyStatOverrides: Record<string, { maxHp: number }>;
   }): void {
     this.scene.launch(SceneKeys.COMBAT, payload);
     this.stageFlowCoordination.isTransitioning = false;

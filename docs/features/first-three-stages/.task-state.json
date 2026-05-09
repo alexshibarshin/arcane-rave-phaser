@@ -66,7 +66,7 @@
     "gitCommit": "\"aa75808\""
   },
   "07-task-stage-runtime-plumbing": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
@@ -74,18 +74,18 @@
       "03-task-special-enemies"
     ],
     "startedAt": "\"2026-05-09T17:33:23Z\"",
-    "completedAt": null,
+    "completedAt": "\"2026-05-09T17:56:16Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"StageRuntime now stores stageConfig, buildStageWaveEnemyPayload scales HP by stage multipliers with dedup and error handling, StageWavePreview returns StageWavePreviewModel with special enemy name resolution, EventBus snapshot carries wavePreview. 14/14 tests pass, tsc clean, no config-value snapshot violations in task changes.\"",
+    "gitCommit": "\"4b914fd\""
   },
   "08-task-flow-coordinator-plumbing": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "1",
     "blockedBy": [
       "07-task-stage-runtime-plumbing"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T17:56:16Z\"",
     "completedAt": null,
     "reviewFeedback": null,
     "summary": null,
