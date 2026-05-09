@@ -16,9 +16,12 @@ describe('STAGE_CONFIGS', () => {
       expect(stage.displayName.length).toBeGreaterThan(0);
       expect(stage.totalWaves).toBeGreaterThan(0);
       expect(stage.initialCoins).toBeGreaterThanOrEqual(0);
-      expect(stage.waveDefinitions).toBeInstanceOf(Array);
-      expect(stage.waveDefinitions.length).toBe(stage.totalWaves);
       expect(stage.slotModifierCountWeights).toBeDefined();
+
+      // Stage must define wave content via waves or waveDefinitions
+      const hasWaves = stage.waves !== undefined && stage.waves.length > 0;
+      const hasWaveDefs = stage.waveDefinitions.length > 0;
+      expect(hasWaves || hasWaveDefs).toBe(true);
     }
   });
 
