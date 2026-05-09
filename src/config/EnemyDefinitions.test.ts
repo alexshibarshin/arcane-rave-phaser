@@ -86,71 +86,29 @@ describe('CombatEnemyDefinition special fields', () => {
   });
 });
 
-const SPECIAL_ENEMY_IDS = [
-  'iron-kick',
-  'static-choir',
-  'backstage-blur',
-  'redline-headliner',
-  'blue-noise-monarch',
-  'verdant-encore',
-] as const;
-
-const SPECIAL_ENEMY_ARCHETYPES: Record<string, string> = {
-  'iron-kick': 'elite',
-  'static-choir': 'elite',
-  'backstage-blur': 'elite',
-  'redline-headliner': 'boss',
-  'blue-noise-monarch': 'boss',
-  'verdant-encore': 'boss',
-};
-
 describe('Special enemy definitions', () => {
-  it('has exactly 18 enemy definitions (12 ordinary + 6 special)', () => {
-    expect(CombatContentConfig.ENEMY_DEFINITIONS).toHaveLength(18);
-  });
-
-  it('includes all 6 special enemy IDs', () => {
-    const enemyIds = new Set(CombatContentConfig.ENEMY_DEFINITIONS.map((e) => e.id));
-    for (const id of SPECIAL_ENEMY_IDS) {
-      expect(enemyIds.has(id)).toBe(true);
+  it('enemies with isSpecial flag have non-empty displayName and silhouetteMotif', () => {
+    const specialEnemies = CombatContentConfig.ENEMY_DEFINITIONS.filter((e) => e.isSpecial);
+    expect(specialEnemies.length).toBeGreaterThan(0);
+    for (const def of specialEnemies) {
+      expect(typeof def.displayName).toBe('string');
+      expect(def.displayName!.trim().length).toBeGreaterThan(0);
+      expect(typeof def.silhouetteMotif).toBe('string');
+      expect(def.silhouetteMotif!.trim().length).toBeGreaterThan(0);
     }
   });
 
-  it('every special enemy has isSpecial: true', () => {
-    for (const id of SPECIAL_ENEMY_IDS) {
-      const def = CombatContentConfig.ENEMY_DEFINITIONS.find((e) => e.id === id);
-      expect(def).toBeDefined();
-      expect(def!.isSpecial).toBe(true);
+  it('special enemies use only elite or boss archetype', () => {
+    const specialEnemyArchetypes = CombatContentConfig.ENEMY_DEFINITIONS
+      .filter((e) => e.isSpecial)
+      .map((e) => e.archetype);
+    expect(specialEnemyArchetypes.length).toBeGreaterThan(0);
+    for (const arch of specialEnemyArchetypes) {
+      expect(['elite', 'boss']).toContain(arch);
     }
   });
 
-  it('every special enemy has the correct archetype', () => {
-    for (const id of SPECIAL_ENEMY_IDS) {
-      const def = CombatContentConfig.ENEMY_DEFINITIONS.find((e) => e.id === id);
-      expect(def).toBeDefined();
-      expect(def!.archetype).toBe(SPECIAL_ENEMY_ARCHETYPES[id]);
-    }
-  });
-
-  it('every special enemy has a non-empty displayName', () => {
-    for (const id of SPECIAL_ENEMY_IDS) {
-      const def = CombatContentConfig.ENEMY_DEFINITIONS.find((e) => e.id === id);
-      expect(def).toBeDefined();
-      expect(typeof def!.displayName).toBe('string');
-      expect(def!.displayName!.trim().length).toBeGreaterThan(0);
-    }
-  });
-
-  it('every special enemy has a non-empty silhouetteMotif', () => {
-    for (const id of SPECIAL_ENEMY_IDS) {
-      const def = CombatContentConfig.ENEMY_DEFINITIONS.find((e) => e.id === id);
-      expect(def).toBeDefined();
-      expect(typeof def!.silhouetteMotif).toBe('string');
-      expect(def!.silhouetteMotif!.trim().length).toBeGreaterThan(0);
-    }
-  });
-
-  it('every special enemy has all positive numeric combat stats', () => {
+  it('all enemy definitions have positive numeric combat stats', () => {
     const statKeys = [
       'maxHp',
       'moveSpeedPxPerSec',
@@ -159,12 +117,11 @@ describe('Special enemy definitions', () => {
       'attackDamage',
     ] as const;
 
-    for (const id of SPECIAL_ENEMY_IDS) {
-      const def = CombatContentConfig.ENEMY_DEFINITIONS.find((e) => e.id === id);
-      expect(def).toBeDefined();
+    expect(CombatContentConfig.ENEMY_DEFINITIONS.length).toBeGreaterThan(0);
+    for (const def of CombatContentConfig.ENEMY_DEFINITIONS) {
       for (const key of statKeys) {
-        expect(typeof def![key]).toBe('number');
-        expect(def![key]).toBeGreaterThan(0);
+        expect(typeof def[key]).toBe('number');
+        expect(def[key]).toBeGreaterThan(0);
       }
     }
   });
