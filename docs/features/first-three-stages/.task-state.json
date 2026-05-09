@@ -160,28 +160,28 @@
     "gitCommit": "\"85e3c31\""
   },
   "14-task-lobby-cards": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "06-task-session-progress-and-stars"
     ],
     "startedAt": "\"2026-05-09T19:38:03Z\"",
-    "completedAt": null,
+    "completedAt": "\"2026-05-09T19:51:16Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Full LobbyScene implemented: dark background, STAGE SELECT header, three stage cards (Redline Routine → Blue Noise Rush → Greenroom Collapse) with star ratings (★/☆), color-tinted name glow (Red/Blue/Green mapping), best HP display (only when stars > 0), tap-to-select with visual highlight (2px blue border, darker bg), hover/press states with scale-up tween, selection restored from SessionProgressStore. LobbyCardBuilder separates pure data model (10 behavioral tests — all test invariants/edge cases with self-contained configs, zero config snapshots). Scene shutdown cleans up all Phaser containers. resultStageId/showResult stored for task 15 modal. All 11 ACs met. 312/312 tests pass, tsc --noEmit clean.\"",
+    "gitCommit": "\"bba973b\""
   },
   "15-task-lobby-detail-and-result": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "2",
     "blockedBy": [
       "03-task-special-enemies",
       "14-task-lobby-cards"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T19:51:17Z\"",
     "completedAt": null,
-    "reviewFeedback": null,
+    "reviewFeedback": "\"Отсутствуют тесты на src/ui/ResultModal.ts. Компонент имеет 6 acceptance criteria (victory/defeat label, stage name, stars count, HP, RETRY callback, CLOSE callback, fade-in анимация) — ни одно не покрыто тестами. Нужно создать src/ui/ResultModal.test.ts с проверкой: правильный outcome label (VICTORY/DEFEAT), количество звёзд = result.stars, HP текст, вызов onRetry/onClose по pointerdown, fade-in tween. Дополнительно: тесты PillTag.test.ts и SpecialEnemyCard.test.ts слабые — проверяют только факт вызова spy, а не конкретные значения цветов/размеров, что делает их малоинформативными (но это не violation правил, а quality issue).\"",
     "summary": null,
     "gitCommit": null
   },

@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
 import { SceneKeys, GameConfig } from '../../config/GameConfig';
-import { getAllStageConfigs } from '../../config/StageRegistry';
+import { getAllStageConfigs, getStageConfig } from '../../config/StageRegistry';
 import { SessionProgressStore } from '../../session/SessionProgressStore';
 import { buildLobbyCards, type LobbyCardModel } from './LobbyCardBuilder';
+import { buildLobbyDetailModel } from './LobbyDetailBuilder';
+import { createPillTag } from '../../ui/PillTag';
+import { createSpecialEnemyCard } from '../../ui/SpecialEnemyCard';
+import { createResultModal, type ResultModalData } from '../../ui/ResultModal';
 
 /** Glow color mapping for dominant color tags */
 const COLOR_TAG_GLOW: Record<string, string> = {
@@ -43,22 +47,35 @@ const HEADER_COLOR = 'rgba(255,255,255,0.3)';
 const NAME_COLOR = '#EAEAEA';
 const HP_COLOR = 'rgba(255,255,255,0.55)';
 
+const VIEWPORT_H = GameConfig.VIEWPORT_HEIGHT;
+
+// Detail panel layout (bottom ~65% of viewport)
+const DETAIL_PANEL_TOP = 476;
+const DETAIL_START_BTN_W = 280;
+const DETAIL_START_BTN_H = 56;
+const DETAIL_START_BTN_Y_OFFSET = 32;
+const DETAIL_CARDS_Y_OFFSET = 24;
+const DETAIL_RESULT_Y_OFFSET = 16;
+const DETAIL_TAGS_Y_OFFSET = 16;
+const DETAIL_NAME_Y_OFFSET = 64;
+
 interface LobbyState {
   selectedStageId: string | null;
-  /** Stored for task 15's result modal */
-  showResult: boolean;
+  showResultModal: boolean;
   resultStageId: string | null;
 }
 
 export class LobbyScene extends Phaser.Scene {
   private state_: LobbyState = {
     selectedStageId: null,
-    showResult: false,
+    showResultModal: false,
     resultStageId: null,
   };
 
   private cardContainers: Phaser.GameObjects.Container[] = [];
   private cardModels: LobbyCardModel[] = [];
+  private detailContainer: Phaser.GameObjects.Container | null = null;
+  private resultModalContainer: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: SceneKeys.LOBBY });
@@ -74,7 +91,7 @@ export class LobbyScene extends Phaser.Scene {
 
     this.state_ = {
       selectedStageId: initialSelectedId,
-      showResult: data?.showResult ?? false,
+      showResultModal: data?.showResult ?? false,
       resultStageId: data?.stageId ?? null,
     };
 
@@ -84,6 +101,11 @@ export class LobbyScene extends Phaser.Scene {
 
     this.drawHeader();
     this.buildCards();
+    this.refreshDetailPanel();
+
+    if (this.state_.showResultModal && this.state_.resultStageId) {
+      this.showResultModal(this.state_.resultStageId);
+    }
 
     this.events.on('shutdown', this.onShutdown, this);
   }
@@ -91,6 +113,14 @@ export class LobbyScene extends Phaser.Scene {
   private onShutdown(): void {
     this.cardContainers.forEach((c) => c.destroy());
     this.cardContainers = [];
+    if (this.detailContainer) {
+      this.detailContainer.destroy();
+      this.detailContainer = null;
+    }
+    if (this.resultModalContainer) {
+      this.resultModalContainer.destroy();
+      this.resultModalContainer = null;
+    }
   }
 
   /* ---------- Header ---------- */
@@ -315,9 +345,295 @@ export class LobbyScene extends Phaser.Scene {
     this.state_.selectedStageId = stageId;
     SessionProgressStore.setLastSelectedStageId(stageId);
     this.refreshCards();
+    this.refreshDetailPanel();
   }
 
   private refreshCards(): void {
     this.buildCards();
+  }
+
+  /* ========== DETAIL PANEL ========== */
+
+  private refreshDetailPanel(): void {
+    // Destroy old panel if exists
+    if (this.detailContainer) {
+      this.detailContainer.destroy();
+      this.detailContainer = null;
+    }
+
+    const model = buildLobbyDetailModel(
+      this.state_.selectedStageId,
+      (id) => getStageConfig(id),
+      (id) => SessionProgressStore.getResult(id),
+    );
+
+    if (!model) return;
+
+    this.detailContainer = this.add.container(0, 0);
+    let currentY = DETAIL_PANEL_TOP;
+
+    // Stage name with color-tinted glow
+    const glowColor = model.dominantColorTag
+      ? COLOR_TAG_GLOW[model.dominantColorTag] ?? null
+      : null;
+    const { nameText, glowText } = this.buildDetailNameText(model.displayName, glowColor, currentY);
+    if (glowText) this.detailContainer.add(glowText);
+    this.detailContainer.add(nameText);
+    currentY = currentY + DETAIL_NAME_Y_OFFSET + 40;
+
+    // Pill tags row
+    if (model.stageTags.length > 0) {
+      const tagsRow = this.createPillTagsRow(model.stageTags, currentY);
+      this.detailContainer.add(tagsRow);
+      currentY = currentY + 28 + DETAIL_TAGS_Y_OFFSET;
+    }
+
+    // Elite & Boss special enemy cards
+    currentY = currentY + DETAIL_CARDS_Y_OFFSET;
+    const enemyCards = this.createEnemyCardsRow(model, currentY);
+    if (enemyCards) {
+      this.detailContainer.add(enemyCards);
+      currentY = currentY + 260 + DETAIL_RESULT_Y_OFFSET;
+    } else {
+      currentY = currentY + DETAIL_RESULT_Y_OFFSET;
+    }
+
+    // Session result
+    if (model.sessionResult) {
+      const resultRow = this.createSessionResultRow(model.sessionResult, currentY);
+      this.detailContainer.add(resultRow);
+      currentY = currentY + 28 + DETAIL_START_BTN_Y_OFFSET;
+    } else {
+      currentY = currentY + DETAIL_START_BTN_Y_OFFSET;
+    }
+
+    // Start button
+    const startBtn = this.createStartButton(currentY);
+    this.detailContainer.add(startBtn);
+  }
+
+  private buildDetailNameText(
+    name: string,
+    glowColor: string | null,
+    y: number,
+  ): { nameText: Phaser.GameObjects.Text; glowText: Phaser.GameObjects.Text | null } {
+    const nameText = this.add
+      .text(VIEWPORT_W / 2, y, name, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '40px',
+        color: '#EAEAEA',
+      })
+      .setOrigin(0.5, 0);
+
+    let glowText: Phaser.GameObjects.Text | null = null;
+    if (glowColor) {
+      glowText = this.add
+        .text(VIEWPORT_W / 2, y, name, {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '40px',
+          color: glowColor,
+          shadow: {
+            offsetX: 0,
+            offsetY: 0,
+            color: glowColor,
+            blur: 6,
+            fill: true,
+          },
+        })
+        .setOrigin(0.5, 0)
+        .setAlpha(0.4);
+    }
+
+    return { nameText, glowText };
+  }
+
+  private createPillTagsRow(tags: string[], y: number): Phaser.GameObjects.Container {
+    const row = this.add.container(0, y);
+    const pillGap = 8;
+
+    // Calculate total width for centering
+    let totalWidth = 0;
+    const pills: Phaser.GameObjects.Container[] = [];
+
+    tags.forEach((tag) => {
+      const pill = createPillTag(this, tag);
+      pills.push(pill);
+      totalWidth += pill.getBounds().width;
+    });
+    totalWidth += pillGap * (pills.length - 1);
+
+    let x = VIEWPORT_W / 2 - totalWidth / 2;
+    pills.forEach((pill) => {
+      pill.setPosition(x, 0);
+      row.add(pill);
+      x += pill.getBounds().width + pillGap;
+    });
+
+    return row;
+  }
+
+  private createEnemyCardsRow(
+    model: ReturnType<typeof buildLobbyDetailModel>,
+    y: number,
+  ): Phaser.GameObjects.Container | null {
+    if (!model || (!model.eliteEnemyId && !model.bossEnemyId)) return null;
+
+    const row = this.add.container(0, y);
+    const cardGap = 16;
+    const cardWidth = 280;
+    const totalWidth = (model.eliteEnemyId ? cardWidth : 0) +
+      (model.bossEnemyId ? cardWidth : 0) +
+      (model.eliteEnemyId && model.bossEnemyId ? cardGap : 0);
+
+    let x = VIEWPORT_W / 2 - totalWidth / 2;
+
+    if (model.eliteEnemyId) {
+      const eliteCard = createSpecialEnemyCard(this, model.eliteEnemyId, 'lobby');
+      eliteCard.setPosition(x, 0);
+      row.add(eliteCard);
+      x += cardWidth + cardGap;
+    }
+
+    if (model.bossEnemyId) {
+      const bossCard = createSpecialEnemyCard(this, model.bossEnemyId, 'lobby');
+      bossCard.setPosition(x, 0);
+      row.add(bossCard);
+    }
+
+    return row;
+  }
+
+  private createSessionResultRow(
+    result: { stars: number; bestHp: number },
+    y: number,
+  ): Phaser.GameObjects.Container {
+    const row = this.add.container(0, y);
+
+    // Stars
+    const starSize = 20;
+    const starGap = 4;
+    const totalStarsWidth = 3 * (starSize + starGap) - starGap;
+    const starStartX = VIEWPORT_W / 2 - totalStarsWidth / 2 - 60;
+
+    for (let i = 0; i < 3; i++) {
+      const filled = result.stars > i;
+      const starX = starStartX + i * (starSize + starGap);
+      const starText = this.add
+        .text(starX, starSize / 2, filled ? '★' : '☆', {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: `${starSize}px`,
+          color: filled ? '#FFD700' : 'rgba(255,255,255,0.3)',
+        })
+        .setOrigin(0, 0.5);
+      row.add(starText);
+    }
+
+    // "Best:" label + stars + HP
+    const bestLabel = this.add
+      .text(starStartX - 60, starSize / 2, 'Best:', {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '18px',
+        color: 'rgba(255,255,255,0.45)',
+      })
+      .setOrigin(0, 0.5);
+    row.add(bestLabel);
+
+    const hpText = this.add
+      .text(starStartX + totalStarsWidth + 12, starSize / 2, `${result.bestHp} HP`, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '20px',
+        color: '#FFFFFF',
+      })
+      .setOrigin(0, 0.5);
+    row.add(hpText);
+
+    return row;
+  }
+
+  private createStartButton(y: number): Phaser.GameObjects.Container {
+    const container = this.add.container(VIEWPORT_W / 2 - DETAIL_START_BTN_W / 2, y);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x2a4060, 1);
+    bg.fillRoundedRect(0, 0, DETAIL_START_BTN_W, DETAIL_START_BTN_H, 8);
+    bg.lineStyle(2, 0x4a80d0, 1);
+    bg.strokeRoundedRect(0, 0, DETAIL_START_BTN_W, DETAIL_START_BTN_H, 8);
+
+    const text = this.add
+      .text(DETAIL_START_BTN_W / 2, DETAIL_START_BTN_H / 2, 'START', {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '24px',
+        color: '#FFFFFF',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5, 0.5);
+
+    container.add(bg);
+    container.add(text);
+
+    // Interactivity
+    container.setSize(DETAIL_START_BTN_W, DETAIL_START_BTN_H);
+    container.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, DETAIL_START_BTN_W, DETAIL_START_BTN_H),
+      Phaser.Geom.Rectangle.Contains,
+    );
+
+    container.on('pointerdown', () => {
+      if (this.state_.selectedStageId) {
+        this.scene.start(SceneKeys.STAGE, { stageId: this.state_.selectedStageId });
+      }
+    });
+
+    // Pulsing glow
+    this.tweens.add({
+      targets: bg,
+      alpha: 0.7,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    return container;
+  }
+
+  /* ========== RESULT MODAL ========== */
+
+  private showResultModal(stageId: string): void {
+    const config = getStageConfig(stageId);
+    if (!config) return;
+
+    const result = SessionProgressStore.getResult(stageId);
+    if (!result) return;
+
+    const modalData: ResultModalData = {
+      stageId,
+      stageName: config.displayName,
+      stars: result.stars,
+      remainingBaseHp: result.bestRemainingBaseHp ?? 0,
+    };
+
+    this.resultModalContainer = createResultModal(
+      this,
+      modalData,
+      () => {
+        // RETRY: start a fresh run
+        if (this.resultModalContainer) {
+          this.resultModalContainer.destroy();
+          this.resultModalContainer = null;
+        }
+        this.state_.showResultModal = false;
+        this.scene.start(SceneKeys.STAGE, { stageId });
+      },
+      () => {
+        // CLOSE: dismiss modal, select the stage card
+        if (this.resultModalContainer) {
+          this.resultModalContainer.destroy();
+          this.resultModalContainer = null;
+        }
+        this.state_.showResultModal = false;
+        // Stage is already selected, detail panel already refreshed
+      },
+    );
   }
 }
