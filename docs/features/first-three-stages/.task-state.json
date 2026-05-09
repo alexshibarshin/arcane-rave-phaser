@@ -44,22 +44,22 @@
     "gitCommit": "\"ef9ad70\""
   },
   "05-task-economy-and-modifier-staging": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry"
     ],
     "startedAt": "\"2026-05-09T17:15:49Z\"",
-    "completedAt": null,
+    "completedAt": "\"2026-05-09T17:25:12Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Rebalanced economy (INITIAL_COINS 50→25, MERGE_REWARD_COINS 4→3), added SHOP_REROLL_INCREMENT:1 to StageFlowConfig, fixed getStageRerollCost to use config increment instead of hardcoded +1, added formula contract test. SlotModifierAssignment weight overrides mechanism was already correctly implemented and tested (8 tests cover count weights, premium cap, zero-weight exclusion, overrides). All 239 tests pass, tsc --noEmit clean.\"",
+    "gitCommit": "\"05a7823\""
   },
   "06-task-session-progress-and-stars": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "1",
     "blockedBy": [],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T17:25:12Z\"",
     "completedAt": null,
     "reviewFeedback": null,
     "summary": null,
