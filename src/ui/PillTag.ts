@@ -5,29 +5,30 @@ const COLOR_PRESETS: Record<string, { bg: string; border: string; text: string }
   Red: {
     bg: 'rgba(224,60,60,0.25)',
     border: 'rgba(224,60,60,0.6)',
-    text: '#FF6B6B',
+    text: '#222222',
   },
   Green: {
     bg: 'rgba(60,200,80,0.25)',
     border: 'rgba(60,200,80,0.6)',
-    text: '#6BFF8B',
+    text: '#222222',
   },
   Blue: {
     bg: 'rgba(60,100,220,0.25)',
     border: 'rgba(60,100,220,0.6)',
-    text: '#6B9BFF',
+    text: '#222222',
   },
 };
 
 const NEUTRAL_COLORS = {
   bg: 'rgba(255,255,255,0.08)',
   border: 'rgba(255,255,255,0.15)',
-  text: '#C0C8D0',
+  text: '#222222',
 };
 
 const PILL_HEIGHT = 28;
-const PILL_RADIUS = 20;
+const PILL_RADIUS = 14;
 const PADDING_H = 12;
+const MIN_WIDTH = 48;
 const FONT_SIZE = '14px';
 const FONT_FAMILY = 'Arial, sans-serif';
 
@@ -50,7 +51,7 @@ export function createPillTag(
   const textWidth = tempText.width;
   tempText.destroy();
 
-  const pillWidth = Math.max(textWidth + PADDING_H * 2, 48);
+  const pillWidth = Math.max(textWidth + PADDING_H * 2, MIN_WIDTH);
 
   // Background
   const bg = scene.add.graphics();
@@ -75,6 +76,20 @@ export function createPillTag(
   container.setSize(pillWidth, PILL_HEIGHT);
 
   return container;
+}
+
+/**
+ * Measure the rendered width of a pill tag text without creating a full pill.
+ * Used for layout calculations that need accurate widths.
+ */
+export function measurePillTagWidth(scene: Phaser.Scene, tag: string): number {
+  const text = scene.add.text(0, 0, tag.toUpperCase(), {
+    fontFamily: FONT_FAMILY,
+    fontSize: FONT_SIZE,
+  });
+  const textWidth = text.width;
+  text.destroy();
+  return Math.max(textWidth + PADDING_H * 2, MIN_WIDTH);
 }
 
 /** Parse simple rgba(r,g,b,a) string to Phaser color number (ignoring alpha in the conversion

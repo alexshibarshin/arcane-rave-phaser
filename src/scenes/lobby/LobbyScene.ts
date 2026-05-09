@@ -4,7 +4,7 @@ import { getAllStageConfigs, getStageConfig } from '../../config/StageRegistry';
 import { SessionProgressStore } from '../../session/SessionProgressStore';
 import { buildLobbyCards, type LobbyCardModel } from './LobbyCardBuilder';
 import { buildLobbyDetailModel } from './LobbyDetailBuilder';
-import { createPillTag } from '../../ui/PillTag';
+import { createPillTag, measurePillTagWidth } from '../../ui/PillTag';
 import { createSpecialEnemyCard } from '../../ui/SpecialEnemyCard';
 import { createResultModal, type ResultModalData } from '../../ui/ResultModal';
 
@@ -450,24 +450,18 @@ export class LobbyScene extends Phaser.Scene {
 
   private createPillTagsRow(tags: string[], y: number): Phaser.GameObjects.Container {
     const row = this.add.container(0, y);
-    const pillGap = 8;
+    const pillGap = 10;
 
-    // Calculate total width for centering
-    let totalWidth = 0;
-    const pills: Phaser.GameObjects.Container[] = [];
-
-    tags.forEach((tag) => {
-      const pill = createPillTag(this, tag);
-      pills.push(pill);
-      totalWidth += pill.getBounds().width;
-    });
-    totalWidth += pillGap * (pills.length - 1);
+    // Pre-compute exact widths using text measurement (avoids getBounds() quirks)
+    const pillWidths = tags.map((tag) => measurePillTagWidth(this, tag));
+    const totalWidth = pillWidths.reduce((sum, w) => sum + w, 0) + pillGap * (tags.length - 1);
 
     let x = VIEWPORT_W / 2 - totalWidth / 2;
-    pills.forEach((pill) => {
+    tags.forEach((tag, i) => {
+      const pill = createPillTag(this, tag);
       pill.setPosition(x, 0);
       row.add(pill);
-      x += pill.getBounds().width + pillGap;
+      x += pillWidths[i]! + pillGap;
     });
 
     return row;
@@ -572,8 +566,8 @@ export class LobbyScene extends Phaser.Scene {
     container.add(bg);
     container.add(text);
 
-    // Interactivity
-    container.setSize(DETAIL_START_BTN_W, DETAIL_START_BTN_H);
+    // Interactivity — use explicit hit zone. No setSize() to avoid
+    // display-origin shift that would offset children + hit zone.
     container.setInteractive(
       new Phaser.Geom.Rectangle(0, 0, DETAIL_START_BTN_W, DETAIL_START_BTN_H),
       Phaser.Geom.Rectangle.Contains,

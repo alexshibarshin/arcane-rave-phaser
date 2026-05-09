@@ -1,5 +1,13 @@
 import Phaser from 'phaser';
 import { getEnemyDefinitionById } from '@config/CombatContentConfig';
+import {
+  renderBasicEnemy,
+  renderTankEnemy,
+  renderFastEnemy,
+  renderRangedEnemy,
+  renderSwarmEnemy,
+  renderBossEnemy,
+} from '@combat/EnemyRenderer';
 
 /** Layout dimensions per variant */
 const VARIANT_LAYOUT = {
@@ -27,12 +35,14 @@ const FONT_FAMILY = 'Arial, sans-serif';
 const NAME_COLOR = '#EAEAEA';
 const ROLE_COLOR = 'rgba(255,255,255,0.45)';
 
-/** Archetype-to-color mapping for placeholder visual shape */
-const ENEMY_COLOR_CSS: Record<string, string> = {
-  red: '#FF4040',
-  green: '#40E040',
-  blue: '#4080FF',
+/** CombatVisualConfig-style color mapping for enemy rendering. */
+const NOTE_COLORS: Record<string, number> = {
+  red: 0xe03c3c,
+  green: 0x3cc850,
+  blue: 0x3c64dc,
 };
+
+
 
 /**
  * Create a special enemy card for the lobby detail panel or wave preview.
@@ -65,17 +75,18 @@ export function createSpecialEnemyCard(
   bg.lineStyle(1, BORDER_COLOR, 1);
   bg.strokeRoundedRect(0, 0, layout.cardWidth, layout.cardHeight, layout.cornerRadius);
 
-  // Placeholder visual shape (colored circle/hexagon based on archetype)
-  const shapeColor = cssColorToNumber(ENEMY_COLOR_CSS[enemyColor] ?? '#FF4040');
-  const shapeRadius = variant === 'lobby' ? 62 : 36;
-  bg.fillStyle(shapeColor, 0.3);
-  bg.fillCircle(centerX, visualCenterY, shapeRadius);
-  bg.lineStyle(2, shapeColor, 0.6);
-  bg.strokeCircle(centerX, visualCenterY, shapeRadius);
+  // Enemy silhouette using real combat visuals (from EnemyRenderer).
+  // All draw calls target origin (0,0); the Graphics object is then
+  // positioned at the card center so everything aligns.
+  const enemyGfx = scene.add.graphics();
+  const bodyColor = NOTE_COLORS[enemyColor] ?? 0xe03c3c;
+  const bodyScale = variant === 'lobby' ? 3.2 : 1.6;
+  const bodyW = 31 * bodyScale;
+  const bodyH = 36 * bodyScale;
 
-  // Glow ring
-  bg.fillStyle(shapeColor, 0.08);
-  bg.fillCircle(centerX, visualCenterY, shapeRadius * 1.35);
+  // Position graphics at card center, draw the enemy silhouette
+  enemyGfx.setPosition(centerX, visualCenterY);
+  renderEnemyByArchetype(enemyGfx, archetype, bodyW, bodyH, bodyColor);
 
   // Enemy name
   const nameText = scene.add.text(centerX, nameY, displayName, {
@@ -93,7 +104,7 @@ export function createSpecialEnemyCard(
   });
   roleText.setOrigin(0.5, 0);
 
-  const container = scene.add.container(0, 0, [bg, nameText, roleText]);
+  const container = scene.add.container(0, 0, [bg, enemyGfx, nameText, roleText]);
   container.setSize(layout.cardWidth, layout.cardHeight);
 
   return container;
@@ -115,16 +126,38 @@ function guessRole(displayName: string): string {
   return 'Tank';
 }
 
-function cssColorToNumber(css: string): number {
-  if (css.startsWith('#')) {
-    return parseInt(css.slice(1), 16);
+/** Map known archetypes to the matching render function from EnemyRenderer. */
+function renderEnemyByArchetype(
+  g: Phaser.GameObjects.Graphics,
+  archetype: string,
+  bodyWidth: number,
+  bodyHeight: number,
+  color: number,
+): void {
+  switch (archetype) {
+    case 'basic':
+      renderBasicEnemy(g, bodyWidth, bodyHeight, color);
+      break;
+    case 'tank':
+      renderTankEnemy(g, bodyWidth, bodyHeight, color);
+      break;
+    case 'fast':
+      renderFastEnemy(g, bodyWidth, bodyHeight, color);
+      break;
+    case 'ranged':
+      renderRangedEnemy(g, bodyWidth, bodyHeight, color);
+      break;
+    case 'swarm':
+      renderSwarmEnemy(g, bodyWidth, bodyHeight, color);
+      break;
+    case 'boss':
+      renderBossEnemy(g, bodyWidth, bodyHeight, color);
+      break;
+    default:
+      // Fall back to basic for elites with non-standard archetype names
+      renderBasicEnemy(g, bodyWidth, bodyHeight, color);
+      break;
   }
-  const rgbaMatch = css.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (rgbaMatch) {
-    const r = parseInt(rgbaMatch[1]!, 10);
-    const g = parseInt(rgbaMatch[2]!, 10);
-    const b = parseInt(rgbaMatch[3]!, 10);
-    return (r << 16) | (g << 8) | b;
-  }
-  return 0xffffff;
 }
+
+
