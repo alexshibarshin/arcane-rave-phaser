@@ -18,7 +18,7 @@ export const blueNoiseRushConfig = {
   eliteEnemyId: 'static-choir',
   bossEnemyId: 'blue-noise-monarch',
   totalWaves: 10,
-  initialCoins: 0,
+  initialCoins: 25,
   hpMultipliers: [1.0, 1.15, 1.35, 1.6, 1.9, 2.2, 2.55, 3.0, 3.45, 4.0],
   slotModifierCountWeights: { 0: 0, 1: 7, 2: 3, 3: 0 },
   slotModifierWeightOverrides: {

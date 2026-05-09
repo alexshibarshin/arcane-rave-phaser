@@ -18,7 +18,7 @@ export const redlineRoutineConfig = {
   eliteEnemyId: 'iron-kick',
   bossEnemyId: 'redline-headliner',
   totalWaves: 10,
-  initialCoins: 0,
+  initialCoins: 25,
   hpMultipliers: [1.0, 1.1, 1.3, 1.5, 1.75, 2.05, 2.4, 2.8, 3.2, 3.7],
   slotModifierCountWeights: { 0: 1, 1: 0, 2: 0, 3: 0 },
   waveDefinitions: [],

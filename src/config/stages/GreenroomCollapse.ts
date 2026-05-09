@@ -18,7 +18,7 @@ export const greenroomCollapseConfig = {
   eliteEnemyId: 'backstage-blur',
   bossEnemyId: 'verdant-encore',
   totalWaves: 10,
-  initialCoins: 0,
+  initialCoins: 25,
   hpMultipliers: [1.0, 1.2, 1.4, 1.7, 2.0, 2.35, 2.75, 3.2, 3.6, 4.1],
   slotModifierCountWeights: { 0: 0, 1: 0, 2: 0, 3: 1 },
   waveDefinitions: [],
