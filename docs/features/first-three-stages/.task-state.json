@@ -22,12 +22,12 @@
     "gitCommit": null
   },
   "03-task-special-enemies": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "1",
     "blockedBy": [
       "02-task-enemy-definitions"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T16:27:03Z\"",
     "completedAt": null,
     "reviewFeedback": null,
     "summary": null,

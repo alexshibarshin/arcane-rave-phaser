@@ -1,5 +1,5 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
-import { createEnemy, ENEMY_ARCHETYPE_TEMPLATES, type EnemyArchetype } from '@config/EnemyDefinitions';
+import { ALL_SPECIAL_ENEMIES, createEnemy, ENEMY_ARCHETYPE_TEMPLATES, type EnemyArchetype } from '@config/EnemyDefinitions';
 
 const NOTE_COLORS = ['red', 'green', 'blue'] as const;
 const PAWN_TYPES = ['generator', 'finisher'] as const;
@@ -216,6 +216,9 @@ export interface CombatEnemyDefinition {
   attackCooldownMs: number;
   attackDamage: number;
   visualKey: string;
+  displayName?: string;
+  silhouetteMotif?: string;
+  isSpecial?: boolean;
 }
 
 export interface CombatSlotPresetDefinition {
@@ -637,13 +640,14 @@ const combatContentConfig = {
     'meteor-drop',
     'arc-bounce',
   ] satisfies string[],
-  ENEMY_DEFINITIONS: (
-    ['red', 'green', 'blue'] as NoteColor[]
-  ).flatMap((color) =>
-    (Object.keys(ENEMY_ARCHETYPE_TEMPLATES) as EnemyArchetype[]).map((archetype) =>
-      createEnemy(archetype, color),
+  ENEMY_DEFINITIONS: [
+    ...(['red', 'green', 'blue'] as NoteColor[]).flatMap((color) =>
+      (Object.keys(ENEMY_ARCHETYPE_TEMPLATES) as EnemyArchetype[]).map((archetype) =>
+        createEnemy(archetype, color),
+      ),
     ),
-  ) satisfies CombatEnemyDefinition[],
+    ...ALL_SPECIAL_ENEMIES,
+  ] satisfies CombatEnemyDefinition[],
   SLOT_PRESETS: [
     {
       id: 'preset-starter-1',
