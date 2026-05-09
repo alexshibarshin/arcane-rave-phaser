@@ -22,24 +22,24 @@
     "gitCommit": null
   },
   "03-task-special-enemies": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "1",
     "blockedBy": [
       "02-task-enemy-definitions"
     ],
     "startedAt": "\"2026-05-09T16:27:03Z\"",
-    "completedAt": null,
+    "completedAt": "\"2026-05-09T16:36:33Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Define 6 special enemies (Iron Kick, Static Choir, Backstage Blur — elite; Redline Headliner, Blue Noise Monarch, Verdant Encore — boss). Extended CombatEnemyDefinition with optional displayName/silhouetteMotif/isSpecial fields. Added createSpecialEnemy() factory. Integrated into ENEMY_DEFINITIONS alongside 12 existing ordinary enemies (18 total). 13 durable tests verify invariants: correct IDs, archetypes, positive stats, non-empty display names/motifs, and backward compat for ordinary enemies. tsc --noEmit and all tests pass.\"",
+    "gitCommit": "\"f068e94\""
   },
   "04-task-pawn-rebalance": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "2",
     "blockedBy": [],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T16:51:46Z\"",
     "completedAt": null,
-    "reviewFeedback": null,
+    "reviewFeedback": "\"lifebloom-scatter pawn: spec says `3 (×14 = 42)` with ×BL 0.84x, but code has `projectileCount: 3` (total damage = 9, not 42) and tooltip says 'Burst of 3 projectiles'. Fix: change projectileCount to 14, update tooltip to say 'Burst of 14 projectiles for 3 damage each'. All other 11 pawns and the tier multiplier are correct. tsc and all 238 tests pass.\"",
     "summary": null,
     "gitCommit": null
   },
