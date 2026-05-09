@@ -146,7 +146,7 @@
     "gitCommit": "\"802bd4d\""
   },
   "13-task-scene-flow-integration": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "2",
     "blockedBy": [
       "06-task-session-progress-and-stars",
@@ -154,19 +154,19 @@
       "10-task-stage-1-redline-routine"
     ],
     "startedAt": "\"2026-05-09T19:14:12Z\"",
-    "completedAt": null,
-    "reviewFeedback": "\"Two issues:\n\n1. **AC #4 not met (import path):** `StageScene.ts` imports `getStageConfig` from `@config/StageConfig` instead of `@config/StageRegistry`. This creates duplicate `getStageConfig` functions and bypasses the intended registry architecture. Fix: change import to `import { getStageConfig } from '@config/StageRegistry';`\n\n2. **Old config not cleaned up:** `src/config/StageConfig.ts` still contains the old scaffold test stage `stage-1` ('First Contact') in the `stageConfigs` array. Per the task's Old Config Cleanup requirement, remove this entry — only the three authored stages should remain.\"",
-    "summary": null,
-    "gitCommit": null
+    "completedAt": "\"2026-05-09T19:38:03Z\"",
+    "reviewFeedback": null,
+    "summary": "\"Boot→Lobby→Stage→Lobby loop wired: LobbyScene stub created, BootScene starts LobbyScene, StageScene reads stageId from scene data via StageRegistry, handleReturnToLobby persists results via SessionProgressStore, old scaffold stage-1 removed from config. All 9 ACs met. 302/302 tests pass, tsc --noEmit clean. New handleReturnToLobby.test.ts tests behavior (store+return contract), not config snapshots. StageFlowCoordinator test changes use variables, not hardcoded strings — consistent with test quality rules.\"",
+    "gitCommit": "\"85e3c31\""
   },
   "14-task-lobby-cards": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "06-task-session-progress-and-stars"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T19:38:03Z\"",
     "completedAt": null,
     "reviewFeedback": null,
     "summary": null,
