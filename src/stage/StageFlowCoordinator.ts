@@ -1,6 +1,5 @@
 import { SceneKeys } from '@config/GameConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
-import { getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import type { EventMap } from '@events/EventBus';
 import {
   canStageStartWave,
@@ -253,13 +252,15 @@ function createStageSnapshotPayload(
 ): EventMap['stage:snapshot-updated'] {
   const canStartWave = canStageStartWave(runtime);
   const currentWave = Math.min(runtime.currentWaveIndex + 1, Math.max(1, runtime.totalWaves));
-  const wave = canStartWave ? getCombatWaveDefinition(runtime.currentWaveIndex) : null;
-  const preview = wave
-    ? createStageWavePreview(wave, currentWave, runtime.totalWaves)
-    : {
-        bodyLines: [getTerminalBody(runtime)],
-        archetypeSummary: '',
-      };
+
+  let wavePreview: EventMap['stage:snapshot-updated']['wavePreview'] = null;
+
+  if (canStartWave && runtime.stageConfig.waves) {
+    const stageWaveDef = runtime.stageConfig.waves[runtime.currentWaveIndex];
+    if (stageWaveDef) {
+      wavePreview = createStageWavePreview(stageWaveDef, currentWave, runtime.totalWaves);
+    }
+  }
 
   return {
     phase: runtime.phase,
@@ -267,23 +268,7 @@ function createStageSnapshotPayload(
     currentWave,
     totalWaves: runtime.totalWaves,
     canStartWave,
-    previewTitle: preview.bodyLines[0] ?? '',
-    previewBody: preview.bodyLines.slice(1).join('\n'),
+    wavePreview,
   };
 }
 
-function getTerminalBody(runtime: StageRuntime): string {
-  if (runtime.totalWaves === 0) {
-    return 'No authored waves are available for this stage.';
-  }
-
-  if (runtime.phase === 'stage_complete') {
-    return `Cleared ${runtime.totalWaves}/${runtime.totalWaves} waves.\nFinal coins ${runtime.coins}`;
-  }
-
-  if (runtime.phase === 'stage_failed') {
-    return `Failed on wave ${runtime.currentWaveIndex + 1}/${runtime.totalWaves}.\nFinal coins ${runtime.coins}`;
-  }
-
-  return '';
-}

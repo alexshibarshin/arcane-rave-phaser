@@ -670,6 +670,10 @@ export function getCombatPawnDefinitionById(id: string): CombatPawnDefinition | 
   return combatContentConfig.PAWN_DEFINITIONS.find((pawn) => pawn.id === id);
 }
 
+export function getEnemyDefinitionById(id: string): CombatEnemyDefinition | undefined {
+  return combatContentConfig.ENEMY_DEFINITIONS.find((enemy) => enemy.id === id);
+}
+
 export function getScaledPawnDamage(baseDamage: number, tier: number): number {
   const normalizedTier = Math.max(1, tier);
   const multiplierIndex = Math.min(

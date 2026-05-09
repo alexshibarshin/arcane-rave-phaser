@@ -3,9 +3,9 @@ import {
   CombatContentConfig,
   type CombatPawnDefinition,
 } from '@config/CombatContentConfig';
-import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { STAGE_CONFIGS } from '@config/StageConfig';
+import type { StageWavePreviewModel } from '@config/StageConfig';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { emit, off, on } from '@events/EventBus';
@@ -341,10 +341,7 @@ export class StageScene extends Phaser.Scene {
   private syncPresentation(): void {
     const currentWave = Math.min(this.runtime.currentWaveIndex + 1, Math.max(1, this.runtime.totalWaves));
     const canStartWave = this.canStageStartWave();
-    const wave = canStartWave ? getCombatWaveDefinition(this.runtime.currentWaveIndex) : null;
-    const preview = wave
-      ? createStageWavePreview(wave, currentWave, this.runtime.totalWaves)
-      : null;
+    const wavePreview = this.buildWavePreview(canStartWave, currentWave);
 
     const coinsText = `Coins ${this.runtime.coins}`;
     this.phaseLabel?.setText(getPhaseLabel(this.runtime.phase));
@@ -355,9 +352,9 @@ export class StageScene extends Phaser.Scene {
         ? `Wave ${currentWave}/${this.runtime.totalWaves}`
         : 'No Waves Configured',
     );
-    if (preview) {
-      this.previewBodyLabel?.setText(preview.bodyLines.join('\n'));
-      this.previewArchetypeLabel?.setText(preview.archetypeSummary);
+    if (wavePreview) {
+      this.previewBodyLabel?.setText(wavePreview.tags.join('\n'));
+      this.previewArchetypeLabel?.setText('');
     } else {
       this.previewBodyLabel?.setText(getTerminalBody(this.runtime));
       this.previewArchetypeLabel?.setText('');
@@ -391,13 +388,26 @@ export class StageScene extends Phaser.Scene {
     this.playCoinFeedbackIfNeeded();
   }
 
+  private buildWavePreview(
+    canStartWave: boolean,
+    currentWave: number,
+  ): StageWavePreviewModel | null {
+    if (!canStartWave || !this.runtime.stageConfig.waves) {
+      return null;
+    }
+
+    const stageWaveDef = this.runtime.stageConfig.waves[this.runtime.currentWaveIndex];
+    if (!stageWaveDef) {
+      return null;
+    }
+
+    return createStageWavePreview(stageWaveDef, currentWave, this.runtime.totalWaves);
+  }
+
   private publishSnapshot(): void {
     const canStartWave = this.canStageStartWave();
     const currentWave = Math.min(this.runtime.currentWaveIndex + 1, Math.max(1, this.runtime.totalWaves));
-    const wave = canStartWave ? getCombatWaveDefinition(this.runtime.currentWaveIndex) : null;
-    const preview = wave
-      ? createStageWavePreview(wave, currentWave, this.runtime.totalWaves)
-      : { bodyLines: [getTerminalBody(this.runtime)], archetypeSummary: '' };
+    const wavePreview = this.buildWavePreview(canStartWave, currentWave);
 
     emit('stage:snapshot-updated', {
       phase: this.runtime.phase,
@@ -405,8 +415,7 @@ export class StageScene extends Phaser.Scene {
       currentWave,
       totalWaves: this.runtime.totalWaves,
       canStartWave,
-      previewTitle: preview.bodyLines[0] ?? '',
-      previewBody: preview.bodyLines.slice(1).join('\n'),
+      wavePreview,
     });
   }
 

@@ -56,24 +56,24 @@
     "gitCommit": "\"05a7823\""
   },
   "06-task-session-progress-and-stars": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "1",
     "blockedBy": [],
     "startedAt": "\"2026-05-09T17:25:12Z\"",
-    "completedAt": null,
+    "completedAt": "\"2026-05-09T17:33:23Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"SessionProgressStore singleton with Map-based in-memory storage, isBetter comparison (higher stars wins, same stars + higher HP wins, defeat never overwrites success), calculateStageStars with configurable thresholds (0/1/2/3 stars based on HP ratio), edge cases handled (HP ≤ 0, maxBaseHp ≤ 0, HP > max cap at 1.0). 22 tests pass — all behavioral/invariant-based (boundary behavior, isBetter comparisons, defeat persistence, null HP handling, singleton guarantee), zero config-value snapshots. tsc --noEmit clean.\"",
+    "gitCommit": "\"aa75808\""
   },
   "07-task-stage-runtime-plumbing": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "02-task-enemy-definitions",
       "03-task-special-enemies"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T17:33:23Z\"",
     "completedAt": null,
     "reviewFeedback": null,
     "summary": null,

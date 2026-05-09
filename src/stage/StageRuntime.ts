@@ -1,6 +1,7 @@
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
-import type { StageConfig } from '@config/StageConfig';
+import type { StageConfig, SubWaveDefinition } from '@config/StageConfig';
+import { getEnemyDefinitionById } from '@config/CombatContentConfig';
 import { SLOT_MODIFIER_CONFIG } from '@config/SlotModifierConfig';
 import {
   drawStageShopOffers,
@@ -32,6 +33,7 @@ export interface StageRuntime {
   lastCombatOutcome: StageCombatOutcome | null;
   build: StageBuildState;
   slotModifiers: SlotModifierAssignment[];
+  stageConfig: StageConfig;
 }
 
 export interface ResolveStageCombatOutcomeOptions {
@@ -64,6 +66,7 @@ export function createStageRuntime(
       stageConfig,
       SLOT_MODIFIER_CONFIG.modifiers,
     ),
+    stageConfig,
   };
 }
 
@@ -225,4 +228,48 @@ function grantStageMergeReward(runtime: StageRuntime): void {
 
 function clampChrono(value: number, max: number): number {
   return Math.min(max, Math.max(0, value));
+}
+
+export interface StageWaveEnemyPayload {
+  subWaves: SubWaveDefinition[];
+  enemyStatOverrides: Record<string, { maxHp: number }>;
+}
+
+export function buildStageWaveEnemyPayload(
+  stageConfig: StageConfig,
+  waveIndex: number,
+): StageWaveEnemyPayload {
+  const waves = stageConfig.waves;
+  const wave = waves ? waves[waveIndex] : undefined;
+
+  if (!wave) {
+    return { subWaves: [], enemyStatOverrides: {} };
+  }
+
+  const multiplier = stageConfig.hpMultipliers?.[waveIndex] ?? 1.0;
+  const overrides: Record<string, { maxHp: number }> = {};
+
+  for (const subWave of wave.subWaves) {
+    for (const enemyId of Object.keys(subWave.enemies)) {
+      if (overrides[enemyId] !== undefined) {
+        continue; // already computed
+      }
+
+      const definition = getEnemyDefinitionById(enemyId);
+      if (!definition) {
+        throw new Error(
+          `Unknown enemy ID "${enemyId}" in wave ${waveIndex} of stage "${stageConfig.id}"`,
+        );
+      }
+
+      overrides[enemyId] = {
+        maxHp: Math.round(definition.maxHp * multiplier),
+      };
+    }
+  }
+
+  return {
+    subWaves: [...wave.subWaves],
+    enemyStatOverrides: overrides,
+  };
 }

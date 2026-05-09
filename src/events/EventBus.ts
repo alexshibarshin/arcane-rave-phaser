@@ -1,6 +1,7 @@
 import { Events } from 'phaser';
 import type { CombatState, CombatTimeControlMode, NoteColor } from '@combat/CombatRuntime';
 import type { StagePhase } from '@stage/StageRuntime';
+import type { StageWavePreviewModel } from '@config/StageConfig';
 
 /**
  * Глобальный типизированный EventBus.
@@ -23,8 +24,7 @@ export interface EventMap {
     currentWave: number;
     totalWaves: number;
     canStartWave: boolean;
-    previewTitle: string;
-    previewBody: string;
+    wavePreview: StageWavePreviewModel | null;
   };
   'combat:scene-ready': { key: string; state: CombatState };
   'combat:hud-ready': { key: string };

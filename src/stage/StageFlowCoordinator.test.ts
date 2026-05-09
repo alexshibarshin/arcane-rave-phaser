@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
-import { STAGE_CONFIGS, type StageConfig } from '@config/StageConfig';
+import { STAGE_CONFIGS, type StageConfig, type StageWaveDefinition } from '@config/StageConfig';
 import { createStageRuntime, requestStageWaveStart } from '@stage/StageRuntime';
 import {
   createStageFlowCoordinationState,
@@ -10,16 +10,35 @@ import {
   type StageFlowCoordinationState,
 } from '@stage/StageFlowCoordinator';
 
-function makeStageConfig(overrides: Partial<StageConfig>): StageConfig {
+function makeWaveDef(kind: StageWaveDefinition['kind'] = 'normal', tags: string[] = ['Red']): StageWaveDefinition {
+  return {
+    kind,
+    tags,
+    specialEnemyId: kind !== 'normal' ? 'iron-kick' : null,
+    subWaves: [
+      {
+        id: 'sub-1',
+        startTimeMs: 0,
+        spawnIntervalMs: 800,
+        enemies: { 'enemy-red-basic': 2 },
+      },
+    ],
+  };
+}
+
+function makeStageConfig(overrides: Partial<StageConfig> = {}): StageConfig {
   const base = STAGE_CONFIGS[0]!;
+  const totalWaves = overrides.totalWaves ?? base.totalWaves;
   return {
     id: base.id,
     displayName: base.displayName,
-    totalWaves: base.totalWaves,
+    totalWaves,
     initialCoins: base.initialCoins,
     waveDefinitions: base.waveDefinitions,
     slotModifierCountWeights: base.slotModifierCountWeights,
     slotModifierWeightOverrides: base.slotModifierWeightOverrides,
+    waves: Array.from({ length: totalWaves }, (_, i) => makeWaveDef(i === totalWaves - 1 ? 'boss' : 'normal')),
+    hpMultipliers: Array.from({ length: totalWaves }, () => 1.0),
     ...overrides,
   };
 }
@@ -47,8 +66,14 @@ describe('StageFlowCoordinator', () => {
         currentWave: 1,
         totalWaves: 2,
         canStartWave: true,
-        previewTitle: expect.stringContaining('Wave'),
-        previewBody: expect.stringContaining('Enemies'),
+        wavePreview: {
+          waveNumber: 1,
+          totalWaves: 2,
+          waveKind: 'normal',
+          tags: expect.any(Array),
+          specialEnemyId: null,
+          specialEnemyName: null,
+        },
       },
     });
     expect(commands[1]).toMatchObject({
