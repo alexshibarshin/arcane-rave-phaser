@@ -49,6 +49,6 @@ export class BootScene extends Phaser.Scene {
 
     emit('scene:ready', { key: this.scene.key });
 
-    this.scene.start(SceneKeys.STAGE);
+    this.scene.start(SceneKeys.LOBBY);
   }
 }

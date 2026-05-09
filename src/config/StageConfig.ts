@@ -1,5 +1,4 @@
-import { CombatWaveConfig, type CombatWaveDefinition } from '@config/CombatWaveConfig';
-import { StageFlowConfig } from '@config/StageFlowConfig';
+import type { CombatWaveDefinition } from '@config/CombatWaveConfig';
 import { redlineRoutineConfig } from '@config/stages/RedlineRoutine';
 import { blueNoiseRushConfig } from '@config/stages/BlueNoiseRush';
 import { greenroomCollapseConfig } from '@config/stages/GreenroomCollapse';
@@ -50,14 +49,6 @@ export interface StageConfig {
 }
 
 const stageConfigs: StageConfig[] = [
-  {
-    id: 'stage-1',
-    displayName: 'First Contact',
-    totalWaves: CombatWaveConfig.WAVES.length,
-    initialCoins: StageFlowConfig.INITIAL_COINS,
-    waveDefinitions: [...CombatWaveConfig.WAVES],
-    slotModifierCountWeights: { 0: 1, 1: 3, 2: 2, 3: 1 },
-  },
   redlineRoutineConfig,
   blueNoiseRushConfig,
   greenroomCollapseConfig,

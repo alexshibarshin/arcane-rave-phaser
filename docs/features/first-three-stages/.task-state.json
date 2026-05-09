@@ -118,7 +118,7 @@
     "gitCommit": "\"2615d72\""
   },
   "11-task-stage-2-blue-noise-rush": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
@@ -126,36 +126,36 @@
       "03-task-special-enemies"
     ],
     "startedAt": "\"2026-05-09T18:49:50Z\"",
-    "completedAt": null,
+    "completedAt": "\"2026-05-09T18:59:56Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"BlueNoiseRush stage config created: 10 waves, 40 sub-waves, 150 enemies per Design Spec. All sub-wave data matches exactly. Registered in StageRegistry via StageConfig.ts array. 9 behavioral tests — all check invariants and contracts (no duplicated IDs, hpMultipliers invariant, monotonic multipliers, every sub-wave has ≥1 enemy, wave 5 elite/static-choir, wave 10 boss/blue-noise-monarch, no tank enemies). Zero snapshot tests of tunable values. 291/291 tests pass, tsc --noEmit clean.\"",
+    "gitCommit": "\"802bd4d\""
   },
   "12-task-stage-3-greenroom-collapse": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "02-task-enemy-definitions",
       "03-task-special-enemies"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T18:59:57Z\"",
+    "completedAt": "\"2026-05-09T19:12:44Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"GreenroomCollapse stage config: 10 waves, 42 sub-waves, 115 enemies across all 4 archetypes. Registered in StageRegistry. 10 behavioural tests covering invariants, structure, identity contracts, and registry integration. tsc --noEmit clean.\"",
+    "gitCommit": "\"802bd4d\""
   },
   "13-task-scene-flow-integration": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "2",
     "blockedBy": [
       "06-task-session-progress-and-stars",
       "08-task-flow-coordinator-plumbing",
       "10-task-stage-1-redline-routine"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T19:14:12Z\"",
     "completedAt": null,
-    "reviewFeedback": null,
+    "reviewFeedback": "\"Two issues:\n\n1. **AC #4 not met (import path):** `StageScene.ts` imports `getStageConfig` from `@config/StageConfig` instead of `@config/StageRegistry`. This creates duplicate `getStageConfig` functions and bypasses the intended registry architecture. Fix: change import to `import { getStageConfig } from '@config/StageRegistry';`\n\n2. **Old config not cleaned up:** `src/config/StageConfig.ts` still contains the old scaffold test stage `stage-1` ('First Contact') in the `stageConfigs` array. Per the task's Old Config Cleanup requirement, remove this entry — only the three authored stages should remain.\"",
     "summary": null,
     "gitCommit": null
   },

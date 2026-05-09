@@ -4,7 +4,7 @@ import {
   type CombatPawnDefinition,
 } from '@config/CombatContentConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
-import { STAGE_CONFIGS } from '@config/StageConfig';
+import { getStageConfig } from '@config/StageRegistry';
 import type { StageWavePreviewModel } from '@config/StageConfig';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { SceneKeys } from '@config/GameConfig';
@@ -30,6 +30,7 @@ import { StageShopView } from './StageShopView';
 import { StageDragController } from './StageDragController';
 import { StageTooltipController } from './StageTooltipController';
 import { StageFlowAnimator } from './StageFlowAnimator';
+import { handleReturnToLobby } from './handleReturnToLobby';
 
 export class StageScene extends Phaser.Scene {
   private runtime!: StageRuntime;
@@ -58,9 +59,17 @@ export class StageScene extends Phaser.Scene {
     super({ key: SceneKeys.STAGE });
   }
 
-  create(): void {
+  create(data?: { stageId?: string }): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
-    this.runtime = createStageRuntime(STAGE_CONFIGS[0]!);
+
+    const stageId = data?.stageId ?? 'redline-routine';
+    const stageConfig = getStageConfig(stageId);
+
+    if (!stageConfig) {
+      throw new Error(`Unknown stage ID: ${stageId}`);
+    }
+
+    this.runtime = createStageRuntime(stageConfig);
 
     this.renderLayout();
     this.createAdapters();
@@ -527,9 +536,14 @@ export class StageScene extends Phaser.Scene {
           this.transientStatusText = null;
           this.refreshBuildUI();
           break;
-        case 'stage:return-to-lobby':
-          // TODO (task 13): write to SessionProgressStore and start LobbyScene
-          break;
+        case 'stage:return-to-lobby': {
+          handleReturnToLobby(command.payload);
+          this.scene.start(SceneKeys.LOBBY, {
+            showResult: true,
+            stageId: command.payload.stageId,
+          });
+          return;
+        }
       }
     }
   }

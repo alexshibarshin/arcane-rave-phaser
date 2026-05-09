@@ -245,7 +245,8 @@ describe('StageFlowCoordinator', () => {
   });
 
   it('emits stage:return-to-lobby with stars on stage completion', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 1, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const stageId = 'stage-1';
+    const runtime = createStageRuntime(makeStageConfig({ id: stageId, totalWaves: 1, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
     const coordination = createStageFlowCoordinationState();
     requestStageWaveStart(runtime);
     dispatchStageFlowIntent(runtime, coordination, {
@@ -265,7 +266,7 @@ describe('StageFlowCoordinator', () => {
     expect(returnCommand).toMatchObject({
       type: 'stage:return-to-lobby',
       payload: {
-        stageId: 'stage-1',
+        stageId,
         stars: expect.any(Number),
         remainingBaseHp: 95,
       },
@@ -274,7 +275,8 @@ describe('StageFlowCoordinator', () => {
   });
 
   it('emits stage:return-to-lobby with stars on defeat', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const stageId = 'stage-1';
+    const runtime = createStageRuntime(makeStageConfig({ id: stageId, totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
     const coordination = createStageFlowCoordinationState();
     requestStageWaveStart(runtime);
 
@@ -291,7 +293,7 @@ describe('StageFlowCoordinator', () => {
     expect(returnCommand).toMatchObject({
       type: 'stage:return-to-lobby',
       payload: {
-        stageId: 'stage-1',
+        stageId,
         stars: expect.any(Number),
         remainingBaseHp: 50,
       },
