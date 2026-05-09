@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CombatContentConfig } from '@config/CombatContentConfig';
+import { StageFlowConfig } from '@config/StageFlowConfig';
 import {
   createStageBuildState,
   getStageRerollCost,
@@ -349,5 +350,18 @@ describe('StageBuild', () => {
     expect(build.shopOffers.length).toBeGreaterThan(0);
     expect(build.rerollCount).toBe(1);
     expect(getStageRerollCost(build)).toBeGreaterThan(initialCost);
+  });
+
+  it('computes reroll cost as base + count * increment from config', () => {
+    const build: StageBuildState = {
+      slots: [null, null, null, null, null, null, null, null],
+      shopOffers: [],
+      shopPurchaseCounts: {},
+      rerollCount: 3,
+    };
+
+    expect(getStageRerollCost(build)).toBe(
+      StageFlowConfig.SHOP_REROLL_BASE_COST + build.rerollCount * StageFlowConfig.SHOP_REROLL_INCREMENT,
+    );
   });
 });

@@ -34,22 +34,22 @@
     "gitCommit": "\"f068e94\""
   },
   "04-task-pawn-rebalance": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "2",
     "blockedBy": [],
     "startedAt": "\"2026-05-09T16:51:46Z\"",
-    "completedAt": null,
-    "reviewFeedback": "\"lifebloom-scatter pawn: spec says `3 (×14 = 42)` with ×BL 0.84x, but code has `projectileCount: 3` (total damage = 9, not 42) and tooltip says 'Burst of 3 projectiles'. Fix: change projectileCount to 14, update tooltip to say 'Burst of 14 projectiles for 3 damage each'. All other 11 pawns and the tier multiplier are correct. tsc and all 238 tests pass.\"",
-    "summary": null,
-    "gitCommit": null
+    "completedAt": "\"2026-05-09T17:15:49Z\"",
+    "reviewFeedback": null,
+    "summary": "\"Updated all 12 pawn baseDamage values per design spec, changed PAWN_TIER_DAMAGE_MULTIPLIER from [1,3,8] to [1,2.5,6], updated projectileCount/volleyShotCount for thorn-fan (5→14), lifebloom-scatter (3→14), prism-volley (3→14), arc-bounce (added projectileCount:5), updated meteor-drop burn damagePerTick (18→4), and refreshed tooltip strings with new damage numbers. tsc --noEmit passes, all 238 tests pass, no tests hardcode config values — all use invariant-based assertions.\"",
+    "gitCommit": "\"ef9ad70\""
   },
   "05-task-economy-and-modifier-staging": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T17:15:49Z\"",
     "completedAt": null,
     "reviewFeedback": null,
     "summary": null,

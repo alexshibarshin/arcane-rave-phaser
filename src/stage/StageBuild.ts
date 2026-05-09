@@ -191,7 +191,7 @@ export function rerollStageShop(
 }
 
 export function getStageRerollCost(build: StageBuildState): number {
-  return StageFlowConfig.SHOP_REROLL_BASE_COST + build.rerollCount;
+  return StageFlowConfig.SHOP_REROLL_BASE_COST + build.rerollCount * StageFlowConfig.SHOP_REROLL_INCREMENT;
 }
 
 function canMergeStagePawns(left: StagePawnInstance, right: StagePawnInstance): boolean {
