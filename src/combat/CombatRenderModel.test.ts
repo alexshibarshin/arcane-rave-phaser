@@ -110,7 +110,7 @@ describe('CombatRenderModel', () => {
 
   it('creates one enemy render unit per enemy runtime with matching identity and y-sort', () => {
     const activeWave = CombatWaveConfig.WAVES[0];
-    const runtimes = createCombatEnemyRuntimes(activeWave!);
+    const runtimes = createCombatEnemyRuntimes(activeWave?.subWaves ?? []);
     const definitionsById = new Map(
       CombatContentConfig.ENEMY_DEFINITIONS.map((definition) => [definition.id, definition]),
     );

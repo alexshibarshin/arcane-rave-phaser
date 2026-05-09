@@ -1,7 +1,7 @@
 import {
   type CombatSubWaveConfig,
-  type CombatWaveDefinition,
 } from '@config/CombatWaveConfig';
+import type { SubWaveDefinition } from '@config/StageConfig';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import type { CombatRuntime } from './CombatRuntime';
@@ -87,18 +87,16 @@ export function calculateCombatEnemiesRemaining(runtime: CombatRuntime): number 
 export function createInitialCombatWaveState(
   currentWaveIndex: number,
   totalWaves: number,
-  waveDefinition: CombatWaveDefinition,
+  subWaves: SubWaveDefinition[],
 ): CombatRuntime['wave'] {
-  const initialWave = waveDefinition;
-
   return {
     currentWaveIndex,
     totalWaves,
-    currentWaveId: initialWave?.id ?? null,
+    currentWaveId: null,
     activeSubWaves: [],
-    pendingSubWaves: [...(initialWave?.subWaves ?? [])],
+    pendingSubWaves: [...subWaves],
     spawnBags: new Map(),
-    enemiesRemaining: countWaveEnemies(initialWave),
+    enemiesRemaining: countSubWaveEnemies(subWaves),
     lastSpawnX: null,
   };
 }
@@ -168,8 +166,8 @@ function selectEnemySpawnX(random: () => number, lastSpawnX: number | null): num
   return fallbackX;
 }
 
-function countWaveEnemies(wave: CombatWaveDefinition | undefined): number {
-  return (wave?.subWaves ?? []).reduce(
+function countSubWaveEnemies(subWaves: SubWaveDefinition[]): number {
+  return subWaves.reduce(
     (sum, subWave) =>
       sum + Object.values(subWave.enemies).reduce((a, b) => a + b, 0),
     0,

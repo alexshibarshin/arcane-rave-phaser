@@ -3,6 +3,7 @@ import { CombatContentConfig, getCombatPawnDefinitionById } from '@config/Combat
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
 import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
+import type { SubWaveDefinition } from '@config/StageConfig';
 import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { resolveCombatActivations } from './CombatActivation';
@@ -27,7 +28,7 @@ import {
   type CombatRuntimeEvent,
 } from './CombatRuntimeEvents';
 import { advanceCombatZones, clearCombatZones } from './CombatZones';
-import type { CombatSubWaveConfig, CombatWaveDefinition } from '@config/CombatWaveConfig';
+import type { CombatSubWaveConfig } from '@config/CombatWaveConfig';
 
 const SLOT_SPRITE_REST_OFFSET_Y_PX = -2;
 
@@ -278,6 +279,8 @@ export interface CreateCombatRuntimeOptions {
   slotPawnTiers?: Array<number | null>;
   chronoCurrent?: number;
   chronoMax?: number;
+  subWaves?: SubWaveDefinition[];
+  enemyStatOverrides?: Record<string, { maxHp: number }>;
 }
 
 export function createCombatRuntime(
@@ -289,12 +292,18 @@ export function createCombatRuntime(
   const initialWave = getCombatWaveDefinition(waveIndex);
   const startAngle = initialWave?.startAngleDeg ?? CombatBalanceConfig.RECORD_START_ANGLE_DEG;
   const layout = createCombatLayoutPlan();
-  const slotPreset =
-    CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
-    ?? null;
+
+  const subWaves = options.subWaves ?? initialWave?.subWaves ?? [];
+  const enemyStatOverrides = options.enemyStatOverrides;
+
+  // Slot preset only applies when using config-based waves (not stage-managed)
+  const slotPreset = options.subWaves
+    ? null
+    : CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
+      ?? null;
   const slotPawns = resolveCombatLoadoutSlots(options, slotPreset?.slots ?? []);
   const slotModifiers = resolveCombatSlotModifiers(options.slotModifiers);
-  const enemies = createCombatEnemyRuntimes(initialWave as CombatWaveDefinition);
+  const enemies = createCombatEnemyRuntimes(subWaves, enemyStatOverrides);
   const chronoMax = Math.max(0, options.chronoMax ?? CombatTimeControlConfig.CHRONO_MAX);
   const chronoCurrent = PhaserMathClamp(
     options.chronoCurrent ?? CombatTimeControlConfig.CHRONO_START,
@@ -352,7 +361,7 @@ export function createCombatRuntime(
     enemyStatuses: new Map(),
     pawnBuffs: Array.from({ length: CombatContentConfig.SLOT_COUNT }, () => null),
     scheduledActivations: [],
-    wave: createInitialCombatWaveState(waveIndex, totalWaves, initialWave),
+    wave: createInitialCombatWaveState(waveIndex, totalWaves, subWaves),
     outcome: {
       victory: false,
       defeat: false,
