@@ -2,6 +2,7 @@ import { CombatWaveConfig, type CombatWaveDefinition } from '@config/CombatWaveC
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { redlineRoutineConfig } from '@config/stages/RedlineRoutine';
 import { blueNoiseRushConfig } from '@config/stages/BlueNoiseRush';
+import { greenroomCollapseConfig } from '@config/stages/GreenroomCollapse';
 
 export interface SubWaveDefinition {
   id: string;
@@ -59,6 +60,7 @@ const stageConfigs: StageConfig[] = [
   },
   redlineRoutineConfig,
   blueNoiseRushConfig,
+  greenroomCollapseConfig,
 ];
 
 export const STAGE_CONFIGS: readonly StageConfig[] = stageConfigs;
