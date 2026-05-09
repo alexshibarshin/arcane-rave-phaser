@@ -104,7 +104,7 @@
     "gitCommit": "\"754fb8c\""
   },
   "10-task-stage-1-redline-routine": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
@@ -112,20 +112,20 @@
       "03-task-special-enemies"
     ],
     "startedAt": "\"2026-05-09T18:34:48Z\"",
-    "completedAt": null,
+    "completedAt": "\"2026-05-09T18:49:49Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Created RedlineRoutine stage config (10 waves, 41 sub-waves, 88 enemies matching spec tables), registered in StageRegistry via StageConfig.ts array. 8 behavioral tests — all check invariants (no duplicate IDs, every sub-wave has ≥1 enemy, monotonic hpMultipliers), internal consistency (hpMultipliers.length === totalWaves), and structural contract (wave 5 elite/iron-kick, wave 10 boss/redline-headliner). StageConfig.test.ts updated to accept both `waves` and `waveDefinitions` as wave content sources. 282/282 tests pass, tsc --noEmit clean.\"",
+    "gitCommit": "\"2615d72\""
   },
   "11-task-stage-2-blue-noise-rush": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "02-task-enemy-definitions",
       "03-task-special-enemies"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T18:49:50Z\"",
     "completedAt": null,
     "reviewFeedback": null,
     "summary": null,

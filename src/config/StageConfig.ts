@@ -1,6 +1,7 @@
 import { CombatWaveConfig, type CombatWaveDefinition } from '@config/CombatWaveConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { redlineRoutineConfig } from '@config/stages/RedlineRoutine';
+import { blueNoiseRushConfig } from '@config/stages/BlueNoiseRush';
 
 export interface SubWaveDefinition {
   id: string;
@@ -57,6 +58,7 @@ const stageConfigs: StageConfig[] = [
     slotModifierCountWeights: { 0: 1, 1: 3, 2: 2, 3: 1 },
   },
   redlineRoutineConfig,
+  blueNoiseRushConfig,
 ];
 
 export const STAGE_CONFIGS: readonly StageConfig[] = stageConfigs;
