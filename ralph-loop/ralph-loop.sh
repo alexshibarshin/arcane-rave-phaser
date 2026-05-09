@@ -295,7 +295,8 @@ count_tasks_by_status() {
 
 # --- Git Helpers ---
 git_dirty() {
-  [ -n "$(git status --porcelain 2>/dev/null)" ]
+  # Exclude .task-state.json (managed by this script, not source code)
+  [ -n "$(git status --porcelain 2>/dev/null | grep -v '.task-state.json')" ]
 }
 
 git_last_commit_msg() {
