@@ -59,10 +59,19 @@ const DETAIL_RESULT_Y_OFFSET = 16;
 const DETAIL_TAGS_Y_OFFSET = 16;
 const DETAIL_NAME_Y_OFFSET = 64;
 
+// Radio blocks (playtest toggles)
+const BLOCK_MARGIN_X = 16;
+const BLOCK_WIDTH = 338;
+const BLOCK_HEIGHT = 120;
+const BLOCK_GAP = 12;
+const BLOCK_HEADER_FONT_SIZE = '13px';
+const BLOCK_LABEL_FONT_SIZE = '18px';
+
 interface LobbyState {
   selectedStageId: string | null;
   showResultModal: boolean;
   resultStageId: string | null;
+  mergeRule: 'random' | 'fixed';
 }
 
 export class LobbyScene extends Phaser.Scene {
@@ -70,12 +79,14 @@ export class LobbyScene extends Phaser.Scene {
     selectedStageId: null,
     showResultModal: false,
     resultStageId: null,
+    mergeRule: 'random',
   };
 
   private cardContainers: Phaser.GameObjects.Container[] = [];
   private cardModels: LobbyCardModel[] = [];
   private detailContainer: Phaser.GameObjects.Container | null = null;
   private resultModalContainer: Phaser.GameObjects.Container | null = null;
+  private radioBlockContainer: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: SceneKeys.LOBBY });
@@ -93,6 +104,7 @@ export class LobbyScene extends Phaser.Scene {
       selectedStageId: initialSelectedId,
       showResultModal: data?.showResult ?? false,
       resultStageId: data?.stageId ?? null,
+      mergeRule: SessionProgressStore.getMergeRule(),
     };
 
     if (this.state_.selectedStageId) {
@@ -102,6 +114,7 @@ export class LobbyScene extends Phaser.Scene {
     this.drawHeader();
     this.buildCards();
     this.refreshDetailPanel();
+    this.buildRadioBlocks();
 
     if (this.state_.showResultModal && this.state_.resultStageId) {
       this.showResultModal(this.state_.resultStageId);
@@ -120,6 +133,10 @@ export class LobbyScene extends Phaser.Scene {
     if (this.resultModalContainer) {
       this.resultModalContainer.destroy();
       this.resultModalContainer = null;
+    }
+    if (this.radioBlockContainer) {
+      this.radioBlockContainer.destroy();
+      this.radioBlockContainer = null;
     }
   }
 
@@ -575,7 +592,10 @@ export class LobbyScene extends Phaser.Scene {
 
     container.on('pointerdown', () => {
       if (this.state_.selectedStageId) {
-        this.scene.start(SceneKeys.STAGE, { stageId: this.state_.selectedStageId });
+        this.scene.start(SceneKeys.STAGE, {
+          stageId: this.state_.selectedStageId,
+          settings: { mergeRule: this.state_.mergeRule },
+        });
       }
     });
 
@@ -590,6 +610,106 @@ export class LobbyScene extends Phaser.Scene {
     });
 
     return container;
+  }
+
+  /* ========== RADIO BLOCKS (playtest toggles) ========== */
+
+  private buildRadioBlocks(): void {
+    if (this.radioBlockContainer) {
+      this.radioBlockContainer.destroy();
+      this.radioBlockContainer = null;
+    }
+
+    // Compute Y: after start button with 32px gap.
+    // Start button bottom computed from the same layout as refreshDetailPanel:
+    // DETAIL_PANEL_TOP + name area + tags + enemy cards + result + button
+    const startBtnBottom =
+      DETAIL_PANEL_TOP +
+      DETAIL_NAME_Y_OFFSET + 40 +
+      28 + DETAIL_TAGS_Y_OFFSET +
+      DETAIL_CARDS_Y_OFFSET + 260 + DETAIL_RESULT_Y_OFFSET +
+      28 + DETAIL_START_BTN_Y_OFFSET +
+      DETAIL_START_BTN_H;
+
+    const blockY = startBtnBottom + 32;
+
+    this.radioBlockContainer = this.add.container(BLOCK_MARGIN_X, blockY);
+
+    // Block 0: Merge Rule
+    this.buildRadioBlock(0, 0, 'MERGE RULE', [
+      { value: 'random' as const, label: 'Random merge' },
+      { value: 'fixed' as const, label: 'Fixed merge' },
+    ], this.state_.mergeRule, (value) => {
+      this.state_.mergeRule = value;
+      SessionProgressStore.setMergeRule(value);
+      this.buildRadioBlocks();
+    });
+  }
+
+  private buildRadioBlock(
+    x: number,
+    y: number,
+    title: string,
+    options: Array<{ value: 'random' | 'fixed'; label: string }>,
+    selectedValue: string,
+    onSelect: (value: 'random' | 'fixed') => void,
+  ): void {
+    const block = this.add.container(x, y);
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(BG_DEFAULT, 1);
+    bg.fillRoundedRect(0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, 8);
+    bg.lineStyle(1, BORDER_DEFAULT, 1);
+    bg.strokeRoundedRect(0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, 8);
+    block.add(bg);
+
+    // Header
+    const header = this.add.text(16, 14, title, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: BLOCK_HEADER_FONT_SIZE,
+      color: 'rgba(255,255,255,0.3)',
+      letterSpacing: 2,
+    });
+    block.add(header);
+
+    // Options
+    let optionY = 44;
+    for (const opt of options) {
+      const isSelected = opt.value === selectedValue;
+
+      // Radio circle
+      const circle = this.add.graphics();
+      const cy = optionY + 8;
+      circle.lineStyle(2, isSelected ? 0x4a80d0 : 0x3a4050, 1);
+      circle.strokeCircle(16, cy, 8);
+      if (isSelected) {
+        circle.fillStyle(0x4a80d0, 1);
+        circle.fillCircle(16, cy, 4);
+      }
+      block.add(circle);
+
+      // Label
+      const label = this.add.text(34, optionY, opt.label, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: BLOCK_LABEL_FONT_SIZE,
+        color: isSelected ? '#EAEAEA' : 'rgba(255,255,255,0.55)',
+      });
+      block.add(label);
+
+      // Hit area for the row: interactive on label with expanded hit zone
+      label.setInteractive(
+        new Phaser.Geom.Rectangle(-34, -4, BLOCK_WIDTH - 8, 32),
+        Phaser.Geom.Rectangle.Contains,
+      );
+      label.on('pointerdown', () => {
+        onSelect(opt.value);
+      });
+
+      optionY += 32;
+    }
+
+    this.radioBlockContainer!.add(block);
   }
 
   /* ========== RESULT MODAL ========== */
@@ -618,7 +738,10 @@ export class LobbyScene extends Phaser.Scene {
           this.resultModalContainer = null;
         }
         this.state_.showResultModal = false;
-        this.scene.start(SceneKeys.STAGE, { stageId });
+        this.scene.start(SceneKeys.STAGE, {
+          stageId,
+          settings: { mergeRule: this.state_.mergeRule },
+        });
       },
       () => {
         // CLOSE: dismiss modal, select the stage card

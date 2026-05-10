@@ -48,7 +48,7 @@ function getCommandTypes(commands: StageFlowCommand[]): string[] {
 
 describe('StageFlowCoordinator', () => {
   it('publishes the initial snapshot and build intro on stage initialization', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), undefined, () => 0);
     const coordination = createStageFlowCoordinationState();
 
     const commands = dispatchStageFlowIntent(runtime, coordination, { type: 'stage:initialized' });
@@ -88,7 +88,7 @@ describe('StageFlowCoordinator', () => {
   });
 
   it('transitions into combat with a phase change, snapshot, outro, and launch command', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), undefined, () => 0);
     const coordination = createStageFlowCoordinationState();
 
     const commands = dispatchStageFlowIntent(runtime, coordination, { type: 'stage:start-wave-requested' });
@@ -127,7 +127,7 @@ describe('StageFlowCoordinator', () => {
   });
 
   it('queues a combat return transition after victory before resolving the build phase', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), undefined, () => 0);
     const coordination = createStageFlowCoordinationState();
     requestStageWaveStart(runtime);
 
@@ -166,7 +166,7 @@ describe('StageFlowCoordinator', () => {
   });
 
   it('resolves queued victory return into build once the combat return finishes', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), undefined, () => 0);
     const coordination = createStageFlowCoordinationState();
     requestStageWaveStart(runtime);
     dispatchStageFlowIntent(runtime, coordination, {
@@ -210,7 +210,7 @@ describe('StageFlowCoordinator', () => {
   });
 
   it('ignores invalid transition intents', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), undefined, () => 0);
     const coordination = createStageFlowCoordinationState();
 
     coordination.isTransitioning = true;
@@ -245,7 +245,7 @@ describe('StageFlowCoordinator', () => {
 
   it('emits stage:return-to-lobby with stars on stage completion', () => {
     const stageId = 'stage-1';
-    const runtime = createStageRuntime(makeStageConfig({ id: stageId, totalWaves: 1, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ id: stageId, totalWaves: 1, initialCoins: StageFlowConfig.INITIAL_COINS }), undefined, () => 0);
     const coordination = createStageFlowCoordinationState();
     requestStageWaveStart(runtime);
     dispatchStageFlowIntent(runtime, coordination, {
@@ -275,7 +275,7 @@ describe('StageFlowCoordinator', () => {
 
   it('emits stage:return-to-lobby with stars on defeat', () => {
     const stageId = 'stage-1';
-    const runtime = createStageRuntime(makeStageConfig({ id: stageId, totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ id: stageId, totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), undefined, () => 0);
     const coordination = createStageFlowCoordinationState();
     requestStageWaveStart(runtime);
 

@@ -31,7 +31,7 @@ function makeStageConfig(overrides: Partial<StageConfig>): StageConfig {
 
 describe('StageRuntime', () => {
   it('creates a build-phase runtime for authored stages', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 3, initialCoins: 6 }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 3, initialCoins: 6 }), undefined, () => 0);
 
     expect(runtime.phase).toBe('build');
     expect(runtime.currentWaveIndex).toBe(0);
@@ -58,7 +58,7 @@ describe('StageRuntime', () => {
   });
 
   it('returns to build, increments wave, and grants reward after non-final victory', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), undefined, () => 0);
     purchaseStagePawnIntoSlot(runtime, 0, 0);
     const coinsBeforeCombat = runtime.coins;
     requestStageWaveStart(runtime);
@@ -83,7 +83,7 @@ describe('StageRuntime', () => {
   });
 
   it('uses the current build slots as the combat loadout', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), undefined, () => 0);
     purchaseStagePawnIntoSlot(runtime, 0, 0);
 
     expect(typeof getStageCombatLoadout(runtime)[0]).toBe('string');
@@ -91,7 +91,7 @@ describe('StageRuntime', () => {
   });
 
   it('keeps merged pawn tiers aligned with pawn ids in the combat loadout snapshot', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), undefined, () => 0);
 
     purchaseStagePawnIntoSlot(runtime, 0, 0);
     purchaseStagePawnIntoSlot(runtime, 0, 1);
@@ -106,7 +106,7 @@ describe('StageRuntime', () => {
   });
 
   it('grants merge reward coins when buying a matching pawn from the shop into a merge', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 10 }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 10 }), undefined, () => 0);
 
     purchaseStagePawnIntoSlot(runtime, 0, 0);
     const coinsBeforeMerge = runtime.coins;
@@ -122,7 +122,7 @@ describe('StageRuntime', () => {
     (StageFlowConfig as { MERGE_REWARD_COINS: number }).MERGE_REWARD_COINS = 0;
 
     try {
-      const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), () => 0);
+      const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), undefined, () => 0);
 
       purchaseStagePawnIntoSlot(runtime, 0, 0);
       purchaseStagePawnIntoSlot(runtime, 0, 1);
@@ -136,7 +136,7 @@ describe('StageRuntime', () => {
   });
 
   it('rerolls the shop, spends coins, and increases reroll cost inside the build phase', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), undefined, () => 0);
 
     const initialCost = getStageShopRerollCost(runtime);
     expect(initialCost).toBeGreaterThan(0);

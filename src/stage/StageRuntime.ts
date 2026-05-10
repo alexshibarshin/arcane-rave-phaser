@@ -15,6 +15,7 @@ import {
   rerollStageShop,
   type StageBuildState,
 } from './StageBuild';
+import { RandomMergeStrategy, type MergeStrategy } from './MergeStrategy';
 import { generateStageSlotModifiers, type SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
 
@@ -34,6 +35,7 @@ export interface StageRuntime {
   build: StageBuildState;
   slotModifiers: SlotModifierAssignment[];
   stageConfig: StageConfig;
+  mergeStrategy: MergeStrategy;
 }
 
 export interface ResolveStageCombatOutcomeOptions {
@@ -45,6 +47,7 @@ export interface ResolveStageCombatOutcomeOptions {
 
 export function createStageRuntime(
   stageConfig: StageConfig,
+  mergeStrategy?: MergeStrategy,
   random: () => number = Math.random,
 ): StageRuntime {
   const totalWaves = Math.max(0, stageConfig.totalWaves);
@@ -67,6 +70,7 @@ export function createStageRuntime(
       SLOT_MODIFIER_CONFIG.modifiers,
     ),
     stageConfig,
+    mergeStrategy: mergeStrategy ?? new RandomMergeStrategy(),
   };
 }
 
@@ -165,7 +169,7 @@ export function purchaseStagePawnIntoMergeSlot(
   }
 
   const price = getCombatPawnDefinitionById(offerPawnId)?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
-  const merged = purchaseStagePawnMerge(runtime.build, runtime.coins, offerIndex, slotIndex, price, random);
+  const merged = purchaseStagePawnMerge(runtime.build, runtime.coins, offerIndex, slotIndex, price, runtime.mergeStrategy, random);
 
   if (!merged) {
     return false;
@@ -182,7 +186,7 @@ export function mergeStagePawnSlots(
   toSlotIndex: number,
   random: () => number = Math.random,
 ): boolean {
-  const merged = mergeStagePawn(runtime.build, fromSlotIndex, toSlotIndex, random);
+  const merged = mergeStagePawn(runtime.build, fromSlotIndex, toSlotIndex, runtime.mergeStrategy, random);
 
   if (!merged) {
     return false;

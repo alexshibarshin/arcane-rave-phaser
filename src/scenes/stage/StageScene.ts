@@ -15,6 +15,7 @@ import {
   rerollStageShopOffers,
   type StageRuntime,
 } from '@stage/StageRuntime';
+import { FixedMergeStrategy } from '@stage/MergeStrategy';
 import { createStageWavePreview } from '@stage/StageWavePreview';
 import { getStageCoinFeedback } from './StageCoinFeedback';
 import {
@@ -57,7 +58,7 @@ export class StageScene extends Phaser.Scene {
     super({ key: SceneKeys.STAGE });
   }
 
-  create(data?: { stageId?: string }): void {
+  create(data?: { stageId?: string; settings?: { mergeRule?: 'random' | 'fixed' } }): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
 
     const stageId = data?.stageId ?? 'redline-routine';
@@ -67,7 +68,9 @@ export class StageScene extends Phaser.Scene {
       throw new Error(`Unknown stage ID: ${stageId}`);
     }
 
-    this.runtime = createStageRuntime(stageConfig);
+    const mergeRule = data?.settings?.mergeRule ?? 'random';
+    const mergeStrategy = mergeRule === 'fixed' ? new FixedMergeStrategy() : undefined;
+    this.runtime = createStageRuntime(stageConfig, mergeStrategy);
 
     this.renderLayout();
     this.createAdapters();

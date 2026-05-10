@@ -14,6 +14,7 @@ import {
   rerollStageShop,
   type StageBuildState,
 } from '@stage/StageBuild';
+import { RandomMergeStrategy } from '@stage/MergeStrategy';
 
 describe('StageBuild', () => {
   it('creates empty slots and shop offers for the build phase', () => {
@@ -87,6 +88,8 @@ describe('StageBuild', () => {
     expect(build.slots[1]).toBeNull();
   });
 
+  const strategy = new RandomMergeStrategy();
+
   it('merges matching same-tier pawns into a random next-tier pawn', () => {
     const build: StageBuildState = {
       slots: [
@@ -104,7 +107,7 @@ describe('StageBuild', () => {
       rerollCount: 0,
     };
 
-    expect(mergeStagePawn(build, 0, 1, () => 0.5)).toBe(true);
+    expect(mergeStagePawn(build, 0, 1, strategy, () => 0.5)).toBe(true);
     expect(build.slots[0]).toBeNull();
     expect(build.slots[1]?.tier).toBe(2);
     expect(typeof build.slots[1]?.pawnId).toBe('string');
@@ -127,8 +130,8 @@ describe('StageBuild', () => {
       rerollCount: 0,
     };
 
-    expect(mergeStagePawn(build, 0, 1)).toBe(false);
-    expect(mergeStagePawn(build, 0, 2)).toBe(false);
+    expect(mergeStagePawn(build, 0, 1, strategy)).toBe(false);
+    expect(mergeStagePawn(build, 0, 2, strategy)).toBe(false);
   });
 
   it('exposes slot pawn ids for systems that only need definitions', () => {
@@ -168,7 +171,7 @@ describe('StageBuild', () => {
       rerollCount: 0,
     };
 
-    expect(purchaseStagePawnMerge(build, 5, 0, 0, 5, () => 0.5)).toBe(true);
+    expect(purchaseStagePawnMerge(build, 5, 0, 0, 5, strategy, () => 0.5)).toBe(true);
     expect(build.slots[0]?.tier).toBe(2);
     expect(typeof build.slots[0]?.pawnId).toBe('string');
     expect(build.shopOffers).toEqual([]);

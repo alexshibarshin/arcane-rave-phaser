@@ -3,6 +3,7 @@ import {
   getCombatActivePawnDeckIds,
 } from '@config/CombatContentConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
+import type { MergeStrategy } from './MergeStrategy';
 
 export interface StagePawnInstance {
   pawnId: string;
@@ -66,6 +67,7 @@ export function purchaseStagePawnMerge(
   offerIndex: number,
   slotIndex: number,
   price: number,
+  strategy: MergeStrategy,
   random: () => number = Math.random,
 ): boolean {
   if (coins < price || !isValidSlotIndex(slotIndex)) {
@@ -84,9 +86,14 @@ export function purchaseStagePawnMerge(
     return false;
   }
 
+  const result = strategy.tryResolve(targetPawn.pawnId, targetPawn.tier, random);
+  if (!result) {
+    return false;
+  }
+
   build.slots[slotIndex] = {
-    pawnId: drawRandomPawnId(random),
-    tier: Math.min(targetPawn.tier + 1, StageFlowConfig.MAX_PAWN_TIER),
+    pawnId: result.pawnId,
+    tier: Math.min(result.tier, StageFlowConfig.MAX_PAWN_TIER),
   };
   build.shopOffers.splice(offerIndex, 1);
   build.shopPurchaseCounts[offer] = (build.shopPurchaseCounts[offer] ?? 0) + 1;
@@ -122,6 +129,7 @@ export function mergeStagePawn(
   build: StageBuildState,
   fromSlotIndex: number,
   toSlotIndex: number,
+  strategy: MergeStrategy,
   random: () => number = Math.random,
 ): boolean {
   if (!isValidSlotIndex(fromSlotIndex) || !isValidSlotIndex(toSlotIndex) || fromSlotIndex === toSlotIndex) {
@@ -135,10 +143,15 @@ export function mergeStagePawn(
     return false;
   }
 
+  const result = strategy.tryResolve(toPawn.pawnId, toPawn.tier, random);
+  if (!result) {
+    return false;
+  }
+
   build.slots[fromSlotIndex] = null;
   build.slots[toSlotIndex] = {
-    pawnId: drawRandomPawnId(random),
-    tier: Math.min(toPawn.tier + 1, StageFlowConfig.MAX_PAWN_TIER),
+    pawnId: result.pawnId,
+    tier: Math.min(result.tier, StageFlowConfig.MAX_PAWN_TIER),
   };
   return true;
 }
@@ -205,12 +218,6 @@ function createStagePawnInstance(pawnId: string): StagePawnInstance {
     pawnId,
     tier: 1,
   };
-}
-
-function drawRandomPawnId(random: () => number): string {
-  const activeDeckIds = getCombatActivePawnDeckIds();
-  const index = Math.floor(random() * activeDeckIds.length);
-  return activeDeckIds[index] ?? activeDeckIds[0]!;
 }
 
 function isValidSlotIndex(slotIndex: number): boolean {

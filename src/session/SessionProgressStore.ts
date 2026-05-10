@@ -23,6 +23,7 @@ function isBetter(newResult: StageResult, oldEntry: StageEntry | undefined): boo
 function createStore() {
   const results = new Map<string, StageEntry>();
   let lastSelectedStageId: string | null = null;
+  let mergeRule: 'random' | 'fixed' = 'random';
 
   return {
     getResult(stageId: string): StageResult | null {
@@ -46,6 +47,14 @@ function createStore() {
 
     setLastSelectedStageId(stageId: string): void {
       lastSelectedStageId = stageId;
+    },
+
+    getMergeRule(): 'random' | 'fixed' {
+      return mergeRule;
+    },
+
+    setMergeRule(rule: 'random' | 'fixed'): void {
+      mergeRule = rule;
     },
   };
 }
