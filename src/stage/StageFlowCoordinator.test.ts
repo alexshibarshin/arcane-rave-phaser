@@ -34,7 +34,6 @@ function makeStageConfig(overrides: Partial<StageConfig> = {}): StageConfig {
     displayName: base.displayName,
     totalWaves,
     initialCoins: base.initialCoins,
-    waveDefinitions: base.waveDefinitions,
     slotModifierCountWeights: base.slotModifierCountWeights,
     slotModifierWeightOverrides: base.slotModifierWeightOverrides,
     waves: Array.from({ length: totalWaves }, (_, i) => makeWaveDef(i === totalWaves - 1 ? 'boss' : 'normal')),

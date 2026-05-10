@@ -7,7 +7,6 @@ function makeStageConfig(overrides: Partial<StageConfig> & { id: string; display
   return {
     totalWaves: 10,
     initialCoins: 0,
-    waveDefinitions: [],
     slotModifierCountWeights: { 0: 1, 1: 0, 2: 0, 3: 0 },
     ...overrides,
   };

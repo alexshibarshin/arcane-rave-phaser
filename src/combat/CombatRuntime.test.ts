@@ -406,7 +406,9 @@ function createReadyRuntime(
   pawnId: string,
   slotIndex = 0,
 ): CombatRuntime {
-  const runtime = createCombatRuntime();
+  const runtime = createCombatRuntime(undefined, {
+    subWaves: [{ id: 'test', startTimeMs: 0, spawnIntervalMs: 1000, enemies: { 'enemy-red-basic': 3 } }],
+  });
   setCombatState(runtime, 'running');
   runtime.preview.elapsedMs = runtime.preview.durationMs;
   runtime.record.currentAngle = 1;

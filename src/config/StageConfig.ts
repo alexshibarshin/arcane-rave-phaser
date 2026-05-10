@@ -1,4 +1,3 @@
-import type { CombatWaveDefinition } from '@config/CombatWaveConfig';
 import { redlineRoutineConfig } from '@config/stages/RedlineRoutine';
 import { blueNoiseRushConfig } from '@config/stages/BlueNoiseRush';
 import { greenroomCollapseConfig } from '@config/stages/GreenroomCollapse';
@@ -38,7 +37,6 @@ export interface StageConfig {
   displayName: string;
   totalWaves: number;
   initialCoins: number;
-  waveDefinitions: CombatWaveDefinition[];
   slotModifierCountWeights: SlotModifierCountWeights;
   slotModifierWeightOverrides?: Record<string, number>;
   stageTags?: string[];

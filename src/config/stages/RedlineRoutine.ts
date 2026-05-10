@@ -21,7 +21,6 @@ export const redlineRoutineConfig = {
   initialCoins: 25,
   hpMultipliers: [1.0, 1.1, 1.3, 1.5, 1.75, 2.05, 2.4, 2.8, 3.2, 3.7],
   slotModifierCountWeights: { 0: 1, 1: 0, 2: 0, 3: 0 },
-  waveDefinitions: [],
   waves: [
     // ── Wave 1: Red, Single-Target, Fast (3 sub-waves, 7 enemies) ──
     {

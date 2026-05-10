@@ -12,6 +12,7 @@ import {
 } from '@combat/CombatVfxTextures';
 import { createCombatEnemyViewRegistry, type CombatEnemyViewRegistry } from '@combat/CombatEnemyViewRegistry';
 import { createCombatRenderModel, type CombatRenderModel } from '@combat/CombatRenderModel';
+import type { SubWaveDefinition } from '@config/StageConfig';
 
 export interface CombatSlotView {
   sectorPulse: Phaser.GameObjects.Graphics;
@@ -81,6 +82,7 @@ interface CreateCombatSceneViewGraphOptions {
   waveIndex?: number;
   slotPawns?: Array<{ pawnId: string | null; tier: number | null }>;
   slotPawnIds?: Array<string | null>;
+  subWaves?: SubWaveDefinition[];
 }
 
 export function createCombatSceneViewGraph(
@@ -93,6 +95,7 @@ export function createCombatSceneViewGraph(
     waveIndex: options.waveIndex,
     slotPawns: options.slotPawns,
     slotPawnIds: options.slotPawnIds,
+    subWaves: options.subWaves,
   });
 
   const enemyLayer = options.scene.add.layer();

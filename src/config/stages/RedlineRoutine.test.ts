@@ -11,7 +11,7 @@ describe('redlineRoutineConfig', () => {
     expect(cfg.displayName).toBe('Redline Routine');
     expect(cfg.totalWaves).toBeGreaterThan(0);
     expect(typeof cfg.initialCoins).toBe('number');
-    expect(cfg.waveDefinitions).toBeInstanceOf(Array);
+    expect(cfg.waves).toBeInstanceOf(Array);
     expect(cfg.slotModifierCountWeights).toBeDefined();
     expect(cfg.stageTags).toBeDefined();
     expect(cfg.eliteEnemyId).toBeDefined();

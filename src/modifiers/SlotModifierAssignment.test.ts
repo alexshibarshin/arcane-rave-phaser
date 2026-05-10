@@ -19,7 +19,6 @@ function testStageConfig(overrides: Partial<StageConfig>): StageConfig {
     displayName: base.displayName,
     totalWaves: base.totalWaves,
     initialCoins: base.initialCoins,
-    waveDefinitions: base.waveDefinitions,
     slotModifierCountWeights: base.slotModifierCountWeights,
     slotModifierWeightOverrides: base.slotModifierWeightOverrides,
     ...overrides,

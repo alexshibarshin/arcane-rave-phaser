@@ -66,7 +66,9 @@ describe('CombatBeams', () => {
 });
 
 function createReadyRuntime(): CombatRuntime {
-  const runtime = createCombatRuntime();
+  const runtime = createCombatRuntime(undefined, {
+    subWaves: [{ id: 'test', startTimeMs: 0, spawnIntervalMs: 1000, enemies: { 'enemy-red-basic': 3 } }],
+  });
   setCombatState(runtime, 'running');
   return runtime;
 }

@@ -7,8 +7,8 @@ import {
   type PawnType,
 } from '@config/CombatContentConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
-import { getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { GameConfig } from '@config/GameConfig';
+import type { SubWaveDefinition } from '@config/StageConfig';
 import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 import { createCombatLayoutPlan } from './CombatLayout';
 
@@ -229,6 +229,7 @@ export interface CreateCombatRenderModelOptions {
   waveIndex?: number;
   slotPawns?: Array<{ pawnId: string | null; tier: number | null }>;
   slotPawnIds?: Array<string | null>;
+  subWaves?: SubWaveDefinition[];
 }
 
 export function createCombatRenderModel(
@@ -244,11 +245,7 @@ export function createCombatRenderModel(
   const enemyDefinitionsById = new Map(
     CombatContentConfig.ENEMY_DEFINITIONS.map((enemy) => [enemy.id, enemy]),
   );
-  const activeWave = getCombatWaveDefinition(options.waveIndex ?? 0);
-  const activePreset = CombatContentConfig.SLOT_PRESETS.find(
-    (preset) => preset.id === activeWave?.slotPresetId,
-  );
-  const slotPawns = resolveRenderSlotPawns(options, activePreset?.slots ?? []);
+  const slotPawns = resolveRenderSlotPawns(options, []);
 
   return {
     background: {
@@ -374,7 +371,7 @@ export function createCombatRenderModel(
         },
       },
     },
-    enemies: createCombatEnemyRuntimes(activeWave?.subWaves ?? []).flatMap((enemyRuntime) => {
+    enemies: createCombatEnemyRuntimes(options.subWaves ?? []).flatMap((enemyRuntime) => {
       const definition = enemyDefinitionsById.get(enemyRuntime.definitionId);
 
       return definition ? [createEnemyRenderModel(enemyRuntime, definition)] : [];

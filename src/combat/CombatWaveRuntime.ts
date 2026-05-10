@@ -1,6 +1,4 @@
-import {
-  type CombatSubWaveConfig,
-} from '@config/CombatWaveConfig';
+import type { CombatSubWaveConfig } from '@config/CombatWaveConfig';
 import type { SubWaveDefinition } from '@config/StageConfig';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';

@@ -32,7 +32,6 @@ export const blueNoiseRushConfig = {
     'plus-two-output-notes': 0,
     'plus-one-extra-beam': 0,
   },
-  waveDefinitions: [],
   waves: [
     // ── Wave 1: Blue, Crowd, Swarm (3 sub-waves, 11 enemies) ──
     {

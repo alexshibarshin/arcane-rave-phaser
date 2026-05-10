@@ -13,7 +13,6 @@ function makeStageConfig(overrides: Partial<StageConfig> = {}): StageConfig {
     displayName: 'Test Stage',
     totalWaves: 3,
     initialCoins: 20,
-    waveDefinitions: [],
     slotModifierCountWeights: { 0: 1, 1: 3, 2: 2, 3: 1 },
     waves: [
       {

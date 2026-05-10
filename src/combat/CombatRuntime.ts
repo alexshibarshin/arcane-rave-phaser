@@ -2,7 +2,7 @@ import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatContentConfig, getCombatPawnDefinitionById } from '@config/CombatContentConfig';
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
-import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
+
 import type { SubWaveDefinition } from '@config/StageConfig';
 import type { SlotModifierAssignment } from '@modifiers/SlotModifierAssignment';
 import { createCombatLayoutPlan } from './CombatLayout';
@@ -288,20 +288,15 @@ export function createCombatRuntime(
   options: CreateCombatRuntimeOptions = {},
 ): CombatRuntime {
   const waveIndex = options.waveIndex ?? 0;
-  const totalWaves = options.totalWaves ?? CombatWaveConfig.WAVES.length;
-  const initialWave = getCombatWaveDefinition(waveIndex);
-  const startAngle = initialWave?.startAngleDeg ?? CombatBalanceConfig.RECORD_START_ANGLE_DEG;
+  const totalWaves = options.totalWaves ?? 1;
+  const startAngle = CombatBalanceConfig.RECORD_START_ANGLE_DEG;
   const layout = createCombatLayoutPlan();
 
-  const subWaves = options.subWaves ?? initialWave?.subWaves ?? [];
+  const subWaves = options.subWaves ?? [];
   const enemyStatOverrides = options.enemyStatOverrides;
 
-  // Slot preset only applies when using config-based waves (not stage-managed)
-  const slotPreset = options.subWaves
-    ? null
-    : CombatContentConfig.SLOT_PRESETS.find((preset) => preset.id === initialWave?.slotPresetId)
-      ?? null;
-  const slotPawns = resolveCombatLoadoutSlots(options, slotPreset?.slots ?? []);
+  // Slot pawns always come from stage-provided loadout
+  const slotPawns = resolveCombatLoadoutSlots(options, []);
   const slotModifiers = resolveCombatSlotModifiers(options.slotModifiers);
   const enemies = createCombatEnemyRuntimes(subWaves, enemyStatOverrides);
   const chronoMax = Math.max(0, options.chronoMax ?? CombatTimeControlConfig.CHRONO_MAX);
