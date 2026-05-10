@@ -266,17 +266,19 @@ export class CombatScene extends GameScene {
     });
     this.createSynergySystem();
 
-    on('combat:slot-activated', this.handleSlotActivated);
+    // Set direct callback on CombatStateSystem to bypass EventBus for per-frame events
+    for (const system of this.simulationSystems) {
+      if (system instanceof CombatStateSystem) {
+        system.setFrameEventsHandler(this.routeFrameEvents);
+        break;
+      }
+    }
+
+    // UI events stay on EventBus (cross-scene communication)
     on('combat:pause-requested', this.handlePauseRequested);
     on('combat:restart-requested', this.handleRestartRequested);
     on('combat:resume-requested', this.handleResumeRequested);
     on('combat:time-control-requested', this.handleTimeControlRequested);
-    on('combat:enemy-hit', this.handleEnemyHit);
-    on('combat:generator-notes-emitted', this.handleGeneratorNotesEmitted);
-    on('combat:finisher-consumed-notes', this.handleFinisherConsumedNotes);
-    on('combat:finisher-output-note-emitted', this.handleFinisherOutputNoteEmitted);
-    on('combat:note-packet-color-broke', this.handleNotePacketColorBroke);
-    on('combat:base-damaged', this.handleBaseDamaged);
     on('combat:ended', this.handleCombatEnded);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.teardownCombatScene, this);
@@ -334,18 +336,41 @@ export class CombatScene extends GameScene {
     });
   }
 
+  private routeFrameEvents = (events: CombatRuntimeEvent[]): void => {
+    for (const event of events) {
+      switch (event.event) {
+        case 'combat:slot-activated':
+          this.handleSlotActivated(event.payload);
+          break;
+        case 'combat:enemy-hit':
+          this.handleEnemyHit(event.payload);
+          break;
+        case 'combat:generator-notes-emitted':
+          this.handleGeneratorNotesEmitted(event.payload);
+          break;
+        case 'combat:finisher-consumed-notes':
+          this.handleFinisherConsumedNotes(event.payload);
+          break;
+        case 'combat:finisher-output-note-emitted':
+          this.handleFinisherOutputNoteEmitted(event.payload);
+          break;
+        case 'combat:note-packet-color-broke':
+          this.handleNotePacketColorBroke(event.payload);
+          break;
+        case 'combat:base-damaged':
+          this.handleBaseDamaged(event.payload);
+          break;
+        default:
+          break;
+      }
+    }
+  };
+
   private teardownCombatScene(): void {
-    off('combat:slot-activated', this.handleSlotActivated);
     off('combat:pause-requested', this.handlePauseRequested);
     off('combat:restart-requested', this.handleRestartRequested);
     off('combat:resume-requested', this.handleResumeRequested);
     off('combat:time-control-requested', this.handleTimeControlRequested);
-    off('combat:enemy-hit', this.handleEnemyHit);
-    off('combat:generator-notes-emitted', this.handleGeneratorNotesEmitted);
-    off('combat:finisher-consumed-notes', this.handleFinisherConsumedNotes);
-    off('combat:finisher-output-note-emitted', this.handleFinisherOutputNoteEmitted);
-    off('combat:note-packet-color-broke', this.handleNotePacketColorBroke);
-    off('combat:base-damaged', this.handleBaseDamaged);
     off('combat:ended', this.handleCombatEnded);
     this.synergySystem?.destroy();
     this.synergySystem = undefined;

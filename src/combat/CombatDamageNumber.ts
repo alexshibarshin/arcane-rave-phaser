@@ -9,25 +9,13 @@ interface CombatDamageNumberConfig {
 
 export class CombatDamageNumber {
   readonly text: Phaser.GameObjects.Text;
-  readonly startTime: number;
-  private readonly durationMs: number;
-  private readonly floatDistanceY: number;
-  private readonly baseY: number;
+  startTime = 0;
+  private durationMs = 0;
+  private floatDistanceY = 0;
+  private baseY = 0;
 
-  constructor(
-    scene: Phaser.Scene,
-    x: number,
-    y: number,
-    value: number,
-    startTime: number,
-    config: CombatDamageNumberConfig,
-  ) {
-    this.baseY = y;
-    this.startTime = startTime;
-    this.durationMs = config.floatDurationMs;
-    this.floatDistanceY = config.floatDistanceY;
-
-    this.text = scene.add.text(x, y, String(value), {
+  constructor(scene: Phaser.Scene, config: CombatDamageNumberConfig) {
+    this.text = scene.add.text(0, 0, '', {
       fontSize: `${config.fontSizePx}px`,
       fontFamily: 'monospace',
       color: '#ffffff',
@@ -36,6 +24,21 @@ export class CombatDamageNumber {
     });
     this.text.setOrigin(0.5, 0.5);
     this.text.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.45);
+    this.text.setVisible(false);
+  }
+
+  reset(x: number, y: number, value: number, startTime: number, config: CombatDamageNumberConfig): void {
+    this.baseY = y;
+    this.startTime = startTime;
+    this.durationMs = config.floatDurationMs;
+    this.floatDistanceY = config.floatDistanceY;
+
+    this.text.setPosition(x, y);
+    this.text.setText(String(value));
+    this.text.setColor('#ffffff');
+    this.text.setAlpha(1);
+    this.text.setScale(1);
+    this.text.setVisible(true);
   }
 
   update(elapsedMs: number): void {

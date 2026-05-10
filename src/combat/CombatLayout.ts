@@ -45,7 +45,13 @@ export function getCombatSlotCenterAngle(index: number): number {
   return COMBAT_NEEDLE_ANGLE_DEGREES + SLOT_ARC_DEGREES * index;
 }
 
+let cachedLayoutPlan: CombatLayoutPlan | null = null;
+
 export function createCombatLayoutPlan(): CombatLayoutPlan {
+  if (cachedLayoutPlan) {
+    return cachedLayoutPlan;
+  }
+
   const slots = Array.from({ length: COMBAT_SLOT_COUNT }, (_, index) => {
     const centerAngleDeg = getCombatSlotCenterAngle(index);
 
@@ -57,7 +63,7 @@ export function createCombatLayoutPlan(): CombatLayoutPlan {
     };
   });
 
-  return {
+  cachedLayoutPlan = {
     enemyLane: {
       top: CombatLayoutConfig.ENEMY_ZONE_TOP,
       bottom: CombatLayoutConfig.ENEMY_ZONE_BOTTOM,
@@ -86,4 +92,6 @@ export function createCombatLayoutPlan(): CombatLayoutPlan {
       tipY: CombatLayoutConfig.RECORD_CENTER_Y - CombatLayoutConfig.RECORD_RADIUS,
     },
   };
+
+  return cachedLayoutPlan;
 }

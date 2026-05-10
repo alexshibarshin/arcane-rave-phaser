@@ -1,26 +1,44 @@
 import Phaser from 'phaser';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { CombatVisualConfig } from '@config/CombatVisualConfig';
+import { COMBAT_VFX_GLOW_TEXTURE_KEY, COMBAT_VFX_RING_TEXTURE_KEY } from '@combat/CombatVfxTextures';
 import type { CombatRuntime } from '@combat/CombatRuntime';
 import type { CombatSceneViewGraph } from '../CombatSceneViewGraph';
-import { clearGraphicsMap, reclaimGraphicsViews } from './CombatVfxPoolUtils';
+import {
+  acquirePooledImage,
+  clearPooledImageMaps,
+  reclaimImageViews,
+} from './CombatVfxPoolUtils';
+
+const RING_BASE_SIZE_PX = 128;
 
 export class CombatPendingExplosionRenderer {
-  private readonly views = new Map<string, Phaser.GameObjects.Graphics>();
+  private readonly fillViews = new Map<string, Phaser.GameObjects.Image>();
+  private readonly ringViews = new Map<string, Phaser.GameObjects.Image>();
+  private readonly fillPool: Phaser.GameObjects.Image[] = [];
+  private readonly ringPool: Phaser.GameObjects.Image[] = [];
 
   sync(scene: Phaser.Scene, viewGraph: CombatSceneViewGraph, runtime: CombatRuntime): void {
     const activeIds = new Set(
       runtime.pendingExplosions.map((explosion) => explosion.runtimeId),
     );
-    reclaimGraphicsViews(this.views, activeIds);
+    reclaimImageViews(this.fillViews, this.fillPool, activeIds);
+    reclaimImageViews(this.ringViews, this.ringPool, activeIds);
 
     for (const explosion of runtime.pendingExplosions) {
-      let explosionView = this.views.get(explosion.runtimeId);
+      let fillView = this.fillViews.get(explosion.runtimeId);
+      let ringView = this.ringViews.get(explosion.runtimeId);
 
-      if (!explosionView) {
-        explosionView = scene.add.graphics();
-        viewGraph.effects.transientLayer.add(explosionView);
-        this.views.set(explosion.runtimeId, explosionView);
+      if (!fillView) {
+        fillView = acquirePooledImage(scene, viewGraph, this.fillPool, COMBAT_VFX_GLOW_TEXTURE_KEY);
+        fillView.setBlendMode(Phaser.BlendModes.ADD);
+        this.fillViews.set(explosion.runtimeId, fillView);
+      }
+
+      if (!ringView) {
+        ringView = acquirePooledImage(scene, viewGraph, this.ringPool, COMBAT_VFX_RING_TEXTURE_KEY);
+        ringView.setBlendMode(Phaser.BlendModes.ADD);
+        this.ringViews.set(explosion.runtimeId, ringView);
       }
 
       const progress = Math.min(
@@ -32,29 +50,29 @@ export class CombatPendingExplosionRenderer {
               / Math.max(1, explosion.detonateAtMs - (explosion.detonateAtMs - 1000)),
         ),
       );
-      explosionView.clear();
-      explosionView.setDepth(CombatLayoutConfig.DEPTH.VFX - 0.01);
-      explosionView.fillStyle(
-        CombatVisualConfig.NOTE_COLORS[explosion.color],
-        0.08 + progress * 0.08,
-      );
-      explosionView.fillCircle(explosion.centerX, explosion.centerY, explosion.radius);
-      explosionView.lineStyle(3, CombatVisualConfig.NOTE_COLORS[explosion.color], 0.9);
-      explosionView.strokeCircle(
-        explosion.centerX,
-        explosion.centerY,
-        explosion.radius * (0.72 + progress * 0.28),
-      );
-      explosionView.lineStyle(1, 0xffffff, 0.28);
-      explosionView.strokeCircle(
-        explosion.centerX,
-        explosion.centerY,
-        explosion.radius * (0.3 + progress * 0.25),
-      );
+      const fillAlpha = 0.08 + progress * 0.08;
+      const ringPulse = 0.72 + progress * 0.28;
+      const fillScale = explosion.radius / (RING_BASE_SIZE_PX / 2);
+      const ringScale = (explosion.radius * ringPulse) / (RING_BASE_SIZE_PX / 2);
+
+      fillView.setDepth(CombatLayoutConfig.DEPTH.VFX - 0.01);
+      fillView.setPosition(explosion.centerX, explosion.centerY);
+      fillView.setTint(CombatVisualConfig.NOTE_COLORS[explosion.color]);
+      fillView.setAlpha(fillAlpha);
+      fillView.setScale(fillScale);
+      fillView.setVisible(true);
+
+      ringView.setDepth(CombatLayoutConfig.DEPTH.VFX);
+      ringView.setPosition(explosion.centerX, explosion.centerY);
+      ringView.setTint(CombatVisualConfig.NOTE_COLORS[explosion.color]);
+      ringView.setAlpha(0.9);
+      ringView.setScale(ringScale);
+      ringView.setVisible(true);
     }
   }
 
   destroy(): void {
-    clearGraphicsMap(this.views);
+    clearPooledImageMaps(this.fillViews, this.fillPool);
+    clearPooledImageMaps(this.ringViews, this.ringPool);
   }
 }

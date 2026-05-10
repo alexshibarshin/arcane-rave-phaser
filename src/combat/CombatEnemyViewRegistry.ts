@@ -30,7 +30,8 @@ export interface CombatEnemyView {
   flashOverlay: Phaser.GameObjects.Graphics;
   glowGraphics: Phaser.GameObjects.Graphics | null;
   sortY: number;
-  hpBar: Phaser.GameObjects.Graphics;
+  hpBarBg: Phaser.GameObjects.Graphics;
+  hpBarFill: Phaser.GameObjects.Graphics;
   hpBarX: number;
   hpBarY: number;
   hpBarWidth: number;
@@ -70,6 +71,7 @@ export function createCombatEnemyViewRegistry(
   options: CreateCombatEnemyViewRegistryOptions,
 ): CombatEnemyViewRegistry {
   const enemyViews = new Map<string, CombatEnemyView>();
+  const recycledViews: CombatEnemyView[] = [];
   const renderModelsByRuntimeId = new Map(
     options.renderModel.enemies.map((enemy) => [enemy.runtimeId, enemy]),
   );
@@ -84,10 +86,6 @@ export function createCombatEnemyViewRegistry(
     }
 
     const renderModel = renderModelsByRuntimeId.get(enemy.runtimeId);
-    const container = options.scene.add.container(enemy.x, enemy.y);
-    const body = options.scene.add.graphics();
-    const flashOverlay = options.scene.add.graphics();
-    const hpBar = options.scene.add.graphics();
     const hpBarWidth = renderModel?.hpBar.width ?? CombatVisualConfig.ENEMY.HP_BAR_WIDTH;
     const hpBarHeight = renderModel?.hpBar.height ?? CombatVisualConfig.ENEMY.HP_BAR_HEIGHT;
     const hpBarOffsetY = renderModel?.hpBar.offsetY ?? CombatVisualConfig.ENEMY.HP_BAR_OFFSET_Y;
@@ -106,16 +104,107 @@ export function createCombatEnemyViewRegistry(
       ? (renderModel?.body.color ?? CombatVisualConfig.NOTE_COLORS[enemy.color])
       : (CombatVisualConfig.ENEMY.FILL_COLORS[enemy.color] ?? CombatVisualConfig.NOTE_COLORS[enemy.color]);
 
+    // Determine which body render function to use
+    const bodyArchetype = isSpecial
+      ? mapSpecialMotifToBodyArchetype(enemy.silhouetteMotif ?? '')
+      : enemy.archetype;
+
+    // Try to reuse a recycled view
+    const recycled = recycledViews.pop();
+
+    if (recycled) {
+      const view = recycled;
+
+      // Resolve body children: indices [0] body, [1] flashOverlay, [2] hpBarBg, [3] hpBarFill
+      // (glowGraphics may be at index 0 if present, pushing body to [1] etc.)
+      const body = view.container.getAt(0) as Phaser.GameObjects.Graphics;
+      const flashOverlay = view.container.getAt(1) as Phaser.GameObjects.Graphics;
+
+      body.clear();
+      renderEnemyBody(body, bodyArchetype, bodyWidth, bodyHeight, fillColor);
+
+      flashOverlay.clear();
+      renderEnemyBody(flashOverlay, bodyArchetype, bodyWidth, bodyHeight, 0xffffff);
+      flashOverlay.setAlpha(0);
+
+      // Handle glow: stop old tween, remove old glow if exists, add new if needed
+      if (view.idleGlowTween) {
+        view.idleGlowTween.stop();
+        view.idleGlowTween = null;
+      }
+
+      if (view.glowGraphics) {
+        view.glowGraphics.clear();
+        view.glowGraphics.setVisible(false);
+      }
+
+      let glowGraphics: Phaser.GameObjects.Graphics | null = view.glowGraphics;
+      let idleGlowTween: Phaser.Tweens.Tween | null = null;
+
+      if (isSpecial && specialArchetype) {
+        const shapeRadius = bodyWidth / 2;
+        const glowColor = getGlowColor(enemy.color, specialArchetype);
+        const baseGlowAlpha = getGlowAlpha(specialArchetype);
+
+        if (!glowGraphics) {
+          glowGraphics = options.scene.add.graphics();
+          view.container.addAt(glowGraphics, 0);
+          view.glowGraphics = glowGraphics;
+        }
+
+        glowGraphics.setVisible(true);
+        drawSpecialEnemyGlow(glowGraphics, 0, 0, shapeRadius, glowColor, baseGlowAlpha);
+
+        idleGlowTween = options.scene.tweens.add({
+          targets: glowGraphics,
+          alpha: { from: baseGlowAlpha, to: baseGlowAlpha * 0.7 },
+          duration: 750,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+
+      // Reset HP bar
+      view.hpBarBg.clear();
+      view.hpBarBg.fillStyle(0x201927, 1);
+      view.hpBarBg.fillRoundedRect(hpBarX, hpBarY, hpBarWidth, hpBarHeight, 6);
+
+      view.hpBarFill.clear();
+      view.hpBarFill.fillStyle(0xff0000, 1);
+      view.hpBarFill.fillRoundedRect(
+        hpBarX + 2,
+        hpBarY + 2,
+        hpBarWidth - 4,
+        hpBarHeight - 4,
+        4,
+      );
+
+      view.container.setPosition(enemy.x, enemy.y);
+      view.container.setVisible(false);
+      view.container.setScale(1);
+      view.container.setAlpha(1);
+      view.sortY = enemy.y;
+      view.maxHp = enemy.maxHp;
+      view.idleGlowTween = idleGlowTween;
+      view.animation = createInitialAnimationState();
+
+      enemyViews.set(enemy.runtimeId, view);
+      return view;
+    }
+
+    // No recycled view — create new
+    const container = options.scene.add.container(enemy.x, enemy.y);
+    const body = options.scene.add.graphics();
+    const flashOverlay = options.scene.add.graphics();
+    const hpBarBg = options.scene.add.graphics();
+    const hpBarFill = options.scene.add.graphics();
+
     container.name = renderModel?.container.name ?? enemy.renderContainerName;
     container.setDepth(getEnemyContainerDepth(enemy.y));
 
     let glowGraphics: Phaser.GameObjects.Graphics | null = null;
     let idleGlowTween: Phaser.Tweens.Tween | null = null;
-
-    // Determine which body render function to use
-    const bodyArchetype = isSpecial
-      ? mapSpecialMotifToBodyArchetype(enemy.silhouetteMotif ?? '')
-      : enemy.archetype;
 
     renderEnemyBody(body, bodyArchetype, bodyWidth, bodyHeight, fillColor);
     renderEnemyBody(flashOverlay, bodyArchetype, bodyWidth, bodyHeight, 0xffffff);
@@ -125,11 +214,9 @@ export function createCombatEnemyViewRegistry(
       const glowColor = getGlowColor(enemy.color, specialArchetype);
       const baseGlowAlpha = getGlowAlpha(specialArchetype);
 
-      // Glow pass (behind body)
       glowGraphics = options.scene.add.graphics();
       drawSpecialEnemyGlow(glowGraphics, 0, 0, shapeRadius, glowColor, baseGlowAlpha);
 
-      // Idle glow pulse tween
       idleGlowTween = options.scene.tweens.add({
         targets: glowGraphics,
         alpha: { from: baseGlowAlpha, to: baseGlowAlpha * 0.7 },
@@ -142,10 +229,11 @@ export function createCombatEnemyViewRegistry(
 
     flashOverlay.setAlpha(0);
 
-    hpBar.fillStyle(0x201927, 1);
-    hpBar.fillRoundedRect(hpBarX, hpBarY, hpBarWidth, hpBarHeight, 6);
-    hpBar.fillStyle(0xff0000, 1);
-    hpBar.fillRoundedRect(
+    hpBarBg.fillStyle(0x201927, 1);
+    hpBarBg.fillRoundedRect(hpBarX, hpBarY, hpBarWidth, hpBarHeight, 6);
+
+    hpBarFill.fillStyle(0xff0000, 1);
+    hpBarFill.fillRoundedRect(
       hpBarX + 2,
       hpBarY + 2,
       hpBarWidth - 4,
@@ -153,10 +241,9 @@ export function createCombatEnemyViewRegistry(
       4,
     );
 
-    const containerChildren: Phaser.GameObjects.GameObject[] = [body, flashOverlay, hpBar];
+    const containerChildren: Phaser.GameObjects.GameObject[] = [body, flashOverlay, hpBarBg, hpBarFill];
 
     if (glowGraphics) {
-      // Glow goes behind body (at index 0)
       containerChildren.unshift(glowGraphics);
     }
 
@@ -169,7 +256,8 @@ export function createCombatEnemyViewRegistry(
       flashOverlay,
       glowGraphics,
       sortY: enemy.y,
-      hpBar,
+      hpBarBg,
+      hpBarFill,
       hpBarX,
       hpBarY,
       hpBarWidth,
@@ -269,17 +357,9 @@ export function createCombatEnemyViewRegistry(
       const innerHeight = view.hpBarHeight - innerPadding * 2;
       const metrics = getCombatBaseHpBarFillMetrics(currentHp, maxHp, innerWidth);
 
-      view.hpBar.clear();
-      view.hpBar.fillStyle(0x201927, 1);
-      view.hpBar.fillRoundedRect(
-        view.hpBarX,
-        view.hpBarY,
-        view.hpBarWidth,
-        view.hpBarHeight,
-        6,
-      );
-      view.hpBar.fillStyle(0xff0000, 1);
-      view.hpBar.fillRoundedRect(
+      view.hpBarFill.clear();
+      view.hpBarFill.fillStyle(0xff0000, 1);
+      view.hpBarFill.fillRoundedRect(
         view.hpBarX + innerPadding,
         view.hpBarY + innerPadding,
         metrics.width,
@@ -314,17 +394,24 @@ export function createCombatEnemyViewRegistry(
 
       if (view.idleGlowTween) {
         view.idleGlowTween.stop();
+        view.idleGlowTween = null;
       }
 
-      view.container.destroy();
+      view.container.setVisible(false);
       enemyViews.delete(enemyId);
+      recycledViews.push(view);
     },
     clear() {
       for (const view of enemyViews.values()) {
         view.container.destroy();
       }
 
+      for (const view of recycledViews) {
+        view.container.destroy();
+      }
+
       enemyViews.clear();
+      recycledViews.length = 0;
     },
   };
 }
