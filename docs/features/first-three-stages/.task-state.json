@@ -186,28 +186,28 @@
     "gitCommit": null
   },
   "16-task-wave-preview-ui": {
-    "status": "in_progress",
+    "status": "completed",
     "iteration": "1",
     "blockedBy": [
       "07-task-stage-runtime-plumbing",
       "15-task-lobby-detail-and-result"
     ],
     "startedAt": "\"2026-05-10T09:40:06Z\"",
-    "completedAt": null,
+    "completedAt": "\"2026-05-10T10:03:44Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Replaced text-based wave preview with PillTag tags row + optional SpecialEnemyCard for elite/boss waves. Extracted rendering into standalone `StagePreviewCard.ts` module with `populatePreviewCard()` function. Cleaned up old `waveLabel`/`previewBodyLabel`/`previewArchetypeLabel`/`archetypeTooltipContainer` fields from StageScene. Updated preview card height from 158→280px. 7 behavior-based tests pass with no config-value assertions. `tsc --noEmit` clean.\"",
+    "gitCommit": "\"891200c\""
   },
   "17-task-enemy-visual-differentiation": {
     "status": "pending",
-    "iteration": 0,
+    "iteration": "2",
     "blockedBy": [
       "03-task-special-enemies",
       "09-task-combat-integration"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-10T10:03:44Z\"",
     "completedAt": null,
-    "reviewFeedback": null,
+    "reviewFeedback": "\"No changes made for task 17. Only `.task-state.json` was modified (marking task 16 complete, task 17 in_progress). Zero source files changed — no `EnemySilhouetteRenderer`, no updates to `CombatEnemyPresenter`, no silhouette motif drawing functions, no glow rendering, no idle pulse tweens, no ordinary-enemy shape differentiation, no tests. All 11 acceptance criteria are unmet.\"",
     "summary": null,
     "gitCommit": null
   },

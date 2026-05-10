@@ -65,6 +65,8 @@ export interface CombatEnemyRuntime {
   spawned: boolean;
   nextAttackAtMs: number;
   renderContainerName: string;
+  silhouetteMotif?: string;
+  isSpecial?: boolean;
 }
 
 export interface CombatSourceSnapshot {

@@ -46,6 +46,8 @@ export function createCombatEnemyRuntimes(
         spawned: false,
         nextAttackAtMs: 0,
         renderContainerName: `enemy-container-${index + 1}`,
+        silhouetteMotif: enemy.silhouetteMotif,
+        isSpecial: enemy.isSpecial,
       });
     }
   }

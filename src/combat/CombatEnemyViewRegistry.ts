@@ -12,6 +12,11 @@ import {
 import { computeDeathKnockbackOffset, type CombatPoint } from '@scenes/combat/CombatDeathKnockback';
 import type { CombatRenderModel } from './CombatRenderModel';
 import {
+  drawSpecialEnemyGlow,
+  getGlowColor,
+  getGlowAlpha,
+} from './presentation/EnemySilhouetteRenderer';
+import {
   renderBasicEnemy,
   renderTankEnemy,
   renderFastEnemy,
@@ -23,6 +28,7 @@ import {
 export interface CombatEnemyView {
   container: Phaser.GameObjects.Container;
   flashOverlay: Phaser.GameObjects.Graphics;
+  glowGraphics: Phaser.GameObjects.Graphics | null;
   sortY: number;
   hpBar: Phaser.GameObjects.Graphics;
   hpBarX: number;
@@ -31,6 +37,7 @@ export interface CombatEnemyView {
   hpBarHeight: number;
   maxHp: number;
   animation: CombatAnimationState;
+  idleGlowTween: Phaser.Tweens.Tween | null;
 }
 
 export interface SyncCombatEnemyViewOptions {
@@ -88,13 +95,51 @@ export function createCombatEnemyViewRegistry(
     const hpBarY = hpBarOffsetY - hpBarHeight / 2;
     const bodyWidth = renderModel?.body.width ?? CombatVisualConfig.ENEMY.BODY_WIDTH;
     const bodyHeight = renderModel?.body.height ?? CombatVisualConfig.ENEMY.BODY_HEIGHT;
-    const bodyColor = renderModel?.body.color ?? CombatVisualConfig.NOTE_COLORS[enemy.color];
+
+    const isSpecial = enemy.isSpecial === true;
+    const specialArchetype = (enemy.archetype === 'elite' || enemy.archetype === 'boss')
+      ? enemy.archetype as 'elite' | 'boss'
+      : null;
+
+    // Determine fill color: ordinary enemies use palette fill, special use note color
+    const fillColor = isSpecial
+      ? (renderModel?.body.color ?? CombatVisualConfig.NOTE_COLORS[enemy.color])
+      : (CombatVisualConfig.ENEMY.FILL_COLORS[enemy.color] ?? CombatVisualConfig.NOTE_COLORS[enemy.color]);
 
     container.name = renderModel?.container.name ?? enemy.renderContainerName;
     container.setDepth(getEnemyContainerDepth(enemy.y));
 
-    renderEnemyBody(body, enemy.archetype, bodyWidth, bodyHeight, bodyColor);
-    renderEnemyBody(flashOverlay, enemy.archetype, bodyWidth, bodyHeight, 0xffffff);
+    let glowGraphics: Phaser.GameObjects.Graphics | null = null;
+    let idleGlowTween: Phaser.Tweens.Tween | null = null;
+
+    // Determine which body render function to use
+    const bodyArchetype = isSpecial
+      ? mapSpecialMotifToBodyArchetype(enemy.silhouetteMotif ?? '')
+      : enemy.archetype;
+
+    renderEnemyBody(body, bodyArchetype, bodyWidth, bodyHeight, fillColor);
+    renderEnemyBody(flashOverlay, bodyArchetype, bodyWidth, bodyHeight, 0xffffff);
+
+    if (isSpecial && specialArchetype) {
+      const shapeRadius = bodyWidth / 2;
+      const glowColor = getGlowColor(enemy.color, specialArchetype);
+      const baseGlowAlpha = getGlowAlpha(specialArchetype);
+
+      // Glow pass (behind body)
+      glowGraphics = options.scene.add.graphics();
+      drawSpecialEnemyGlow(glowGraphics, 0, 0, shapeRadius, glowColor, baseGlowAlpha);
+
+      // Idle glow pulse tween
+      idleGlowTween = options.scene.tweens.add({
+        targets: glowGraphics,
+        alpha: { from: baseGlowAlpha, to: baseGlowAlpha * 0.7 },
+        duration: 750,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+
     flashOverlay.setAlpha(0);
 
     hpBar.fillStyle(0x201927, 1);
@@ -108,13 +153,21 @@ export function createCombatEnemyViewRegistry(
       4,
     );
 
-    container.add([body, flashOverlay, hpBar]);
+    const containerChildren: Phaser.GameObjects.GameObject[] = [body, flashOverlay, hpBar];
+
+    if (glowGraphics) {
+      // Glow goes behind body (at index 0)
+      containerChildren.unshift(glowGraphics);
+    }
+
+    container.add(containerChildren);
     container.setVisible(false);
     options.enemyLayer.add(container);
 
     const view: CombatEnemyView = {
       container,
       flashOverlay,
+      glowGraphics,
       sortY: enemy.y,
       hpBar,
       hpBarX,
@@ -123,6 +176,7 @@ export function createCombatEnemyViewRegistry(
       hpBarHeight,
       maxHp: enemy.maxHp,
       animation: createInitialAnimationState(),
+      idleGlowTween,
     };
 
     enemyViews.set(enemy.runtimeId, view);
@@ -192,7 +246,7 @@ export function createCombatEnemyViewRegistry(
       const baseX = runtimeState === 'dead' ? anim.deathStartX : enemy.x;
       const baseY = runtimeState === 'dead' ? anim.deathStartY : enemy.y;
       view.container.setPosition(baseX + transform.xShift, baseY + transform.yShift);
-      view.container.setScale(transform.scale);
+      view.container.setScale(transform.scale * scaleMultiplier);
       view.container.setAlpha(transform.alpha);
 
       if (transform.tint !== null) {
@@ -258,6 +312,10 @@ export function createCombatEnemyViewRegistry(
         return;
       }
 
+      if (view.idleGlowTween) {
+        view.idleGlowTween.stop();
+      }
+
       view.container.destroy();
       enemyViews.delete(enemyId);
     },
@@ -315,10 +373,32 @@ function renderEnemyBody(
       renderSwarmEnemy(graphics, bodyWidth, bodyHeight, color);
       break;
     case 'boss':
+    case 'elite':
       renderBossEnemy(graphics, bodyWidth, bodyHeight, color);
       break;
     default:
       renderBasicEnemy(graphics, bodyWidth, bodyHeight, color);
       break;
+  }
+}
+
+/**
+ * Map a special enemy's silhouette motif to the appropriate rich body
+ * render archetype from EnemyRenderer.
+ */
+function mapSpecialMotifToBodyArchetype(motif: string): string {
+  switch (motif) {
+    case 'chevron-armor':
+      return 'tank';
+    case 'satellite-motes':
+      return 'swarm';
+    case 'motion-trails':
+      return 'fast';
+    case 'crown-ring':
+    case 'ring-wave':
+    case 'geometric-petals':
+      return 'boss';
+    default:
+      return 'boss';
   }
 }
