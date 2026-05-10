@@ -96,6 +96,7 @@ function createTestBeamPawn(): CombatPawnDefinition {
     type: 'finisher',
     color: 'red',
     baseDamage: 1,
+    shopPrice: 1,
     outputNoteColor: 'red',
     noteRule: {
       family: 'finisher',

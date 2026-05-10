@@ -39,8 +39,9 @@ export function purchaseStagePawn(
   coins: number,
   offerIndex: number,
   slotIndex: number,
+  price: number,
 ): boolean {
-  if (coins < StageFlowConfig.SHOP_PURCHASE_COST) {
+  if (coins < price) {
     return false;
   }
 
@@ -64,9 +65,10 @@ export function purchaseStagePawnMerge(
   coins: number,
   offerIndex: number,
   slotIndex: number,
+  price: number,
   random: () => number = Math.random,
 ): boolean {
-  if (coins < StageFlowConfig.SHOP_PURCHASE_COST || !isValidSlotIndex(slotIndex)) {
+  if (coins < price || !isValidSlotIndex(slotIndex)) {
     return false;
   }
 

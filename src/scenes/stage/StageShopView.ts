@@ -53,7 +53,7 @@ export class StageShopView {
     const subtitle = scene.add.text(
       x + 132,
       y + 40,
-      `Buy ${StageFlowConfig.SHOP_PURCHASE_COST}c  •  Move ${StageFlowConfig.REPOSITION_COST}c`,
+      `Drag to buy  •  Move ${StageFlowConfig.REPOSITION_COST}c`,
       {
         color: '#7fbddb',
         fontFamily: 'Helvetica, Arial, sans-serif',
@@ -169,7 +169,8 @@ export class StageShopView {
     const left = -width / 2;
     const top = -height / 2;
     const accent = getPawnAccentColor(pawn.color);
-    const affordable = coins >= StageFlowConfig.SHOP_PURCHASE_COST;
+    const price = pawn.shopPrice;
+    const affordable = coins >= price;
     const borderAlpha = affordable ? 0.88 : 0.48;
     const radius = StagePresentationConfig.SHOP_BORDER_RADIUS;
 
@@ -201,7 +202,7 @@ export class StageShopView {
     ruleLabel.x = 0;
     ruleLabel.y = top + 102;
 
-    const priceChip = this.scene.add.text(0, top + 137, `${StageFlowConfig.SHOP_PURCHASE_COST}c`, {
+    const priceChip = this.scene.add.text(0, top + 137, `${price}c`, {
       color: '#071019',
       backgroundColor: '#ffe08e',
       fontFamily: 'Helvetica, Arial, sans-serif',

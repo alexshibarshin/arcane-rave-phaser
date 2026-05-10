@@ -181,6 +181,7 @@ interface CombatPawnDefinitionBase {
   type: PawnType;
   color: NoteColor;
   baseDamage: number;
+  shopPrice: number;
   noteRule: CombatPawnNoteRuleDefinition;
   ability: CombatPawnAbilityDefinition;
   tooltip: CombatPawnTooltipDefinition;
@@ -247,6 +248,7 @@ function createGeneratorPawnDefinition(input: {
   displayName: string;
   color: NoteColor;
   damage: number;
+  shopPrice: number;
   artFrame: number;
   primaryArchetype: CombatPawnPrimaryArchetype;
   ability: CombatPawnAbilityDefinition;
@@ -260,6 +262,7 @@ function createGeneratorPawnDefinition(input: {
     type: 'generator',
     color: input.color,
     baseDamage: input.damage,
+    shopPrice: input.shopPrice,
     noteRule: {
       family: 'generator',
       emittedNoteColor: input.color,
@@ -290,6 +293,7 @@ function createFinisherPawnDefinition(input: {
   color: NoteColor;
   outputNoteColor: NoteColor;
   damage: number;
+  shopPrice: number;
   artFrame: number;
   primaryArchetype: CombatPawnPrimaryArchetype;
   ability: CombatPawnAbilityDefinition;
@@ -304,6 +308,7 @@ function createFinisherPawnDefinition(input: {
     color: input.color,
     outputNoteColor: input.outputNoteColor,
     baseDamage: input.damage,
+    shopPrice: input.shopPrice,
     noteRule: {
       family: 'finisher',
       consumedNoteColor: input.color,
@@ -367,6 +372,7 @@ const combatContentConfig = {
       displayName: 'Ruby Needle',
       color: 'red',
       damage: 50,
+      shopPrice: 5,
       artFrame: 0,
       primaryArchetype: 'projectile',
       tooltip: 'Single precise shot for 50 damage.',
@@ -385,6 +391,7 @@ const combatContentConfig = {
       displayName: 'Bass Bomb',
       color: 'red',
       damage: 38,
+      shopPrice: 5,
       artFrame: 1,
       primaryArchetype: 'explosion',
       tooltip: 'Drops a 120-radius bomb for 38 damage.',
@@ -403,6 +410,7 @@ const combatContentConfig = {
       color: 'red',
       outputNoteColor: 'blue',
       damage: 10,
+      shopPrice: 6,
       artFrame: 2,
       primaryArchetype: 'beam',
       tooltip: 'Locks a beam for 3 sec., ticking 10 damage every 0.5 sec. If the target dies, it jumps to the next frontmost enemy.',
@@ -422,6 +430,7 @@ const combatContentConfig = {
       color: 'red',
       outputNoteColor: 'green',
       damage: 40,
+      shopPrice: 6,
       artFrame: 3,
       primaryArchetype: 'explosion',
       tooltip: 'After 0.5 sec., calls down a meteor: 40 damage in a 150 radius. Leaves a burning zone for 2 sec.',
@@ -447,6 +456,7 @@ const combatContentConfig = {
       displayName: 'Moss Patch',
       color: 'green',
       damage: 9,
+      shopPrice: 4,
       artFrame: 4,
       primaryArchetype: 'zone',
       tooltip: 'Creates a 130-radius zone for 2.5 sec., dealing 9 damage every 0.5 sec.',
@@ -466,6 +476,7 @@ const combatContentConfig = {
       displayName: 'Lifebloom Scatter',
       color: 'green',
       damage: 14,
+      shopPrice: 4,
       artFrame: 5,
       primaryArchetype: 'projectile',
       tooltip: 'Burst of 3 projectiles for 14 damage each. Heals the base for 50% of damage dealt.',
@@ -491,6 +502,7 @@ const combatContentConfig = {
       color: 'green',
       outputNoteColor: 'red',
       damage: 14,
+      shopPrice: 6,
       artFrame: 6,
       primaryArchetype: 'projectile',
       tooltip: 'Fan of 5 thorn shots for 14 damage each.',
@@ -512,6 +524,7 @@ const combatContentConfig = {
       color: 'green',
       outputNoteColor: 'blue',
       damage: 10,
+      shopPrice: 6,
       artFrame: 7,
       primaryArchetype: 'zone',
       tooltip: 'Creates a 140-radius pulse field for 2 sec. and buffs the next slot by 35% damage.',
@@ -535,6 +548,7 @@ const combatContentConfig = {
       displayName: 'Frost Sweep',
       color: 'blue',
       damage: 15,
+      shopPrice: 4,
       artFrame: 8,
       primaryArchetype: 'beam',
       tooltip: 'Deploys a static emitter that sweeps a freezing beam upward for 2 sec. Enemies take 15 damage and 45% slow for 1.5 sec.',
@@ -560,6 +574,7 @@ const combatContentConfig = {
       displayName: 'Prism Volley',
       color: 'blue',
       damage: 14,
+      shopPrice: 5,
       artFrame: 9,
       primaryArchetype: 'projectile',
       tooltip: 'Fires 3 shots for 14 damage. On hit, each shot splits into 2 child bolts.',
@@ -587,6 +602,7 @@ const combatContentConfig = {
       color: 'blue',
       outputNoteColor: 'red',
       damage: 42,
+      shopPrice: 5,
       artFrame: 10,
       primaryArchetype: 'explosion',
       tooltip: 'Detonates a 130-radius explosion for 42 damage. Deals 50% bonus to targets above 75% HP.',
@@ -610,6 +626,7 @@ const combatContentConfig = {
       color: 'blue',
       outputNoteColor: 'green',
       damage: 15,
+      shopPrice: 5,
       artFrame: 11,
       primaryArchetype: 'projectile',
       tooltip: 'Burst of 3 projectiles for 15 damage each. Each shot can bounce once to a new enemy.',
@@ -755,6 +772,10 @@ export function validateCombatContentConfig(config: CombatContentConfigShape): v
 
     if (activeDeckIds.has(pawn.id) !== pawn.isActiveInFirstPlayableDeck) {
       throw new Error(`Combat pawn "${pawn.id}" deck availability is out of sync with active deck ids.`);
+    }
+
+    if (!Number.isFinite(pawn.shopPrice) || pawn.shopPrice < 1 || !Number.isInteger(pawn.shopPrice)) {
+      throw new Error(`Combat pawn "${pawn.id}" must define a positive integer shop price.`);
     }
   }
 

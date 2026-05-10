@@ -108,13 +108,15 @@ export class StageDragController {
         const runtime = this.getRuntime();
 
         if (payload.kind === 'shop-offer' && targetSlotIndex !== null) {
+          const def = findPawnDefinition(payload.pawnId);
+          const price = def?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
           applied = purchaseStagePawnIntoSlot(runtime, payload.offerIndex, targetSlotIndex);
           if (!applied) {
             applied = purchaseStagePawnIntoMergeSlot(runtime, payload.offerIndex, targetSlotIndex);
           }
           errorMsg = applied
             ? null
-            : `Need ${StageFlowConfig.SHOP_PURCHASE_COST} coins and either an empty slot or a matching same-tier pawn.`;
+            : `Need ${price} coins and either an empty slot or a matching same-tier pawn.`;
         }
 
         if (payload.kind === 'slot-pawn' && targetSlotIndex !== null) {

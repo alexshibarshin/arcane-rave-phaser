@@ -1,7 +1,7 @@
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import type { StageConfig, SubWaveDefinition } from '@config/StageConfig';
-import { getEnemyDefinitionById } from '@config/CombatContentConfig';
+import { getCombatPawnDefinitionById, getEnemyDefinitionById } from '@config/CombatContentConfig';
 import { SLOT_MODIFIER_CONFIG } from '@config/SlotModifierConfig';
 import {
   drawStageShopOffers,
@@ -122,13 +122,19 @@ export function purchaseStagePawnIntoSlot(
   offerIndex: number,
   slotIndex: number,
 ): boolean {
-  const purchased = purchaseStagePawn(runtime.build, runtime.coins, offerIndex, slotIndex);
+  const offerPawnId = runtime.build.shopOffers[offerIndex];
+  if (!offerPawnId) {
+    return false;
+  }
+
+  const price = getCombatPawnDefinitionById(offerPawnId)?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
+  const purchased = purchaseStagePawn(runtime.build, runtime.coins, offerIndex, slotIndex, price);
 
   if (!purchased) {
     return false;
   }
 
-  runtime.coins -= StageFlowConfig.SHOP_PURCHASE_COST;
+  runtime.coins -= price;
   return true;
 }
 
@@ -153,13 +159,19 @@ export function purchaseStagePawnIntoMergeSlot(
   slotIndex: number,
   random: () => number = Math.random,
 ): boolean {
-  const merged = purchaseStagePawnMerge(runtime.build, runtime.coins, offerIndex, slotIndex, random);
+  const offerPawnId = runtime.build.shopOffers[offerIndex];
+  if (!offerPawnId) {
+    return false;
+  }
+
+  const price = getCombatPawnDefinitionById(offerPawnId)?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
+  const merged = purchaseStagePawnMerge(runtime.build, runtime.coins, offerIndex, slotIndex, price, random);
 
   if (!merged) {
     return false;
   }
 
-  runtime.coins -= StageFlowConfig.SHOP_PURCHASE_COST;
+  runtime.coins -= price;
   grantStageMergeReward(runtime);
   return true;
 }

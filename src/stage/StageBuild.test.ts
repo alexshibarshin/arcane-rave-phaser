@@ -28,7 +28,7 @@ describe('StageBuild', () => {
 
   it('buys a pawn from shop into an empty slot and spends coins', () => {
     const build = createStageBuildState(() => 0);
-    const purchased = purchaseStagePawn(build, 6, 0, 0);
+    const purchased = purchaseStagePawn(build, 6, 0, 0, 5);
 
     expect(purchased).toBe(true);
     expect(typeof build.slots[0]?.pawnId).toBe('string');
@@ -40,9 +40,9 @@ describe('StageBuild', () => {
   it('refuses purchases into occupied slots or without enough coins', () => {
     const build = createStageBuildState(() => 0);
 
-    expect(purchaseStagePawn(build, 2, 0, 0)).toBe(false);
-    expect(purchaseStagePawn(build, 6, 0, 0)).toBe(true);
-    expect(purchaseStagePawn(build, 3, 0, 0)).toBe(false);
+    expect(purchaseStagePawn(build, 2, 0, 0, 5)).toBe(false);
+    expect(purchaseStagePawn(build, 6, 0, 0, 5)).toBe(true);
+    expect(purchaseStagePawn(build, 3, 0, 0, 5)).toBe(false);
     expect(build.slots[0]).not.toBeNull();
     expect(build.slots[0]?.tier).toBe(1);
   });
@@ -168,7 +168,7 @@ describe('StageBuild', () => {
       rerollCount: 0,
     };
 
-    expect(purchaseStagePawnMerge(build, 5, 0, 0, () => 0.5)).toBe(true);
+    expect(purchaseStagePawnMerge(build, 5, 0, 0, 5, () => 0.5)).toBe(true);
     expect(build.slots[0]?.tier).toBe(2);
     expect(typeof build.slots[0]?.pawnId).toBe('string');
     expect(build.shopOffers).toEqual([]);
