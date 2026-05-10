@@ -5,7 +5,7 @@ export interface CombatHudEventMap {
   'combat:state-changed': { state: CombatState };
   'combat:pause-opened': void;
   'combat:pause-closed': void;
-  'combat:ended': { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number };
+  'combat:ended': { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number; remainingBaseHp: number };
   'combat:hud-wave-updated': { current: number; total: number };
   'combat:hud-enemies-updated': { remaining: number };
   'combat:hud-base-hp-updated': { current: number; max: number };
@@ -121,6 +121,7 @@ export function createCombatStateTransitionEvents(
         outcome: nextState,
         chronoCurrent: runtime?.time.chrono.current ?? 0,
         chronoMax: runtime?.time.chrono.max ?? 0,
+        remainingBaseHp: runtime?.baseHp ?? 0,
       },
     });
   }

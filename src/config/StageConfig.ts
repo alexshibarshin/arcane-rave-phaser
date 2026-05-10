@@ -1,5 +1,6 @@
-import { CombatWaveConfig, type CombatWaveDefinition } from '@config/CombatWaveConfig';
-import { StageFlowConfig } from '@config/StageFlowConfig';
+import { redlineRoutineConfig } from '@config/stages/RedlineRoutine';
+import { blueNoiseRushConfig } from '@config/stages/BlueNoiseRush';
+import { greenroomCollapseConfig } from '@config/stages/GreenroomCollapse';
 
 export interface SubWaveDefinition {
   id: string;
@@ -36,7 +37,6 @@ export interface StageConfig {
   displayName: string;
   totalWaves: number;
   initialCoins: number;
-  waveDefinitions: CombatWaveDefinition[];
   slotModifierCountWeights: SlotModifierCountWeights;
   slotModifierWeightOverrides?: Record<string, number>;
   stageTags?: string[];
@@ -47,14 +47,9 @@ export interface StageConfig {
 }
 
 const stageConfigs: StageConfig[] = [
-  {
-    id: 'stage-1',
-    displayName: 'First Contact',
-    totalWaves: CombatWaveConfig.WAVES.length,
-    initialCoins: StageFlowConfig.INITIAL_COINS,
-    waveDefinitions: [...CombatWaveConfig.WAVES],
-    slotModifierCountWeights: { 0: 1, 1: 3, 2: 2, 3: 1 },
-  },
+  redlineRoutineConfig,
+  blueNoiseRushConfig,
+  greenroomCollapseConfig,
 ];
 
 export const STAGE_CONFIGS: readonly StageConfig[] = stageConfigs;

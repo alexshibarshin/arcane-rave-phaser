@@ -358,13 +358,57 @@ describe('CombatRuntime', () => {
     expect(runtime.zones).toHaveLength(1);
     expect(runtime.zones[0]?.radius).toBeGreaterThan(130);
   });
+
+  it('uses subWaves and enemyStatOverrides from options to create enemies with scaled HP', () => {
+    const subWaves = [
+      {
+        id: 'test-sub-1',
+        startTimeMs: 0,
+        spawnIntervalMs: 1000,
+        enemies: { 'enemy-red-basic': 2, 'enemy-green-tank': 1 },
+      },
+    ];
+
+    const enemyStatOverrides = {
+      'enemy-red-basic': { maxHp: 200 },
+      'enemy-green-tank': { maxHp: 500 },
+    };
+
+    const runtime = createCombatRuntime(undefined, {
+      subWaves,
+      enemyStatOverrides,
+    });
+
+    const redEnemies = runtime.enemies.filter((e) => e.definitionId === 'enemy-red-basic');
+    const greenEnemies = runtime.enemies.filter((e) => e.definitionId === 'enemy-green-tank');
+
+    expect(redEnemies.length).toBeGreaterThanOrEqual(2);
+    expect(greenEnemies.length).toBeGreaterThanOrEqual(1);
+
+    for (const enemy of redEnemies) {
+      expect(enemy.maxHp).toBe(200);
+      expect(enemy.currentHp).toBe(200);
+    }
+
+    for (const enemy of greenEnemies) {
+      expect(enemy.maxHp).toBe(500);
+      expect(enemy.currentHp).toBe(500);
+    }
+
+    // Wave state should use the provided subWaves
+    // The sub-wave with startTimeMs=0 is activated immediately by initializeCombatWaveRuntime
+    expect(runtime.wave.activeSubWaves).toHaveLength(1);
+    expect(runtime.wave.activeSubWaves[0]?.id).toBe('test-sub-1');
+  });
 });
 
 function createReadyRuntime(
   pawnId: string,
   slotIndex = 0,
 ): CombatRuntime {
-  const runtime = createCombatRuntime();
+  const runtime = createCombatRuntime(undefined, {
+    subWaves: [{ id: 'test', startTimeMs: 0, spawnIntervalMs: 1000, enemies: { 'enemy-red-basic': 3 } }],
+  });
   setCombatState(runtime, 'running');
   runtime.preview.elapsedMs = runtime.preview.durationMs;
   runtime.record.currentAngle = 1;

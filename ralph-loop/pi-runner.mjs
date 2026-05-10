@@ -169,6 +169,9 @@ pi.stdout.on("data", (chunk) => {
     if (event.type === "agent_end") {
       agentEnded = true;
       lastText = extractText(event.messages);
+      // Close stdin so pi exits. If it doesn't close within 5s, force kill.
+      try { pi.stdin.end(); } catch {}
+      setTimeout(() => { try { pi.kill(); } catch {} }, 5000);
       continue;
     }
   }

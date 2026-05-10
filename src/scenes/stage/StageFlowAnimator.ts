@@ -3,13 +3,17 @@ import { StagePresentationConfig } from '@config/StagePresentationConfig';
 
 export class StageFlowAnimator {
   private returnTimer?: Phaser.Time.TimerEvent;
+  private readonly previewCardBaseY: number;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly recordContainer: Phaser.GameObjects.Container,
     private readonly shopContainer: Phaser.GameObjects.Container,
     private readonly previewCard: Phaser.GameObjects.Container,
-  ) {}
+  ) {
+    this.previewCardBaseY =
+      StagePresentationConfig.PREVIEW_CARD_Y - StagePresentationConfig.PREVIEW_CARD_HEIGHT / 2;
+  }
 
   playCombatOutro(onComplete: () => void): void {
     this.scene.tweens.killTweensOf(this.recordContainer);
@@ -33,7 +37,7 @@ export class StageFlowAnimator {
     });
     this.scene.tweens.add({
       targets: this.previewCard,
-      y: StagePresentationConfig.PREVIEW_CARD_Y - 38,
+      y: this.previewCardBaseY - 38,
       alpha: 0,
       duration: StagePresentationConfig.BUILD_TO_COMBAT_TWEEN_MS - 60,
       ease: 'Cubic.easeIn',
@@ -63,8 +67,8 @@ export class StageFlowAnimator {
       ? StagePresentationConfig.COMBAT_TO_BUILD_RECORD_START_Y
       : StagePresentationConfig.BUILD_RECORD_CENTER_Y;
     const previewStartY = fromCombat
-      ? StagePresentationConfig.PREVIEW_CARD_Y - 72
-      : StagePresentationConfig.PREVIEW_CARD_Y;
+      ? this.previewCardBaseY - 72
+      : this.previewCardBaseY;
     const shopStartY = fromCombat
       ? StagePresentationConfig.SHOP_PANEL_Y + 300
       : StagePresentationConfig.SHOP_PANEL_Y + 170;
@@ -95,7 +99,7 @@ export class StageFlowAnimator {
     });
     this.scene.tweens.add({
       targets: this.previewCard,
-      y: StagePresentationConfig.PREVIEW_CARD_Y,
+      y: this.previewCardBaseY,
       alpha: 1,
       duration: duration - 80,
       ease: 'Sine.easeOut',

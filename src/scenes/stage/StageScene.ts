@@ -3,9 +3,9 @@ import {
   CombatContentConfig,
   type CombatPawnDefinition,
 } from '@config/CombatContentConfig';
-import { CombatWaveConfig, getCombatWaveDefinition } from '@config/CombatWaveConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
-import { STAGE_CONFIGS } from '@config/StageConfig';
+import { getStageConfig } from '@config/StageRegistry';
+import type { StageWavePreviewModel } from '@config/StageConfig';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { emit, off, on } from '@events/EventBus';
@@ -30,6 +30,8 @@ import { StageShopView } from './StageShopView';
 import { StageDragController } from './StageDragController';
 import { StageTooltipController } from './StageTooltipController';
 import { StageFlowAnimator } from './StageFlowAnimator';
+import { handleReturnToLobby } from './handleReturnToLobby';
+import { populatePreviewCard, type PreviewCardState } from './StagePreviewCard';
 
 export class StageScene extends Phaser.Scene {
   private runtime!: StageRuntime;
@@ -37,10 +39,7 @@ export class StageScene extends Phaser.Scene {
   private coinsGlowLabel?: Phaser.GameObjects.Text;
   private coinsLabel?: Phaser.GameObjects.Text;
   private coinFeedbackLabel?: Phaser.GameObjects.Text;
-  private waveLabel?: Phaser.GameObjects.Text;
-  private previewBodyLabel?: Phaser.GameObjects.Text;
-  private previewArchetypeLabel?: Phaser.GameObjects.Text;
-  private archetypeTooltipContainer?: Phaser.GameObjects.Container;
+  private previewCardState: PreviewCardState | undefined = undefined;
   private statusLabel?: Phaser.GameObjects.Text;
   private startWaveButton?: Phaser.GameObjects.Text;
   private previewCard?: Phaser.GameObjects.Container;
@@ -58,9 +57,17 @@ export class StageScene extends Phaser.Scene {
     super({ key: SceneKeys.STAGE });
   }
 
-  create(): void {
+  create(data?: { stageId?: string }): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
-    this.runtime = createStageRuntime(STAGE_CONFIGS[0]!);
+
+    const stageId = data?.stageId ?? 'redline-routine';
+    const stageConfig = getStageConfig(stageId);
+
+    if (!stageConfig) {
+      throw new Error(`Unknown stage ID: ${stageId}`);
+    }
+
+    this.runtime = createStageRuntime(stageConfig);
 
     this.renderLayout();
     this.createAdapters();
@@ -131,13 +138,6 @@ export class StageScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5).setAlpha(0).setVisible(false);
     this.coinFeedbackLabel.setShadow(0, 8, '#071019', 16, true, true);
 
-    this.waveLabel = this.add.text(width / 2, 60, '', {
-      color: '#f5f7ff',
-      fontFamily: 'monospace',
-      fontSize: '34px',
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
     this.statusLabel = this.add.text(width / 2, StagePresentationConfig.STATUS_PILL_Y, '', {
       color: '#d9e9f8',
       fontFamily: 'monospace',
@@ -164,48 +164,20 @@ export class StageScene extends Phaser.Scene {
   }
 
   private createPreviewCard(): Phaser.GameObjects.Container {
-    const container = this.add.container(
-      StagePresentationConfig.PREVIEW_CARD_X,
-      StagePresentationConfig.PREVIEW_CARD_Y,
-    );
-    const graphics = this.add.graphics();
     const width = StagePresentationConfig.PREVIEW_CARD_WIDTH;
     const height = StagePresentationConfig.PREVIEW_CARD_HEIGHT;
-    const x = -width / 2;
-    const y = -height / 2;
+    const container = this.add.container(
+      StagePresentationConfig.PREVIEW_CARD_X - width / 2,
+      StagePresentationConfig.PREVIEW_CARD_Y - height / 2,
+    );
+    const graphics = this.add.graphics();
 
     graphics.fillStyle(0x0d1725, 0.92);
-    graphics.fillRoundedRect(x, y, width, height, 28);
+    graphics.fillRoundedRect(0, 0, width, height, 28);
     graphics.lineStyle(2, 0x56d6ff, 0.5);
-    graphics.strokeRoundedRect(x, y, width, height, 28);
+    graphics.strokeRoundedRect(0, 0, width, height, 28);
 
-    this.previewBodyLabel = this.add.text(x + 28, y + 20, '', {
-      color: '#d9e9f8',
-      fontFamily: 'monospace',
-      fontSize: '17px',
-      lineSpacing: 6,
-      align: 'left',
-    });
-
-    container.add([graphics, this.previewBodyLabel]);
-
-    this.previewArchetypeLabel = this.add.text(x + 28, y + 20, '', {
-      color: '#d9e9f8',
-      fontFamily: 'monospace',
-      fontSize: '15px',
-      lineSpacing: 6,
-      align: 'left',
-    }).setAlpha(0).setVisible(false);
-
-    container.add(this.previewArchetypeLabel);
-    this.archetypeTooltipContainer = container;
-
-    container.on('pointerdown', () => {
-      if (!this.previewArchetypeLabel) return;
-      const visible = this.previewArchetypeLabel.visible;
-      this.previewArchetypeLabel.setVisible(!visible);
-      this.previewArchetypeLabel.setAlpha(!visible ? 1 : 0);
-    });
+    container.add(graphics);
 
     return container;
   }
@@ -325,12 +297,13 @@ export class StageScene extends Phaser.Scene {
   };
 
   private readonly handleCombatEnded = (
-    payload: { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number },
+    payload: { outcome: 'victory' | 'defeat'; chronoCurrent: number; chronoMax: number; remainingBaseHp: number },
   ): void => {
     this.runStageFlowIntent({
       type: 'stage:combat-ended',
       outcome: payload.outcome,
       chronoRemaining: payload.chronoCurrent,
+      remainingBaseHp: payload.remainingBaseHp,
     });
   };
 
@@ -341,26 +314,21 @@ export class StageScene extends Phaser.Scene {
   private syncPresentation(): void {
     const currentWave = Math.min(this.runtime.currentWaveIndex + 1, Math.max(1, this.runtime.totalWaves));
     const canStartWave = this.canStageStartWave();
-    const wave = canStartWave ? getCombatWaveDefinition(this.runtime.currentWaveIndex) : null;
-    const preview = wave
-      ? createStageWavePreview(wave, currentWave, this.runtime.totalWaves)
-      : null;
+    const wavePreview = this.buildWavePreview(canStartWave, currentWave);
 
     const coinsText = `Coins ${this.runtime.coins}`;
     this.phaseLabel?.setText(getPhaseLabel(this.runtime.phase));
     this.coinsGlowLabel?.setText(coinsText);
     this.coinsLabel?.setText(coinsText);
-    this.waveLabel?.setText(
-      this.runtime.totalWaves > 0
-        ? `Wave ${currentWave}/${this.runtime.totalWaves}`
-        : 'No Waves Configured',
-    );
-    if (preview) {
-      this.previewBodyLabel?.setText(preview.bodyLines.join('\n'));
-      this.previewArchetypeLabel?.setText(preview.archetypeSummary);
-    } else {
-      this.previewBodyLabel?.setText(getTerminalBody(this.runtime));
-      this.previewArchetypeLabel?.setText('');
+    if (this.previewCard) {
+      this.previewCardState = populatePreviewCard(
+        this,
+        this.previewCard,
+        wavePreview,
+        StagePresentationConfig.PREVIEW_CARD_WIDTH,
+        this.previewCardState,
+        wavePreview ? undefined : getTerminalBody(this.runtime),
+      );
     }
     this.statusLabel?.setText(this.transientStatusText ?? getStatusLabel(this.runtime));
 
@@ -381,7 +349,6 @@ export class StageScene extends Phaser.Scene {
     this.recordView.container.setVisible(buildVisible);
     this.shopView.container.setVisible(buildVisible);
     this.previewCard?.setVisible(buildVisible);
-    this.waveLabel?.setVisible(buildVisible);
     this.statusLabel?.setVisible(buildVisible);
     this.tooltipController.container.setVisible(buildVisible && this.tooltipController.isVisible());
     this.recordView.modifierIconViews.forEach((view) => {
@@ -391,13 +358,26 @@ export class StageScene extends Phaser.Scene {
     this.playCoinFeedbackIfNeeded();
   }
 
+  private buildWavePreview(
+    canStartWave: boolean,
+    currentWave: number,
+  ): StageWavePreviewModel | null {
+    if (!canStartWave || !this.runtime.stageConfig.waves) {
+      return null;
+    }
+
+    const stageWaveDef = this.runtime.stageConfig.waves[this.runtime.currentWaveIndex];
+    if (!stageWaveDef) {
+      return null;
+    }
+
+    return createStageWavePreview(stageWaveDef, currentWave, this.runtime.totalWaves);
+  }
+
   private publishSnapshot(): void {
     const canStartWave = this.canStageStartWave();
     const currentWave = Math.min(this.runtime.currentWaveIndex + 1, Math.max(1, this.runtime.totalWaves));
-    const wave = canStartWave ? getCombatWaveDefinition(this.runtime.currentWaveIndex) : null;
-    const preview = wave
-      ? createStageWavePreview(wave, currentWave, this.runtime.totalWaves)
-      : { bodyLines: [getTerminalBody(this.runtime)], archetypeSummary: '' };
+    const wavePreview = this.buildWavePreview(canStartWave, currentWave);
 
     emit('stage:snapshot-updated', {
       phase: this.runtime.phase,
@@ -405,8 +385,7 @@ export class StageScene extends Phaser.Scene {
       currentWave,
       totalWaves: this.runtime.totalWaves,
       canStartWave,
-      previewTitle: preview.bodyLines[0] ?? '',
-      previewBody: preview.bodyLines.slice(1).join('\n'),
+      wavePreview,
     });
   }
 
@@ -517,6 +496,14 @@ export class StageScene extends Phaser.Scene {
           this.transientStatusText = null;
           this.refreshBuildUI();
           break;
+        case 'stage:return-to-lobby': {
+          handleReturnToLobby(command.payload);
+          this.scene.start(SceneKeys.LOBBY, {
+            showResult: true,
+            stageId: command.payload.stageId,
+          });
+          return;
+        }
       }
     }
   }
@@ -532,6 +519,8 @@ export class StageScene extends Phaser.Scene {
     slotPawnIds: Array<string | null>;
     slotPawnTiers: Array<number | null>;
     slotModifiers: SlotModifierAssignment[];
+    subWaves: Array<{ id: string; startTimeMs: number; spawnIntervalMs: number; enemies: Record<string, number> }>;
+    enemyStatOverrides: Record<string, { maxHp: number }>;
   }): void {
     this.scene.launch(SceneKeys.COMBAT, payload);
     this.stageFlowCoordination.isTransitioning = false;
@@ -550,6 +539,14 @@ export class StageScene extends Phaser.Scene {
   /* ------------------------------------------------------------------ */
 
   private handleShutdown(): void {
+    if (this.previewCardState) {
+      this.previewCardState.waveLabel?.destroy();
+      for (const pill of this.previewCardState.pillContainers) {
+        pill.destroy();
+      }
+      this.previewCardState.enemyCard?.destroy();
+      this.previewCardState = undefined;
+    }
     this.flowAnimator.destroy();
     off('stage:start-wave-requested', this.handleStartWaveRequested);
     off('combat:ended', this.handleCombatEnded);

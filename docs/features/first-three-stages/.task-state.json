@@ -22,192 +22,192 @@
     "gitCommit": null
   },
   "03-task-special-enemies": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "02-task-enemy-definitions"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T16:27:03Z\"",
+    "completedAt": "\"2026-05-09T16:36:33Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Define 6 special enemies (Iron Kick, Static Choir, Backstage Blur — elite; Redline Headliner, Blue Noise Monarch, Verdant Encore — boss). Extended CombatEnemyDefinition with optional displayName/silhouetteMotif/isSpecial fields. Added createSpecialEnemy() factory. Integrated into ENEMY_DEFINITIONS alongside 12 existing ordinary enemies (18 total). 13 durable tests verify invariants: correct IDs, archetypes, positive stats, non-empty display names/motifs, and backward compat for ordinary enemies. tsc --noEmit and all tests pass.\"",
+    "gitCommit": "\"f068e94\""
   },
   "04-task-pawn-rebalance": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "2",
     "blockedBy": [],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T16:51:46Z\"",
+    "completedAt": "\"2026-05-09T17:15:49Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Updated all 12 pawn baseDamage values per design spec, changed PAWN_TIER_DAMAGE_MULTIPLIER from [1,3,8] to [1,2.5,6], updated projectileCount/volleyShotCount for thorn-fan (5→14), lifebloom-scatter (3→14), prism-volley (3→14), arc-bounce (added projectileCount:5), updated meteor-drop burn damagePerTick (18→4), and refreshed tooltip strings with new damage numbers. tsc --noEmit passes, all 238 tests pass, no tests hardcode config values — all use invariant-based assertions.\"",
+    "gitCommit": "\"ef9ad70\""
   },
   "05-task-economy-and-modifier-staging": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T17:15:49Z\"",
+    "completedAt": "\"2026-05-09T17:25:12Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Rebalanced economy (INITIAL_COINS 50→25, MERGE_REWARD_COINS 4→3), added SHOP_REROLL_INCREMENT:1 to StageFlowConfig, fixed getStageRerollCost to use config increment instead of hardcoded +1, added formula contract test. SlotModifierAssignment weight overrides mechanism was already correctly implemented and tested (8 tests cover count weights, premium cap, zero-weight exclusion, overrides). All 239 tests pass, tsc --noEmit clean.\"",
+    "gitCommit": "\"05a7823\""
   },
   "06-task-session-progress-and-stars": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T17:25:12Z\"",
+    "completedAt": "\"2026-05-09T17:33:23Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"SessionProgressStore singleton with Map-based in-memory storage, isBetter comparison (higher stars wins, same stars + higher HP wins, defeat never overwrites success), calculateStageStars with configurable thresholds (0/1/2/3 stars based on HP ratio), edge cases handled (HP ≤ 0, maxBaseHp ≤ 0, HP > max cap at 1.0). 22 tests pass — all behavioral/invariant-based (boundary behavior, isBetter comparisons, defeat persistence, null HP handling, singleton guarantee), zero config-value snapshots. tsc --noEmit clean.\"",
+    "gitCommit": "\"aa75808\""
   },
   "07-task-stage-runtime-plumbing": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "02-task-enemy-definitions",
       "03-task-special-enemies"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T17:33:23Z\"",
+    "completedAt": "\"2026-05-09T17:56:16Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"StageRuntime now stores stageConfig, buildStageWaveEnemyPayload scales HP by stage multipliers with dedup and error handling, StageWavePreview returns StageWavePreviewModel with special enemy name resolution, EventBus snapshot carries wavePreview. 14/14 tests pass, tsc clean, no config-value snapshot violations in task changes.\"",
+    "gitCommit": "\"4b914fd\""
   },
   "08-task-flow-coordinator-plumbing": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "07-task-stage-runtime-plumbing"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T17:56:16Z\"",
+    "completedAt": "\"2026-05-09T18:16:14Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"StageFlowCoordinator now reads waves from runtime.stageConfig via buildStageWaveEnemyPayload (not global config); createLaunchCombatCommand includes subWaves + enemyStatOverrides; combat:ended event carries remainingBaseHp, piped through StageFlowIntent → resolveCombatReturn; terminal phases (stage_complete/stage_failed) emit stage:return-to-lobby with stageId, calculated stars, and remainingBaseHp; StageScene handler has placeholder case; npx tsc --noEmit clean; 7/7 flow coordinator tests pass, all follow behavioral/invariant/contract testing rules with expect.any(Number) and toBeGreaterThan comparisons — zero config-value snapshot violations.\"",
+    "gitCommit": "\"b183f4e\""
   },
   "09-task-combat-integration": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "08-task-flow-coordinator-plumbing"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T18:16:14Z\"",
+    "completedAt": "\"2026-05-09T18:34:48Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"CombatRuntime/Factory/WaveRuntime now accept stage-scoped subWaves + enemyStatOverrides from payload, CombatScene forwards fields from init data, backward-compat fallback to CombatWaveConfig when options.subWaves is absent. 274/274 tests pass, tsc --noEmit clean. Tests follow behavioral/invariant rules — no config-value snapshots.\"",
+    "gitCommit": "\"754fb8c\""
   },
   "10-task-stage-1-redline-routine": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "02-task-enemy-definitions",
       "03-task-special-enemies"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T18:34:48Z\"",
+    "completedAt": "\"2026-05-09T18:49:49Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Created RedlineRoutine stage config (10 waves, 41 sub-waves, 88 enemies matching spec tables), registered in StageRegistry via StageConfig.ts array. 8 behavioral tests — all check invariants (no duplicate IDs, every sub-wave has ≥1 enemy, monotonic hpMultipliers), internal consistency (hpMultipliers.length === totalWaves), and structural contract (wave 5 elite/iron-kick, wave 10 boss/redline-headliner). StageConfig.test.ts updated to accept both `waves` and `waveDefinitions` as wave content sources. 282/282 tests pass, tsc --noEmit clean.\"",
+    "gitCommit": "\"2615d72\""
   },
   "11-task-stage-2-blue-noise-rush": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "02-task-enemy-definitions",
       "03-task-special-enemies"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T18:49:50Z\"",
+    "completedAt": "\"2026-05-09T18:59:56Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"BlueNoiseRush stage config created: 10 waves, 40 sub-waves, 150 enemies per Design Spec. All sub-wave data matches exactly. Registered in StageRegistry via StageConfig.ts array. 9 behavioral tests — all check invariants and contracts (no duplicated IDs, hpMultipliers invariant, monotonic multipliers, every sub-wave has ≥1 enemy, wave 5 elite/static-choir, wave 10 boss/blue-noise-monarch, no tank enemies). Zero snapshot tests of tunable values. 291/291 tests pass, tsc --noEmit clean.\"",
+    "gitCommit": "\"802bd4d\""
   },
   "12-task-stage-3-greenroom-collapse": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "02-task-enemy-definitions",
       "03-task-special-enemies"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T18:59:57Z\"",
+    "completedAt": "\"2026-05-09T19:12:44Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"GreenroomCollapse stage config: 10 waves, 42 sub-waves, 115 enemies across all 4 archetypes. Registered in StageRegistry. 10 behavioural tests covering invariants, structure, identity contracts, and registry integration. tsc --noEmit clean.\"",
+    "gitCommit": "\"802bd4d\""
   },
   "13-task-scene-flow-integration": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "2",
     "blockedBy": [
       "06-task-session-progress-and-stars",
       "08-task-flow-coordinator-plumbing",
       "10-task-stage-1-redline-routine"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T19:14:12Z\"",
+    "completedAt": "\"2026-05-09T19:38:03Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Boot→Lobby→Stage→Lobby loop wired: LobbyScene stub created, BootScene starts LobbyScene, StageScene reads stageId from scene data via StageRegistry, handleReturnToLobby persists results via SessionProgressStore, old scaffold stage-1 removed from config. All 9 ACs met. 302/302 tests pass, tsc --noEmit clean. New handleReturnToLobby.test.ts tests behavior (store+return contract), not config snapshots. StageFlowCoordinator test changes use variables, not hardcoded strings — consistent with test quality rules.\"",
+    "gitCommit": "\"85e3c31\""
   },
   "14-task-lobby-cards": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "01-task-config-types-and-registry",
       "06-task-session-progress-and-stars"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-09T19:38:03Z\"",
+    "completedAt": "\"2026-05-09T19:51:16Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Full LobbyScene implemented: dark background, STAGE SELECT header, three stage cards (Redline Routine → Blue Noise Rush → Greenroom Collapse) with star ratings (★/☆), color-tinted name glow (Red/Blue/Green mapping), best HP display (only when stars > 0), tap-to-select with visual highlight (2px blue border, darker bg), hover/press states with scale-up tween, selection restored from SessionProgressStore. LobbyCardBuilder separates pure data model (10 behavioral tests — all test invariants/edge cases with self-contained configs, zero config snapshots). Scene shutdown cleans up all Phaser containers. resultStageId/showResult stored for task 15 modal. All 11 ACs met. 312/312 tests pass, tsc --noEmit clean.\"",
+    "gitCommit": "\"bba973b\""
   },
   "15-task-lobby-detail-and-result": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "2",
     "blockedBy": [
       "03-task-special-enemies",
       "14-task-lobby-cards"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-09T19:51:17Z\"",
     "completedAt": null,
-    "reviewFeedback": null,
+    "reviewFeedback": "\"Отсутствуют тесты на src/ui/ResultModal.ts. Компонент имеет 6 acceptance criteria (victory/defeat label, stage name, stars count, HP, RETRY callback, CLOSE callback, fade-in анимация) — ни одно не покрыто тестами. Нужно создать src/ui/ResultModal.test.ts с проверкой: правильный outcome label (VICTORY/DEFEAT), количество звёзд = result.stars, HP текст, вызов onRetry/onClose по pointerdown, fade-in tween. Дополнительно: тесты PillTag.test.ts и SpecialEnemyCard.test.ts слабые — проверяют только факт вызова spy, а не конкретные значения цветов/размеров, что делает их малоинформативными (но это не violation правил, а quality issue).\"",
     "summary": null,
     "gitCommit": null
   },
   "16-task-wave-preview-ui": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "completed",
+    "iteration": "1",
     "blockedBy": [
       "07-task-stage-runtime-plumbing",
       "15-task-lobby-detail-and-result"
     ],
-    "startedAt": null,
-    "completedAt": null,
+    "startedAt": "\"2026-05-10T09:40:06Z\"",
+    "completedAt": "\"2026-05-10T10:03:44Z\"",
     "reviewFeedback": null,
-    "summary": null,
-    "gitCommit": null
+    "summary": "\"Replaced text-based wave preview with PillTag tags row + optional SpecialEnemyCard for elite/boss waves. Extracted rendering into standalone `StagePreviewCard.ts` module with `populatePreviewCard()` function. Cleaned up old `waveLabel`/`previewBodyLabel`/`previewArchetypeLabel`/`archetypeTooltipContainer` fields from StageScene. Updated preview card height from 158→280px. 7 behavior-based tests pass with no config-value assertions. `tsc --noEmit` clean.\"",
+    "gitCommit": "\"891200c\""
   },
   "17-task-enemy-visual-differentiation": {
     "status": "pending",
-    "iteration": 0,
+    "iteration": "2",
     "blockedBy": [
       "03-task-special-enemies",
       "09-task-combat-integration"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-10T10:03:44Z\"",
     "completedAt": null,
-    "reviewFeedback": null,
+    "reviewFeedback": "\"No changes made for task 17. Only `.task-state.json` was modified (marking task 16 complete, task 17 in_progress). Zero source files changed — no `EnemySilhouetteRenderer`, no updates to `CombatEnemyPresenter`, no silhouette motif drawing functions, no glow rendering, no idle pulse tweens, no ordinary-enemy shape differentiation, no tests. All 11 acceptance criteria are unmet.\"",
     "summary": null,
     "gitCommit": null
   },

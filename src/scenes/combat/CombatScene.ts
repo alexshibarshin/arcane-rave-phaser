@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { emit, off, on } from '@events/EventBus';
 import { CombatContentConfig } from '@config/CombatContentConfig';
+import type { SubWaveDefinition } from '@config/StageConfig';
 import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { SceneKeys } from '@config/GameConfig';
@@ -40,6 +41,8 @@ interface CombatSceneInitData {
   slotPawnIds?: Array<string | null>;
   slotPawnTiers?: Array<number | null>;
   slotModifiers?: SlotModifierAssignment[];
+  subWaves?: SubWaveDefinition[];
+  enemyStatOverrides?: Record<string, { maxHp: number }>;
 }
 
 export class CombatScene extends GameScene {
@@ -54,6 +57,8 @@ export class CombatScene extends GameScene {
   private slotPawnIds?: Array<string | null>;
   private slotPawnTiers?: Array<number | null>;
   private slotModifiers?: SlotModifierAssignment[];
+  private subWaves?: SubWaveDefinition[];
+  private enemyStatOverrides?: Record<string, { maxHp: number }>;
   private synergySystem?: SynergyVisualSystem;
   private viewGraph?: CombatSceneViewGraph;
   private presentationRuntime?: CombatPresentationRuntime;
@@ -193,6 +198,8 @@ export class CombatScene extends GameScene {
     this.slotPawnIds = data.slotPawnIds ? [...data.slotPawnIds] : undefined;
     this.slotPawnTiers = data.slotPawnTiers ? [...data.slotPawnTiers] : undefined;
     this.slotModifiers = data.slotModifiers ? data.slotModifiers.map((assignment) => ({ ...assignment })) : undefined;
+    this.subWaves = data.subWaves;
+    this.enemyStatOverrides = data.enemyStatOverrides;
   }
 
   create(): void {
@@ -226,6 +233,8 @@ export class CombatScene extends GameScene {
       slotPawnIds: this.slotPawnIds,
       slotPawnTiers: this.slotPawnTiers,
       slotModifiers: this.slotModifiers,
+      subWaves: this.subWaves,
+      enemyStatOverrides: this.enemyStatOverrides,
     });
     this.slotPawnIds = resolveCombatSceneSlotPawnIds(
       this.slotPawnIds ?? this.slotPawns?.map((slot) => slot.pawnId ?? null),
@@ -352,5 +361,7 @@ export class CombatScene extends GameScene {
     this.slotPawnIds = undefined;
     this.slotPawns = undefined;
     this.slotPawnTiers = undefined;
+    this.subWaves = undefined;
+    this.enemyStatOverrides = undefined;
   }
 }

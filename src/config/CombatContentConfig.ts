@@ -1,5 +1,5 @@
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
-import { createEnemy, ENEMY_ARCHETYPE_TEMPLATES, type EnemyArchetype } from '@config/EnemyDefinitions';
+import { ALL_SPECIAL_ENEMIES, createEnemy, ENEMY_ARCHETYPE_TEMPLATES, type EnemyArchetype } from '@config/EnemyDefinitions';
 
 const NOTE_COLORS = ['red', 'green', 'blue'] as const;
 const PAWN_TYPES = ['generator', 'finisher'] as const;
@@ -216,6 +216,9 @@ export interface CombatEnemyDefinition {
   attackCooldownMs: number;
   attackDamage: number;
   visualKey: string;
+  displayName?: string;
+  silhouetteMotif?: string;
+  isSpecial?: boolean;
 }
 
 export interface CombatSlotPresetDefinition {
@@ -363,16 +366,16 @@ const combatContentConfig = {
       id: 'ruby-needle',
       displayName: 'Ruby Needle',
       color: 'red',
-      damage: 20,
+      damage: 50,
       artFrame: 0,
       primaryArchetype: 'projectile',
-      tooltip: 'Single precise shot for 20 damage.',
+      tooltip: 'Single precise shot for 50 damage.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'projectile',
         pattern: 'single-shot',
         targeting: 'frontmost-enemy',
-        damage: 20,
+        damage: 50,
         projectileSpeed: 860,
         projectileLifetimeMs: 3000,
       },
@@ -381,16 +384,16 @@ const combatContentConfig = {
       id: 'bass-bomb',
       displayName: 'Bass Bomb',
       color: 'red',
-      damage: 36,
+      damage: 38,
       artFrame: 1,
       primaryArchetype: 'explosion',
-      tooltip: 'Drops a 120-radius burst for 36 damage.',
+      tooltip: 'Drops a 120-radius burst for 38 damage.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'explosion',
         pattern: 'targeted-burst',
         targeting: 'frontmost-enemy',
-        damage: 36,
+        damage: 38,
         radius: 120,
       },
     }),
@@ -399,16 +402,16 @@ const combatContentConfig = {
       displayName: 'Heatline',
       color: 'red',
       outputNoteColor: 'blue',
-      damage: 12,
+      damage: 10,
       artFrame: 2,
       primaryArchetype: 'beam',
-      tooltip: 'Locks a beam for 3 sec., ticking 12 damage every 0.5 sec. If the target dies, it jumps to the next frontmost enemy.',
+      tooltip: 'Locks a beam for 3 sec., ticking 10 damage every 0.5 sec. If the target dies, it jumps to the next frontmost enemy.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'beam',
         pattern: 'lock-on-beam',
         targeting: 'frontmost-enemy',
-        damage: 12,
+        damage: 10,
         durationMs: 2500,
         tickIntervalMs: 500,
       },
@@ -418,16 +421,16 @@ const combatContentConfig = {
       displayName: 'Meteor Drop',
       color: 'red',
       outputNoteColor: 'green',
-      damage: 100,
+      damage: 40,
       artFrame: 3,
       primaryArchetype: 'explosion',
-      tooltip: 'After 0.5 sec., calls down a meteor: 100 damage in a 150 radius. Leaves a burning zone for 2 sec.',
+      tooltip: 'After 0.5 sec., calls down a meteor: 40 damage in a 150 radius. Leaves a burning zone for 2 sec.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'explosion',
         pattern: 'delayed-blast',
         targeting: 'random-enemy',
-        damage: 100,
+        damage: 40,
         radius: 150,
         delayMs: 500,
         secondaryEffect: {
@@ -435,7 +438,7 @@ const combatContentConfig = {
           zoneRadius: 110,
           zoneDurationMs: 2000,
           tickIntervalMs: 500,
-          damagePerTick: 18,
+          damagePerTick: 4,
         },
       },
     }),
@@ -443,16 +446,16 @@ const combatContentConfig = {
       id: 'moss-patch',
       displayName: 'Moss Patch',
       color: 'green',
-      damage: 14,
+      damage: 9,
       artFrame: 4,
       primaryArchetype: 'zone',
-      tooltip: 'Creates a 130-radius zone for 2.5 sec., dealing 14 damage every 0.5 sec.',
+      tooltip: 'Creates a 130-radius zone for 2.5 sec., dealing 9 damage every 0.5 sec.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'zone',
         pattern: 'placed-damage-zone',
         targeting: 'frontmost-enemy',
-        damage: 14,
+        damage: 9,
         radius: 130,
         durationMs: 2500,
         tickIntervalMs: 500,
@@ -462,19 +465,19 @@ const combatContentConfig = {
       id: 'lifebloom-scatter',
       displayName: 'Lifebloom Scatter',
       color: 'green',
-      damage: 20,
+      damage: 3,
       artFrame: 5,
       primaryArchetype: 'projectile',
-      tooltip: 'Burst of 3 projectiles for 20 damage each. Heals the base for 50% of damage dealt.',
+      tooltip: 'Burst of 14 projectiles for 3 damage each. Heals the base for 50% of damage dealt.',
       isActiveInFirstPlayableDeck: false,
       ability: {
         primaryArchetype: 'projectile',
         pattern: 'shotgun-spread',
         targeting: 'frontmost-enemy',
-        damage: 20,
+        damage: 3,
         projectileSpeed: 760,
         projectileLifetimeMs: 2000,
-        projectileCount: 3,
+        projectileCount: 14,
         coneAngleDeg: 26,
         secondaryEffect: {
           kind: 'base-heal-from-damage',
@@ -487,19 +490,19 @@ const combatContentConfig = {
       displayName: 'Thorn Fan',
       color: 'green',
       outputNoteColor: 'red',
-      damage: 28,
+      damage: 5,
       artFrame: 6,
       primaryArchetype: 'projectile',
-      tooltip: 'Fan of 5 thorn shots for 28 damage each.',
+      tooltip: 'Fan of 14 thorn shots for 5 damage each.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'projectile',
         pattern: 'shotgun-spread',
         targeting: 'frontmost-enemy',
-        damage: 28,
+        damage: 5,
         projectileSpeed: 820,
         projectileLifetimeMs: 720,
-        projectileCount: 5,
+        projectileCount: 14,
         coneAngleDeg: 40,
       },
     }),
@@ -508,7 +511,7 @@ const combatContentConfig = {
       displayName: 'Pulse Garden',
       color: 'green',
       outputNoteColor: 'blue',
-      damage: 16,
+      damage: 10,
       artFrame: 7,
       primaryArchetype: 'zone',
       tooltip: 'Creates a 140-radius pulse field for 2 sec. and buffs the next slot by 35% damage.',
@@ -517,7 +520,7 @@ const combatContentConfig = {
         primaryArchetype: 'zone',
         pattern: 'placed-damage-zone',
         targeting: 'random-enemy',
-        damage: 16,
+        damage: 10,
         radius: 140,
         durationMs: 2000,
         tickIntervalMs: 500,
@@ -531,16 +534,16 @@ const combatContentConfig = {
       id: 'frost-sweep',
       displayName: 'Frost Sweep',
       color: 'blue',
-      damage: 10,
+      damage: 15,
       artFrame: 8,
       primaryArchetype: 'beam',
-      tooltip: 'Deploys a static emitter that sweeps a freezing beam upward for 2 sec. New crossings take 10 damage and 45% slow for 1.5 sec.',
+      tooltip: 'Deploys a static emitter that sweeps a freezing beam upward for 2 sec. New crossings take 15 damage and 45% slow for 1.5 sec.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'beam',
         pattern: 'sweeping-beam',
         targeting: 'frontmost-enemy',
-        damage: 10,
+        damage: 15,
         durationMs: 1500,
         sweepArcDeg: 100,
         sweepLengthPx: 1500,
@@ -556,19 +559,19 @@ const combatContentConfig = {
       id: 'prism-volley',
       displayName: 'Prism Volley',
       color: 'blue',
-      damage: 18,
+      damage: 3,
       artFrame: 9,
       primaryArchetype: 'projectile',
-      tooltip: 'Fires 3 timed shots for 18 damage. On hit, each shot splits into 2 child bolts.',
+      tooltip: 'Fires 14 timed shots for 3 damage. On hit, each shot splits into 2 child bolts.',
       isActiveInFirstPlayableDeck: false,
       ability: {
         primaryArchetype: 'projectile',
         pattern: 'burst-volley',
         targeting: 'frontmost-enemy',
-        damage: 18,
+        damage: 3,
         projectileSpeed: 760,
         projectileLifetimeMs: 800,
-        volleyShotCount: 3,
+        volleyShotCount: 14,
         volleyIntervalMs: 180,
         secondaryEffect: {
           kind: 'split-on-hit',
@@ -606,20 +609,21 @@ const combatContentConfig = {
       displayName: 'Arc Bounce',
       color: 'blue',
       outputNoteColor: 'green',
-      damage: 24,
+      damage: 3,
       artFrame: 11,
       primaryArchetype: 'projectile',
-      tooltip: 'Burst of 3 timed shots for 24 damage each. Each shot can bounce once to a new enemy.',
+      tooltip: 'Burst of 15 projectiles for 3 damage each. Each shot can bounce once to a new enemy.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'projectile',
         pattern: 'burst-volley',
         targeting: 'frontmost-enemy',
-        damage: 24,
+        damage: 3,
         projectileSpeed: 800,
         projectileLifetimeMs: 900,
         volleyShotCount: 3,
         volleyIntervalMs: 170,
+        projectileCount: 5,
         secondaryEffect: {
           kind: 'bounce-on-hit',
           maxBounces: 1,
@@ -637,13 +641,14 @@ const combatContentConfig = {
     'meteor-drop',
     'arc-bounce',
   ] satisfies string[],
-  ENEMY_DEFINITIONS: (
-    ['red', 'green', 'blue'] as NoteColor[]
-  ).flatMap((color) =>
-    (Object.keys(ENEMY_ARCHETYPE_TEMPLATES) as EnemyArchetype[]).map((archetype) =>
-      createEnemy(archetype, color),
+  ENEMY_DEFINITIONS: [
+    ...(['red', 'green', 'blue'] as NoteColor[]).flatMap((color) =>
+      (Object.keys(ENEMY_ARCHETYPE_TEMPLATES) as EnemyArchetype[]).map((archetype) =>
+        createEnemy(archetype, color),
+      ),
     ),
-  ) satisfies CombatEnemyDefinition[],
+    ...ALL_SPECIAL_ENEMIES,
+  ] satisfies CombatEnemyDefinition[],
   SLOT_PRESETS: [
     {
       id: 'preset-starter-1',
@@ -663,6 +668,10 @@ const combatContentConfig = {
 
 export function getCombatPawnDefinitionById(id: string): CombatPawnDefinition | undefined {
   return combatContentConfig.PAWN_DEFINITIONS.find((pawn) => pawn.id === id);
+}
+
+export function getEnemyDefinitionById(id: string): CombatEnemyDefinition | undefined {
+  return combatContentConfig.ENEMY_DEFINITIONS.find((enemy) => enemy.id === id);
 }
 
 export function getScaledPawnDamage(baseDamage: number, tier: number): number {

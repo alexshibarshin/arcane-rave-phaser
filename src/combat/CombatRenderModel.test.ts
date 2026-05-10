@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { CombatContentConfig } from '@config/CombatContentConfig';
-import { CombatWaveConfig } from '@config/CombatWaveConfig';
 import { createCombatEnemyRuntimes } from './CombatEnemyRuntimeFactory';
 import { createCombatRenderModel } from './CombatRenderModel';
 
@@ -26,13 +25,15 @@ describe('CombatRenderModel', () => {
   });
 
   it('maps the active slot preset into occupied and empty slot presentation states', () => {
-    const model = createCombatRenderModel();
-    const activeWave = CombatWaveConfig.WAVES[0];
     const activePreset = CombatContentConfig.SLOT_PRESETS.find(
-      (preset) => preset.id === activeWave?.slotPresetId,
+      (preset) => preset.id === 'preset-starter-1',
     );
 
     expect(activePreset).toBeDefined();
+
+    const model = createCombatRenderModel({
+      slotPawnIds: activePreset!.slots,
+    });
 
     for (const slot of model.record.slots) {
       const pawnId = activePreset?.slots[slot.index] ?? null;
@@ -109,12 +110,17 @@ describe('CombatRenderModel', () => {
   });
 
   it('creates one enemy render unit per enemy runtime with matching identity and y-sort', () => {
-    const activeWave = CombatWaveConfig.WAVES[0];
-    const runtimes = createCombatEnemyRuntimes(activeWave!);
+    const subWaves = [{
+      id: 'wave-1',
+      startTimeMs: 0,
+      spawnIntervalMs: 900,
+      enemies: { 'enemy-red-basic': 2, 'enemy-green-basic': 1 },
+    }];
+    const runtimes = createCombatEnemyRuntimes(subWaves);
     const definitionsById = new Map(
       CombatContentConfig.ENEMY_DEFINITIONS.map((definition) => [definition.id, definition]),
     );
-    const model = createCombatRenderModel();
+    const model = createCombatRenderModel({ subWaves });
 
     expect(model.enemies).toHaveLength(runtimes.length);
 
@@ -141,7 +147,9 @@ describe('CombatRenderModel', () => {
   });
 
   it('applies per-archetype size multipliers so enemy silhouettes do not share one uniform bounding box', () => {
-    const model = createCombatRenderModel({ waveIndex: 2 });
+    const model = createCombatRenderModel({
+      subWaves: [{ id: 'test', startTimeMs: 0, spawnIntervalMs: 1000, enemies: { 'enemy-red-basic': 1, 'enemy-red-tank': 1, 'enemy-red-fast': 1, 'enemy-red-swarm': 1 } }],
+    });
 
     const uniqueWidths = new Set(model.enemies.map((enemy) => enemy.body.width));
     expect(uniqueWidths.size).toBeGreaterThan(1);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
-import { STAGE_CONFIGS, type StageConfig } from '@config/StageConfig';
+import { STAGE_CONFIGS, type StageConfig, type StageWaveDefinition } from '@config/StageConfig';
 import { createStageRuntime, requestStageWaveStart } from '@stage/StageRuntime';
 import {
   createStageFlowCoordinationState,
@@ -10,16 +10,34 @@ import {
   type StageFlowCoordinationState,
 } from '@stage/StageFlowCoordinator';
 
-function makeStageConfig(overrides: Partial<StageConfig>): StageConfig {
+function makeWaveDef(kind: StageWaveDefinition['kind'] = 'normal', tags: string[] = ['Red']): StageWaveDefinition {
+  return {
+    kind,
+    tags,
+    specialEnemyId: kind !== 'normal' ? 'iron-kick' : null,
+    subWaves: [
+      {
+        id: 'sub-1',
+        startTimeMs: 0,
+        spawnIntervalMs: 800,
+        enemies: { 'enemy-red-basic': 2 },
+      },
+    ],
+  };
+}
+
+function makeStageConfig(overrides: Partial<StageConfig> = {}): StageConfig {
   const base = STAGE_CONFIGS[0]!;
+  const totalWaves = overrides.totalWaves ?? base.totalWaves;
   return {
     id: base.id,
     displayName: base.displayName,
-    totalWaves: base.totalWaves,
+    totalWaves,
     initialCoins: base.initialCoins,
-    waveDefinitions: base.waveDefinitions,
     slotModifierCountWeights: base.slotModifierCountWeights,
     slotModifierWeightOverrides: base.slotModifierWeightOverrides,
+    waves: Array.from({ length: totalWaves }, (_, i) => makeWaveDef(i === totalWaves - 1 ? 'boss' : 'normal')),
+    hpMultipliers: Array.from({ length: totalWaves }, () => 1.0),
     ...overrides,
   };
 }
@@ -47,8 +65,14 @@ describe('StageFlowCoordinator', () => {
         currentWave: 1,
         totalWaves: 2,
         canStartWave: true,
-        previewTitle: expect.stringContaining('Wave'),
-        previewBody: expect.stringContaining('Enemies'),
+        wavePreview: {
+          waveNumber: 1,
+          totalWaves: 2,
+          waveKind: 'normal',
+          tags: expect.any(Array),
+          specialEnemyId: null,
+          specialEnemyName: null,
+        },
       },
     });
     expect(commands[1]).toMatchObject({
@@ -96,6 +120,8 @@ describe('StageFlowCoordinator', () => {
         slotPawnIds: Array(8).fill(null),
         slotPawnTiers: Array(8).fill(null),
         slotModifiers: runtime.slotModifiers,
+        subWaves: [{ id: 'sub-1', startTimeMs: 0, spawnIntervalMs: 800, enemies: { 'enemy-red-basic': 2 } }],
+        enemyStatOverrides: { 'enemy-red-basic': { maxHp: expect.any(Number) } },
       },
     });
   });
@@ -109,11 +135,15 @@ describe('StageFlowCoordinator', () => {
       type: 'stage:combat-ended',
       outcome: 'victory',
       chronoRemaining: 55,
+      remainingBaseHp: 80,
     });
 
     expect(getCommandTypes(commands)).toEqual([
       'stage:play-combat-phase-return',
     ]);
+    expect(
+      coordination.pendingCombatResolution,
+    ).toMatchObject({ outcome: 'victory', chronoRemaining: 55, remainingBaseHp: 80 });
     expect(runtime.phase).toBe('combat');
     expect(runtime.currentWaveIndex).toBe(0);
     expect(runtime.coins).toBeGreaterThan(0);
@@ -126,6 +156,7 @@ describe('StageFlowCoordinator', () => {
       pendingCombatResolution: {
         outcome: 'victory',
         chronoRemaining: 55,
+        remainingBaseHp: 80,
       },
     });
     expect(commands[0]).toMatchObject({
@@ -142,6 +173,7 @@ describe('StageFlowCoordinator', () => {
       type: 'stage:combat-ended',
       outcome: 'victory',
       chronoRemaining: 55,
+      remainingBaseHp: 80,
     });
 
     const commands = dispatchStageFlowIntent(runtime, coordination, {
@@ -199,6 +231,7 @@ describe('StageFlowCoordinator', () => {
         type: 'stage:combat-ended',
         outcome: 'defeat',
         chronoRemaining: 12,
+        remainingBaseHp: 0,
       }),
     ).toEqual([]);
     expect(runtime.phase).toBe('build');
@@ -208,5 +241,62 @@ describe('StageFlowCoordinator', () => {
       pendingBuildIntro: false,
       pendingCombatResolution: null,
     });
+  });
+
+  it('emits stage:return-to-lobby with stars on stage completion', () => {
+    const stageId = 'stage-1';
+    const runtime = createStageRuntime(makeStageConfig({ id: stageId, totalWaves: 1, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const coordination = createStageFlowCoordinationState();
+    requestStageWaveStart(runtime);
+    dispatchStageFlowIntent(runtime, coordination, {
+      type: 'stage:combat-ended',
+      outcome: 'victory',
+      chronoRemaining: 88,
+      remainingBaseHp: 95,
+    });
+
+    const commands = dispatchStageFlowIntent(runtime, coordination, {
+      type: 'stage:combat-return-finished',
+    });
+
+    expect(runtime.phase).toBe('stage_complete');
+    const returnCommand = commands.find((c) => c.type === 'stage:return-to-lobby');
+    expect(returnCommand).toBeDefined();
+    expect(returnCommand).toMatchObject({
+      type: 'stage:return-to-lobby',
+      payload: {
+        stageId,
+        stars: expect.any(Number),
+        remainingBaseHp: 95,
+      },
+    });
+    expect(returnCommand!.payload.stars).toBeGreaterThan(0);
+  });
+
+  it('emits stage:return-to-lobby with stars on defeat', () => {
+    const stageId = 'stage-1';
+    const runtime = createStageRuntime(makeStageConfig({ id: stageId, totalWaves: 2, initialCoins: StageFlowConfig.INITIAL_COINS }), () => 0);
+    const coordination = createStageFlowCoordinationState();
+    requestStageWaveStart(runtime);
+
+    const commands = dispatchStageFlowIntent(runtime, coordination, {
+      type: 'stage:combat-ended',
+      outcome: 'defeat',
+      chronoRemaining: 0,
+      remainingBaseHp: 50,
+    });
+
+    expect(runtime.phase).toBe('stage_failed');
+    const returnCommand = commands.find((c) => c.type === 'stage:return-to-lobby');
+    expect(returnCommand).toBeDefined();
+    expect(returnCommand).toMatchObject({
+      type: 'stage:return-to-lobby',
+      payload: {
+        stageId,
+        stars: expect.any(Number),
+        remainingBaseHp: 50,
+      },
+    });
+    expect(returnCommand!.payload.stars).toBeGreaterThan(0);
   });
 });

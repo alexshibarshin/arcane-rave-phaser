@@ -295,7 +295,8 @@ count_tasks_by_status() {
 
 # --- Git Helpers ---
 git_dirty() {
-  [ -n "$(git status --porcelain 2>/dev/null)" ]
+  # Exclude .task-state.json (managed by this script, not source code)
+  [ -n "$(git status --porcelain 2>/dev/null | grep -v '.task-state.json')" ]
 }
 
 git_last_commit_msg() {
@@ -419,6 +420,14 @@ run_task() {
     done
     wait "$PI_RUNNER_PID" 2>/dev/null || true
     PI_RUNNER_PID=""
+
+    if [ "$INTERRUPTED" = true ]; then
+      json_set "$STATE_FILE" "$task_slug.status" "pending"
+      printf "\r  [iter %d/%d] Interrupted\n" "$iteration" "$MAX_ITERATIONS"
+      rm -f "$worker_tmp"
+      return 1
+    fi
+
     printf "\r  [iter %d/%d] Worker done. " "$iteration" "$MAX_ITERATIONS"
 
     worker_result=$(cat "$worker_tmp")
@@ -437,11 +446,6 @@ run_task() {
       log_warn "Worker error"
       feedback="Worker encountered an error and did not complete."
       continue
-    fi
-
-    if [ "$INTERRUPTED" = true ]; then
-      json_set "$STATE_FILE" "$task_slug.status" "pending"
-      return 1
     fi
 
     # === Reviewer ===
@@ -465,6 +469,13 @@ run_task() {
     done
     wait "$PI_RUNNER_PID" 2>/dev/null || true
     PI_RUNNER_PID=""
+
+    if [ "$INTERRUPTED" = true ]; then
+      json_set "$STATE_FILE" "$task_slug.status" "pending"
+      printf "\r  [iter %d/%d] Interrupted\n" "$iteration" "$MAX_ITERATIONS"
+      rm -f "$reviewer_tmp"
+      return 1
+    fi
 
     local reviewer_exit=$?
     local reviewer_result

@@ -51,7 +51,8 @@ export const CombatVisualConfig = {
       fast: 0.7,
       ranged: 1.1,
       swarm: 0.5,
-      boss: 2.5,
+      elite: 1.3,
+      boss: 1.6,
     },
     HEAD_SHAPES: {
       basic: 'triangle',
@@ -75,6 +76,27 @@ export const CombatVisualConfig = {
     HIT_FLASH_OFFSET_Y: -3,
     BODY_WIDTH: 31,
     BODY_HEIGHT: 36,
+    FILL_COLORS: {
+      red: 0xE03C3C,
+      green: 0x3CC850,
+      blue: 0x3C64DC,
+    },
+    GLOW_COLORS: {
+      elite: {
+        red: 0xFF5555,
+        green: 0x55E870,
+        blue: 0x5588FF,
+      },
+      boss: {
+        red: 0xFF7070,
+        green: 0x70FF90,
+        blue: 0x70A0FF,
+      },
+    },
+    GLOW_ALPHA: {
+      elite: 0.7,
+      boss: 0.85,
+    },
   },
   DAMAGE_NUMBER: {
     FONT_SIZE_PX: 14,

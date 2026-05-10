@@ -16,9 +16,11 @@ describe('STAGE_CONFIGS', () => {
       expect(stage.displayName.length).toBeGreaterThan(0);
       expect(stage.totalWaves).toBeGreaterThan(0);
       expect(stage.initialCoins).toBeGreaterThanOrEqual(0);
-      expect(stage.waveDefinitions).toBeInstanceOf(Array);
-      expect(stage.waveDefinitions.length).toBe(stage.totalWaves);
       expect(stage.slotModifierCountWeights).toBeDefined();
+
+      // Stage must define wave content via waves
+      const hasWaves = stage.waves !== undefined && stage.waves.length > 0;
+      expect(hasWaves).toBe(true);
     }
   });
 
@@ -152,7 +154,6 @@ describe('StageConfig (expanded)', () => {
     displayName: 'Test Stage',
     totalWaves: 2,
     initialCoins: 10,
-    waveDefinitions: [],
     slotModifierCountWeights: { 0: 1, 1: 3, 2: 2, 3: 1 },
     stageTags: ['Red', 'Single-Target'],
     eliteEnemyId: 'elite-1',
