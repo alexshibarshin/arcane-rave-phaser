@@ -32,7 +32,7 @@ export function createResultModal(
 
   const titleY = 32;
   const nameY = titleY + 52;
-  const starsY = nameY + 36;
+  const starsY = nameY + 56;
   const hpY = starsY + 64;
   const buttonsY = hpY + 48;
   const modalHeight = buttonsY + BUTTON_HEIGHT + 32;
@@ -96,8 +96,9 @@ export function createResultModal(
   // Buttons
   const buttonsContainer = scene.add.container(0, 0);
 
+  const retryX = centerX - BUTTON_WIDTH - BUTTON_GAP / 2;
   const retryBtn = createButton(scene, 'RETRY', {
-    x: centerX - BUTTON_WIDTH / 2 - BUTTON_GAP / 2,
+    x: retryX,
     y: panelY + buttonsY,
     width: BUTTON_WIDTH,
     height: BUTTON_HEIGHT,
@@ -105,14 +106,15 @@ export function createResultModal(
     borderColor: 0x4a80d0,
   });
   retryBtn.setInteractive(
-    new Phaser.Geom.Rectangle(centerX - BUTTON_WIDTH / 2 - BUTTON_GAP / 2, panelY + buttonsY, BUTTON_WIDTH, BUTTON_HEIGHT),
+    new Phaser.Geom.Rectangle(retryX, panelY + buttonsY, BUTTON_WIDTH, BUTTON_HEIGHT),
     Phaser.Geom.Rectangle.Contains,
   );
   retryBtn.on('pointerdown', onRetry);
   buttonsContainer.add(retryBtn);
 
+  const closeX = centerX + BUTTON_GAP / 2;
   const closeBtn = createButton(scene, 'CLOSE', {
-    x: centerX + BUTTON_GAP / 2,
+    x: closeX,
     y: panelY + buttonsY,
     width: BUTTON_WIDTH,
     height: BUTTON_HEIGHT,
@@ -120,7 +122,7 @@ export function createResultModal(
     borderColor: 0x404040,
   });
   closeBtn.setInteractive(
-    new Phaser.Geom.Rectangle(centerX + BUTTON_GAP / 2, panelY + buttonsY, BUTTON_WIDTH, BUTTON_HEIGHT),
+    new Phaser.Geom.Rectangle(closeX, panelY + buttonsY, BUTTON_WIDTH, BUTTON_HEIGHT),
     Phaser.Geom.Rectangle.Contains,
   );
   closeBtn.on('pointerdown', onClose);
