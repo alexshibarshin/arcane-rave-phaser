@@ -31,6 +31,7 @@ import { StageDragController } from './StageDragController';
 import { StageTooltipController } from './StageTooltipController';
 import { StageFlowAnimator } from './StageFlowAnimator';
 import { handleReturnToLobby } from './handleReturnToLobby';
+import { populatePreviewCard, type PreviewCardState } from './StagePreviewCard';
 
 export class StageScene extends Phaser.Scene {
   private runtime!: StageRuntime;
@@ -38,10 +39,7 @@ export class StageScene extends Phaser.Scene {
   private coinsGlowLabel?: Phaser.GameObjects.Text;
   private coinsLabel?: Phaser.GameObjects.Text;
   private coinFeedbackLabel?: Phaser.GameObjects.Text;
-  private waveLabel?: Phaser.GameObjects.Text;
-  private previewBodyLabel?: Phaser.GameObjects.Text;
-  private previewArchetypeLabel?: Phaser.GameObjects.Text;
-  private archetypeTooltipContainer?: Phaser.GameObjects.Container;
+  private previewCardState: PreviewCardState | undefined = undefined;
   private statusLabel?: Phaser.GameObjects.Text;
   private startWaveButton?: Phaser.GameObjects.Text;
   private previewCard?: Phaser.GameObjects.Container;
@@ -140,13 +138,6 @@ export class StageScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5).setAlpha(0).setVisible(false);
     this.coinFeedbackLabel.setShadow(0, 8, '#071019', 16, true, true);
 
-    this.waveLabel = this.add.text(width / 2, 60, '', {
-      color: '#f5f7ff',
-      fontFamily: 'monospace',
-      fontSize: '34px',
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
     this.statusLabel = this.add.text(width / 2, StagePresentationConfig.STATUS_PILL_Y, '', {
       color: '#d9e9f8',
       fontFamily: 'monospace',
@@ -188,33 +179,7 @@ export class StageScene extends Phaser.Scene {
     graphics.lineStyle(2, 0x56d6ff, 0.5);
     graphics.strokeRoundedRect(x, y, width, height, 28);
 
-    this.previewBodyLabel = this.add.text(x + 28, y + 20, '', {
-      color: '#d9e9f8',
-      fontFamily: 'monospace',
-      fontSize: '17px',
-      lineSpacing: 6,
-      align: 'left',
-    });
-
-    container.add([graphics, this.previewBodyLabel]);
-
-    this.previewArchetypeLabel = this.add.text(x + 28, y + 20, '', {
-      color: '#d9e9f8',
-      fontFamily: 'monospace',
-      fontSize: '15px',
-      lineSpacing: 6,
-      align: 'left',
-    }).setAlpha(0).setVisible(false);
-
-    container.add(this.previewArchetypeLabel);
-    this.archetypeTooltipContainer = container;
-
-    container.on('pointerdown', () => {
-      if (!this.previewArchetypeLabel) return;
-      const visible = this.previewArchetypeLabel.visible;
-      this.previewArchetypeLabel.setVisible(!visible);
-      this.previewArchetypeLabel.setAlpha(!visible ? 1 : 0);
-    });
+    container.add(graphics);
 
     return container;
   }
@@ -357,17 +322,14 @@ export class StageScene extends Phaser.Scene {
     this.phaseLabel?.setText(getPhaseLabel(this.runtime.phase));
     this.coinsGlowLabel?.setText(coinsText);
     this.coinsLabel?.setText(coinsText);
-    this.waveLabel?.setText(
-      this.runtime.totalWaves > 0
-        ? `Wave ${currentWave}/${this.runtime.totalWaves}`
-        : 'No Waves Configured',
-    );
-    if (wavePreview) {
-      this.previewBodyLabel?.setText(wavePreview.tags.join('\n'));
-      this.previewArchetypeLabel?.setText('');
-    } else {
-      this.previewBodyLabel?.setText(getTerminalBody(this.runtime));
-      this.previewArchetypeLabel?.setText('');
+    if (this.previewCard) {
+      this.previewCardState = populatePreviewCard(
+        this,
+        this.previewCard,
+        wavePreview,
+        this.previewCardState,
+        wavePreview ? undefined : getTerminalBody(this.runtime),
+      );
     }
     this.statusLabel?.setText(this.transientStatusText ?? getStatusLabel(this.runtime));
 
@@ -388,7 +350,6 @@ export class StageScene extends Phaser.Scene {
     this.recordView.container.setVisible(buildVisible);
     this.shopView.container.setVisible(buildVisible);
     this.previewCard?.setVisible(buildVisible);
-    this.waveLabel?.setVisible(buildVisible);
     this.statusLabel?.setVisible(buildVisible);
     this.tooltipController.container.setVisible(buildVisible && this.tooltipController.isVisible());
     this.recordView.modifierIconViews.forEach((view) => {
@@ -579,6 +540,14 @@ export class StageScene extends Phaser.Scene {
   /* ------------------------------------------------------------------ */
 
   private handleShutdown(): void {
+    if (this.previewCardState) {
+      this.previewCardState.waveLabel?.destroy();
+      for (const pill of this.previewCardState.pillContainers) {
+        pill.destroy();
+      }
+      this.previewCardState.enemyCard?.destroy();
+      this.previewCardState = undefined;
+    }
     this.flowAnimator.destroy();
     off('stage:start-wave-requested', this.handleStartWaveRequested);
     off('combat:ended', this.handleCombatEnded);

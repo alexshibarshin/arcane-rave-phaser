@@ -186,13 +186,13 @@
     "gitCommit": null
   },
   "16-task-wave-preview-ui": {
-    "status": "pending",
-    "iteration": 0,
+    "status": "in_progress",
+    "iteration": "1",
     "blockedBy": [
       "07-task-stage-runtime-plumbing",
       "15-task-lobby-detail-and-result"
     ],
-    "startedAt": null,
+    "startedAt": "\"2026-05-10T09:40:06Z\"",
     "completedAt": null,
     "reviewFeedback": null,
     "summary": null,
