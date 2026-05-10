@@ -65,7 +65,7 @@ export class CombatDamageNumberRenderer {
     }
 
     if (event.event === 'combat:base-damaged') {
-      const damage = Math.max(0, event.payload.max - event.payload.current);
+      const damage = event.payload.damage;
       const hpBar = viewGraph.base.hpBar;
 
       this.damageNumbers.push(

@@ -23,7 +23,7 @@ export type CombatRuntimeEvent =
   }
   | {
     event: 'combat:base-damaged';
-    payload: { current: number; max: number };
+    payload: { damage: number; current: number; max: number };
   }
   | {
     event: 'combat:pawn-resolved';
@@ -248,8 +248,9 @@ export function pushCombatFinisherOutputNoteEmitted(
   });
 }
 
-export function pushCombatBaseDamaged(runtime: CombatRuntime): void {
+export function pushCombatBaseDamaged(runtime: CombatRuntime, damage: number): void {
   const payload = {
+    damage,
     current: runtime.baseHp,
     max: CombatBalanceConfig.BASE_HP,
   };

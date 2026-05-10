@@ -91,7 +91,7 @@ export interface EventMap {
   'combat:note-packet-color-broke': { previousColor: NoteColor; nextColor: NoteColor };
   'combat:enemy-spawned': { enemyId: string };
   'combat:enemy-died': { enemyId: string; remaining: number };
-  'combat:base-damaged': { current: number; max: number };
+  'combat:base-damaged': { damage: number; current: number; max: number };
 }
 
 export type EventKey = keyof EventMap;

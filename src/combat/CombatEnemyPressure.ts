@@ -77,7 +77,7 @@ function updateEnemyBaseAttacks(
 
   while (runtime.state === 'running' && runtime.combatElapsedMs >= enemy.nextAttackAtMs) {
     runtime.baseHp = Math.max(0, runtime.baseHp - attackDamage);
-    pushCombatBaseDamaged(runtime);
+    pushCombatBaseDamaged(runtime, attackDamage);
 
     if (runtime.baseHp <= 0) {
       setCombatState(runtime, 'defeat');
