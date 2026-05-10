@@ -93,7 +93,7 @@ describe('populatePreviewCard', () => {
     const previewCard = scene.add.container(0, 0);
     const wavePreview = makeWavePreview({ tags: ['Red', 'Fast', 'Single-Target'] });
 
-    const state = populatePreviewCard(scene, previewCard, wavePreview);
+    const state = populatePreviewCard(scene, previewCard, wavePreview, 400);
 
     // One pill per tag
     expect(state.pillContainers).toHaveLength(3);
@@ -112,7 +112,7 @@ describe('populatePreviewCard', () => {
     const previewCard = scene.add.container(0, 0);
     const wavePreview = makeWavePreview({ waveNumber: 3, totalWaves: 10 });
 
-    populatePreviewCard(scene, previewCard, wavePreview);
+    populatePreviewCard(scene, previewCard, wavePreview, 400);
 
     // Should have called add.text to create a wave label
     const waveLabelCall = textSpy.mock.calls.find(
@@ -136,7 +136,7 @@ describe('populatePreviewCard', () => {
 
     const destroySpy0 = oldState.pillContainers[0]!.destroy as ReturnType<typeof vi.fn>;
 
-    populatePreviewCard(scene, previewCard, wavePreview, oldState);
+    populatePreviewCard(scene, previewCard, wavePreview, 400, oldState);
 
     expect(destroySpy0).toHaveBeenCalled();
   });
@@ -151,7 +151,7 @@ describe('populatePreviewCard', () => {
       tags: ['Red', 'Elite'],
     });
 
-    const state = populatePreviewCard(scene, previewCard, wavePreview);
+    const state = populatePreviewCard(scene, previewCard, wavePreview, 400);
 
     // Should have created a special enemy card
     expect(state.enemyCard).not.toBeNull();
@@ -173,7 +173,7 @@ describe('populatePreviewCard', () => {
       tags: ['Red', 'Boss'],
     });
 
-    const state = populatePreviewCard(scene, previewCard, wavePreview);
+    const state = populatePreviewCard(scene, previewCard, wavePreview, 400);
 
     expect(state.enemyCard).not.toBeNull();
   });
@@ -188,7 +188,7 @@ describe('populatePreviewCard', () => {
       tags: ['Red'],
     });
 
-    const state = populatePreviewCard(scene, previewCard, wavePreview);
+    const state = populatePreviewCard(scene, previewCard, wavePreview, 400);
 
     expect(state.enemyCard).toBeNull();
   });
@@ -198,7 +198,7 @@ describe('populatePreviewCard', () => {
     const textSpy = scene.add.text as ReturnType<typeof vi.fn>;
     const previewCard = scene.add.container(0, 0);
 
-    populatePreviewCard(scene, previewCard, null, undefined, 'Stage Complete');
+    populatePreviewCard(scene, previewCard, null, 400, undefined, 'Stage Complete');
 
     const terminalCall = textSpy.mock.calls.find(
       (call: unknown[]) => (call[2] as string).includes('Stage Complete'),

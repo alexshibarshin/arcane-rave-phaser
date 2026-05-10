@@ -80,7 +80,7 @@ export function createSpecialEnemyCard(
   // positioned at the card center so everything aligns.
   const enemyGfx = scene.add.graphics();
   const bodyColor = NOTE_COLORS[enemyColor] ?? 0xe03c3c;
-  const bodyScale = variant === 'lobby' ? 3.2 : 1.6;
+  const bodyScale = variant === 'lobby' ? 3.2 : 1.0;
   const bodyW = 31 * bodyScale;
   const bodyH = 36 * bodyScale;
 

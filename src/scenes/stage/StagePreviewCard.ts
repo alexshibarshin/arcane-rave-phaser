@@ -26,6 +26,7 @@ export function populatePreviewCard(
   scene: Phaser.Scene,
   previewCard: Phaser.GameObjects.Container,
   wavePreview: StageWavePreviewModel | null,
+  panelWidth: number,
   previousState?: PreviewCardState,
   terminalText?: string,
 ): PreviewCardState {
@@ -40,8 +41,9 @@ export function populatePreviewCard(
 
   if (wavePreview === null) {
     // Terminal state
+    const centerX = panelWidth / 2;
     const terminalLabel = terminalText
-      ? scene.add.text(0, 0, terminalText, {
+      ? scene.add.text(centerX, 0, terminalText, {
           color: TERMINAL_FONT_COLOR,
           fontFamily: FONT_FAMILY,
           fontSize: TERMINAL_FONT_SIZE,
@@ -61,11 +63,12 @@ export function populatePreviewCard(
     };
   }
 
+  const centerX = panelWidth / 2;
   let currentY = PREVIEW_CARD_PADDING_TOP;
 
   // Wave label
   const waveLabelText = `WAVE ${wavePreview.waveNumber}/${wavePreview.totalWaves}`;
-  const waveLabel = scene.add.text(0, currentY, waveLabelText, {
+  const waveLabel = scene.add.text(centerX, currentY, waveLabelText, {
     color: WAVE_LABEL_COLOR,
     fontFamily: FONT_FAMILY,
     fontSize: WAVE_LABEL_FONT_SIZE,
@@ -88,7 +91,7 @@ export function populatePreviewCard(
     }
     totalPillWidth += (displayTags.length - 1) * PILL_GAP;
 
-    let pillX = -totalPillWidth / 2;
+    let pillX = centerX - totalPillWidth / 2;
     for (const tag of displayTags) {
       const pill = createPillTag(scene, tag);
       const pillWidth = measurePillTagWidth(scene, tag);
@@ -109,7 +112,7 @@ export function populatePreviewCard(
   ) {
     enemyCard = createSpecialEnemyCard(scene, wavePreview.specialEnemyId, 'wave-preview');
     // Center the enemy card horizontally (wave-preview variant is 140px wide)
-    enemyCard.setPosition(-70, currentY);
+    enemyCard.setPosition(centerX - 70, currentY);
     previewCard.add(enemyCard);
   }
 

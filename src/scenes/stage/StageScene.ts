@@ -164,20 +164,18 @@ export class StageScene extends Phaser.Scene {
   }
 
   private createPreviewCard(): Phaser.GameObjects.Container {
-    const container = this.add.container(
-      StagePresentationConfig.PREVIEW_CARD_X,
-      StagePresentationConfig.PREVIEW_CARD_Y,
-    );
-    const graphics = this.add.graphics();
     const width = StagePresentationConfig.PREVIEW_CARD_WIDTH;
     const height = StagePresentationConfig.PREVIEW_CARD_HEIGHT;
-    const x = -width / 2;
-    const y = -height / 2;
+    const container = this.add.container(
+      StagePresentationConfig.PREVIEW_CARD_X - width / 2,
+      StagePresentationConfig.PREVIEW_CARD_Y - height / 2,
+    );
+    const graphics = this.add.graphics();
 
     graphics.fillStyle(0x0d1725, 0.92);
-    graphics.fillRoundedRect(x, y, width, height, 28);
+    graphics.fillRoundedRect(0, 0, width, height, 28);
     graphics.lineStyle(2, 0x56d6ff, 0.5);
-    graphics.strokeRoundedRect(x, y, width, height, 28);
+    graphics.strokeRoundedRect(0, 0, width, height, 28);
 
     container.add(graphics);
 
@@ -327,6 +325,7 @@ export class StageScene extends Phaser.Scene {
         this,
         this.previewCard,
         wavePreview,
+        StagePresentationConfig.PREVIEW_CARD_WIDTH,
         this.previewCardState,
         wavePreview ? undefined : getTerminalBody(this.runtime),
       );
