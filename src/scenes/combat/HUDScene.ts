@@ -332,22 +332,22 @@ export class HUDScene extends UIScene {
     const glyph = this.add.graphics();
     const glow = this.add.graphics();
     const hitTarget = this.add.rectangle(0, 0, width, height, 0xffffff, 0.001);
-    const radius = 16;
+    const radius = 20;
     const direction = mode === 'rewind' ? -1 : 1;
 
     glow.fillStyle(0x9be7ff, 0.16);
-    glow.fillRoundedRect(-width / 2 - 6, -height / 2 - 6, width + 12, height + 12, radius + 4);
+    glow.fillRoundedRect(-width / 2 - 8, -height / 2 - 8, width + 16, height + 16, radius + 6);
     glow.setBlendMode(Phaser.BlendModes.ADD);
     glow.setAlpha(CombatVisualConfig.TIME_CONTROL.INACTIVE_GLOW_ALPHA);
 
     background.fillStyle(0x08131d, 0.94);
     background.fillRoundedRect(-width / 2, -height / 2, width, height, radius);
-    background.lineStyle(2, 0x57d9ff, 0.78);
+    background.lineStyle(3, 0x57d9ff, 0.78);
     background.strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
 
     glyph.fillStyle(0xdefcff, 1);
-    this.drawTimeControlTriangle(glyph, -direction * 10, 0, 14, 18, direction < 0);
-    this.drawTimeControlTriangle(glyph, direction * 10, 0, 14, 18, direction < 0);
+    this.drawTimeControlTriangle(glyph, -direction * 22, 0, 28, 36, direction < 0);
+    this.drawTimeControlTriangle(glyph, direction * 22, 0, 28, 36, direction < 0);
 
     hitTarget.setOrigin(0.5, 0.5);
     container.add([glow, background, glyph, hitTarget]);
