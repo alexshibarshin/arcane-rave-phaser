@@ -24,7 +24,7 @@ export class CombatBaseHpBarPresenter {
       innerHeight,
       8,
     );
-    hpBar.label.setText(`BASE HP ${runtime.baseHp}/${CombatBalanceConfig.BASE_HP}`);
+    hpBar.label.setText(`${runtime.baseHp}/${CombatBalanceConfig.BASE_HP}`);
   }
 
   destroy(): void {

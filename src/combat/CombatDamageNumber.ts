@@ -3,6 +3,7 @@ import { CombatLayoutConfig } from '@config/CombatLayoutConfig';
 
 interface CombatDamageNumberConfig {
   fontSizePx: number;
+  strokeThicknessPx: number;
   floatDurationMs: number;
   floatDistanceY: number;
 }
@@ -16,11 +17,10 @@ export class CombatDamageNumber {
 
   constructor(scene: Phaser.Scene, config: CombatDamageNumberConfig) {
     this.text = scene.add.text(0, 0, '', {
-      fontSize: `${config.fontSizePx}px`,
-      fontFamily: 'monospace',
+      font: `bold ${config.fontSizePx}px monospace`,
       color: '#ffffff',
       stroke: '#000000',
-      strokeThickness: 3,
+      strokeThickness: config.strokeThicknessPx,
     });
     this.text.setOrigin(0.5, 0.5);
     this.text.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.45);

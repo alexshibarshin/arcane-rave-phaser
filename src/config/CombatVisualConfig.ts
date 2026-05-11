@@ -99,10 +99,11 @@ export const CombatVisualConfig = {
     },
   },
   DAMAGE_NUMBER: {
-    FONT_SIZE_PX: 14,
+    FONT_SIZE_PX: 28,
     FLOAT_DURATION_MS: 600,
     FLOAT_DISTANCE_Y: 30,
-    BASE_OFFSET_X: 60,
+    STROKE_THICKNESS_PX: 1,
+    BASE_OFFSET_X: 90,
     BASE_OFFSET_Y: -20,
     ENEMY_OFFSET_Y: -10,
   },

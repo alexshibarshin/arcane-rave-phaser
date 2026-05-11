@@ -444,11 +444,12 @@ function renderBaseHpBar(
   frame.fillRoundedRect(x, y, model.baseHpBar.width, model.baseHpBar.height, 10);
   fill.setDepth(model.baseHpBar.depth);
 
-  const label = scene.add.text(model.baseHpBar.x, model.baseHpBar.y + 26, 'BASE HP 100/100', {
-    color: '#bde7c7',
+  const label = scene.add.text(model.baseHpBar.x, model.baseHpBar.y, '100/100', {
+    color: '#000000',
     fontFamily: 'monospace',
     fontSize: '16px',
   });
+  label.setOrigin(0.5, 0.5);
   label.setOrigin(0.5, 0.5);
   label.setDepth(model.baseHpBar.depth);
 

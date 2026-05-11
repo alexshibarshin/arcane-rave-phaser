@@ -12,6 +12,7 @@ export class CombatDamageNumberRenderer {
   private scene?: Phaser.Scene;
   private readonly config = {
     fontSizePx: CombatVisualConfig.DAMAGE_NUMBER.FONT_SIZE_PX,
+    strokeThicknessPx: CombatVisualConfig.DAMAGE_NUMBER.STROKE_THICKNESS_PX,
     floatDurationMs: CombatVisualConfig.DAMAGE_NUMBER.FLOAT_DURATION_MS,
     floatDistanceY: CombatVisualConfig.DAMAGE_NUMBER.FLOAT_DISTANCE_Y,
   };

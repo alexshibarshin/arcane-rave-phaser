@@ -237,7 +237,7 @@ export function createCombatRenderModel(
 ): CombatRenderModel {
   const layout = createCombatLayoutPlan();
   const innerZoneRadius = layout.record.radius * CombatLayoutConfig.RECORD_INNER_ZONE_RADIUS_RATIO;
-  const hpBarY = layout.base.y + layout.base.height / 2 + 24;
+  const hpBarY = layout.base.y + layout.base.height / 2 + 14;
   const timeControlsY = layout.record.centerY - layout.record.radius - CombatLayoutConfig.TIME_CONTROL_Y_OFFSET;
   const pawnDefinitionsById = new Map(
     CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => [pawn.id, pawn]),

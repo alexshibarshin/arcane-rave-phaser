@@ -4,6 +4,7 @@ import { CombatDamageNumber } from './CombatDamageNumber';
 describe('CombatDamageNumber', () => {
   const config = {
     fontSizePx: 14,
+    strokeThicknessPx: 1,
     floatDurationMs: 600,
     floatDistanceY: 30,
   };
@@ -42,7 +43,7 @@ describe('CombatDamageNumber', () => {
     damageNumber.update(300);
 
     expect(scene.add.text).toHaveBeenCalledWith(0, 0, '', expect.objectContaining({
-      fontSize: '14px',
+      font: 'bold 14px monospace',
       color: '#ffffff',
       stroke: '#000000',
     }));
