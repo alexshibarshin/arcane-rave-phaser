@@ -47,7 +47,7 @@ export class StageTooltipController {
 
   private createTooltipContainer(): Phaser.GameObjects.Container {
     const width = this.scene.scale.width - 64;
-    const height = 146;
+    const height = 190;
     const container = this.scene.add.container(this.scene.scale.width / 2, 144);
     const background = this.scene.add.graphics();
     background.fillStyle(0x08111b, 0.96);
@@ -58,19 +58,19 @@ export class StageTooltipController {
     const leftColumnWidth = Math.round(width * 0.35);
     background.lineStyle(1, 0x163148, 0.85);
     background.strokeLineShape(
-      new Phaser.Geom.Line(-width / 2 + leftColumnWidth, -height / 2 + 18, -width / 2 + leftColumnWidth, height / 2 - 18),
+      new Phaser.Geom.Line(-width / 2 + leftColumnWidth, -height / 2 + 20, -width / 2 + leftColumnWidth, height / 2 - 20),
     );
 
-    this.title = this.scene.add.text(-width / 2 + leftColumnWidth / 2, -height / 2 + 22, '', {
+    this.title = this.scene.add.text(-width / 2 + leftColumnWidth / 2, -height / 2 + 24, '', {
       color: '#f5f7ff',
       fontFamily: 'Helvetica, Arial, sans-serif',
       fontSize: '20px',
       align: 'center',
       wordWrap: { width: leftColumnWidth - 24 },
     }).setOrigin(0.5, 0.5);
-    this.sprite = this.scene.add.image(-width / 2 + leftColumnWidth / 2, 4, CombatContentConfig.PAWN_SPRITE_TEXTURE_KEY, 0);
-    this.sprite.setDisplaySize(88, 88);
-    this.tierStars = this.scene.add.text(-width / 2 + leftColumnWidth / 2, 42, '', {
+    this.sprite = this.scene.add.image(-width / 2 + leftColumnWidth / 2, 8, CombatContentConfig.PAWN_SPRITE_TEXTURE_KEY, 0);
+    this.sprite.setDisplaySize(96, 96);
+    this.tierStars = this.scene.add.text(-width / 2 + leftColumnWidth / 2, 48, '', {
       color: '#ffd166',
       fontFamily: 'monospace',
       fontSize: `${CombatVisualConfig.TIER_STAR_FONT_SIZE_PX}px`,
@@ -78,19 +78,19 @@ export class StageTooltipController {
     }).setOrigin(0.5, 0.5);
     this.tierStars.setStroke('#7a4f00', 5);
 
-    this.meta = this.scene.add.text(-width / 2 + leftColumnWidth + 22, -height / 2 + 26, '', {
+    this.meta = this.scene.add.text(-width / 2 + leftColumnWidth + 22, -height / 2 + 28, '', {
       color: '#06111a',
       backgroundColor: '#8fd0ea',
       fontFamily: 'monospace',
-      fontSize: '13px',
-      padding: { left: 10, right: 10, top: 6, bottom: 6 },
+      fontSize: '15px',
+      padding: { left: 12, right: 12, top: 8, bottom: 8 },
     }).setOrigin(0, 0.5);
-    this.rule = this.scene.add.container(-width / 2 + leftColumnWidth + 160, -height / 2 + 26);
-    this.description = this.scene.add.text(-width / 2 + leftColumnWidth + 22, -height / 2 + 56, '', {
+    this.rule = this.scene.add.container(-width / 2 + leftColumnWidth + 160, -height / 2 + 28);
+    this.description = this.scene.add.text(-width / 2 + leftColumnWidth + 22, -height / 2 + 60, '', {
       color: '#d9e9f8',
       fontFamily: 'monospace',
-      fontSize: '14px',
-      lineSpacing: 4,
+      fontSize: '18px',
+      lineSpacing: 6,
       wordWrap: { width: width - leftColumnWidth - 44 },
     });
 

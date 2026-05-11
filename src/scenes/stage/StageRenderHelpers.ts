@@ -104,6 +104,12 @@ export function getPawnTooltipDescription(
   tier: number,
 ): string {
   const damage = getScaledPawnDamage(pawn.ability.damage, tier);
+
+  const template = pawn.tooltip.shortDescription?.trim();
+  if (template) {
+    return template.replace(/{damage}/g, String(damage));
+  }
+
   const secondary = pawn.ability.secondaryEffect;
 
   switch (pawn.ability.primaryArchetype) {

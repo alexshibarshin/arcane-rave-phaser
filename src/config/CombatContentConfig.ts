@@ -375,7 +375,7 @@ const combatContentConfig = {
       shopPrice: 5,
       artFrame: 0,
       primaryArchetype: 'projectile',
-      tooltip: 'Single precise shot for 50 damage.',
+      tooltip: 'Single precise shot for {damage} damage.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'projectile',
@@ -394,7 +394,7 @@ const combatContentConfig = {
       shopPrice: 5,
       artFrame: 1,
       primaryArchetype: 'explosion',
-      tooltip: 'Drops a 120-radius bomb for 38 damage.',
+      tooltip: 'Drops a 120-radius bomb for {damage} damage.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'explosion',
@@ -413,7 +413,7 @@ const combatContentConfig = {
       shopPrice: 6,
       artFrame: 2,
       primaryArchetype: 'beam',
-      tooltip: 'Locks a beam for 3 sec., ticking 10 damage every 0.5 sec. If the target dies, it jumps to the next frontmost enemy.',
+      tooltip: 'Locks a beam for 3 sec., ticking {damage} damage every 0.5 sec. If the target dies, it jumps to the next frontmost enemy.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'beam',
@@ -433,7 +433,7 @@ const combatContentConfig = {
       shopPrice: 6,
       artFrame: 3,
       primaryArchetype: 'explosion',
-      tooltip: 'After 0.5 sec., calls down a meteor: 40 damage in a 150 radius. Leaves a burning zone for 2 sec.',
+      tooltip: 'After 0.5 sec., calls down a meteor: {damage} damage in a 150 radius. Leaves a burning zone for 2 sec.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'explosion',
@@ -459,7 +459,7 @@ const combatContentConfig = {
       shopPrice: 4,
       artFrame: 4,
       primaryArchetype: 'zone',
-      tooltip: 'Creates a 130-radius zone for 2.5 sec., dealing 9 damage every 0.5 sec.',
+      tooltip: 'Creates a 130-radius zone for 2.5 sec., dealing {damage} damage every 0.5 sec.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'zone',
@@ -479,7 +479,7 @@ const combatContentConfig = {
       shopPrice: 4,
       artFrame: 5,
       primaryArchetype: 'projectile',
-      tooltip: 'Burst of 3 projectiles for 14 damage each. Heals the base for 50% of damage dealt.',
+      tooltip: 'Burst of 3 projectiles for {damage} damage each. Heals the base for 50% of damage dealt.',
       isActiveInFirstPlayableDeck: false,
       ability: {
         primaryArchetype: 'projectile',
@@ -505,7 +505,7 @@ const combatContentConfig = {
       shopPrice: 6,
       artFrame: 6,
       primaryArchetype: 'projectile',
-      tooltip: 'Fan of 5 thorn shots for 14 damage each.',
+      tooltip: 'Fan of 5 thorn shots for {damage} damage each.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'projectile',
@@ -551,7 +551,7 @@ const combatContentConfig = {
       shopPrice: 4,
       artFrame: 8,
       primaryArchetype: 'beam',
-      tooltip: 'Deploys a static emitter that sweeps a freezing beam upward for 2 sec. Enemies take 15 damage and 45% slow for 1.5 sec.',
+      tooltip: 'Deploys a static emitter that sweeps a freezing beam upward for 2 sec. Enemies take {damage} damage and 45% slow for 1.5 sec.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'beam',
@@ -577,7 +577,7 @@ const combatContentConfig = {
       shopPrice: 5,
       artFrame: 9,
       primaryArchetype: 'projectile',
-      tooltip: 'Fires 3 shots for 14 damage. On hit, each shot splits into 2 child bolts.',
+      tooltip: 'Fires 3 shots for {damage} damage. On hit, each shot splits into 2 child bolts.',
       isActiveInFirstPlayableDeck: false,
       ability: {
         primaryArchetype: 'projectile',
@@ -605,7 +605,7 @@ const combatContentConfig = {
       shopPrice: 5,
       artFrame: 10,
       primaryArchetype: 'explosion',
-      tooltip: 'Detonates a 130-radius explosion for 42 damage. Deals 50% bonus to targets above 75% HP.',
+      tooltip: 'Detonates a 130-radius explosion for {damage} damage. Deals 50% bonus to targets above 75% HP.',
       isActiveInFirstPlayableDeck: false,
       ability: {
         primaryArchetype: 'explosion',
@@ -629,7 +629,7 @@ const combatContentConfig = {
       shopPrice: 5,
       artFrame: 11,
       primaryArchetype: 'projectile',
-      tooltip: 'Burst of 3 projectiles for 15 damage each. Each shot can bounce once to a new enemy.',
+      tooltip: 'Burst of 3 projectiles for {damage} damage each. Each shot can bounce once to a new enemy.',
       isActiveInFirstPlayableDeck: true,
       ability: {
         primaryArchetype: 'projectile',
