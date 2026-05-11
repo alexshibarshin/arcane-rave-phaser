@@ -23,6 +23,12 @@ export class StageShopView {
   readonly cardsLayer: Phaser.GameObjects.Container;
 
   private emptyLabel?: Phaser.GameObjects.Text;
+  private sellOverlay?: Phaser.GameObjects.Container;
+  private sellOverlayText?: Phaser.GameObjects.Text;
+  private sellPriceText?: Phaser.GameObjects.Text;
+  private sellOverlayBg?: Phaser.GameObjects.Graphics;
+  private lastOffersRef?: string[];
+  private lastCoins?: number;
   private onCardsCreated?: () => void;
 
   constructor(
@@ -79,6 +85,11 @@ export class StageShopView {
   refresh(offers: string[], coins: number, rerollCost: number): void {
     this.rerollButton.setText(`Reroll ${rerollCost}c`);
     this.rerollButton.setAlpha(coins >= rerollCost ? 1 : 0.45);
+    if (this.lastOffersRef === offers && this.lastCoins === coins) {
+      return;
+    }
+    this.lastOffersRef = offers;
+    this.lastCoins = coins;
     this.renderCards(offers, coins);
   }
 
@@ -244,10 +255,107 @@ export class StageShopView {
     };
   }
 
+  showSellOverlay(price: number): void {
+    if (this.sellOverlay) {
+      return;
+    }
+
+    const width = StagePresentationConfig.SHOP_PANEL_WIDTH;
+    const height = StagePresentationConfig.SHOP_PANEL_HEIGHT;
+    const x = -width / 2;
+    const y = -height / 2;
+
+    this.sellOverlay = this.scene.add.container(0, 0);
+
+    // Dark semi-transparent background
+    this.sellOverlayBg = this.scene.add.graphics();
+    this.sellOverlayBg.fillStyle(0x050a10, 0.75);
+    this.sellOverlayBg.fillRoundedRect(x, y, width, height, StagePresentationConfig.SHOP_BORDER_RADIUS);
+    // Border
+    this.sellOverlayBg.lineStyle(2, 0xff6b6b, 0.9);
+    this.sellOverlayBg.strokeRoundedRect(x, y, width, height, StagePresentationConfig.SHOP_BORDER_RADIUS);
+    this.sellOverlay!.add(this.sellOverlayBg);
+
+    // Sell text
+    this.sellOverlayText = this.scene.add.text(0, y + height / 2 - 14, 'Drag here to SELL', {
+      color: '#ff9b9b',
+      fontFamily: 'monospace',
+      fontSize: '24px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5, 0.5);
+    this.sellOverlay!.add(this.sellOverlayText);
+
+    // Price text
+    this.sellPriceText = this.scene.add.text(0, y + height / 2 + 18, `+${price}c`, {
+      color: '#ffe08e',
+      fontFamily: 'monospace',
+      fontSize: '32px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5, 0.5);
+    this.sellOverlay!.add(this.sellPriceText);
+
+    this.container.add(this.sellOverlay);
+    this.sellOverlay!.setAlpha(0);
+
+    this.scene.tweens.add({
+      targets: this.sellOverlay!,
+      alpha: 1,
+      duration: 150,
+      ease: 'Sine.easeOut',
+    });
+  }
+
+  hideSellOverlay(): void {
+    if (!this.sellOverlay) {
+      return;
+    }
+
+    this.scene.tweens.killTweensOf(this.sellOverlay);
+    this.scene.tweens.add({
+      targets: this.sellOverlay,
+      alpha: 0,
+      duration: 150,
+      ease: 'Sine.easeIn',
+      onComplete: () => {
+        this.sellOverlay?.destroy();
+        this.sellOverlay = undefined;
+        this.sellOverlayText = undefined;
+        this.sellPriceText = undefined;
+        this.sellOverlayBg = undefined;
+      },
+    });
+  }
+
+  containsSellOverlayPoint(worldX: number, worldY: number): boolean {
+    if (!this.sellOverlay) {
+      return false;
+    }
+
+    const container = this.container;
+    const worldX0 = container.x;
+    const worldY0 = container.y;
+    const localX = worldX - worldX0;
+    const localY = worldY - worldY0;
+    const width = StagePresentationConfig.SHOP_PANEL_WIDTH;
+    const height = StagePresentationConfig.SHOP_PANEL_HEIGHT;
+    return (
+      localX >= -width / 2 &&
+      localX <= width / 2 &&
+      localY >= -height / 2 &&
+      localY <= height / 2
+    );
+  }
+
+  isSellOverlayVisible(): boolean {
+    return this.sellOverlay !== undefined;
+  }
+
   destroy(): void {
     this.cardViews.forEach((card) => card.container.destroy());
     this.cardViews.length = 0;
     this.emptyLabel?.destroy();
     this.emptyLabel = undefined;
+    this.sellOverlay?.destroy();
+    this.sellOverlay = undefined;
   }
 }

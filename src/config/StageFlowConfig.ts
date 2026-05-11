@@ -8,4 +8,5 @@ export const StageFlowConfig = {
   SHOP_REROLL_INCREMENT: 1,
   REPOSITION_COST: 1,
   MAX_PAWN_TIER: 3,
+  SELL_RATIO: 0.5,
 } as const;

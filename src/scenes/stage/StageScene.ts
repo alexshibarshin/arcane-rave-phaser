@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   CombatContentConfig,
   type CombatPawnDefinition,
+  getCombatPawnDefinitionById,
 } from '@config/CombatContentConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { getStageConfig } from '@config/StageRegistry';
@@ -13,6 +14,7 @@ import {
   createStageRuntime,
   getStageShopRerollCost,
   rerollStageShopOffers,
+  sellStagePawnFromSlot,
   type StageRuntime,
 } from '@stage/StageRuntime';
 import { FixedMergeStrategy } from '@stage/MergeStrategy';
@@ -46,6 +48,10 @@ export class StageScene extends Phaser.Scene {
   private previewCard?: Phaser.GameObjects.Container;
   private transientStatusText: string | null = null;
   private lastPresentedCoins: number | null = null;
+  private sellEnabled_: boolean = true;
+  private sellDragPawnId_: string | null = null;
+  private sellDragTier_: number = 1;
+  private sellDragSlotIndex_: number = -1;
   private readonly stageFlowCoordination: StageFlowCoordinationState = createStageFlowCoordinationState();
 
   private recordView!: StageRecordView;
@@ -58,7 +64,7 @@ export class StageScene extends Phaser.Scene {
     super({ key: SceneKeys.STAGE });
   }
 
-  create(data?: { stageId?: string; settings?: { mergeRule?: 'random' | 'fixed' } }): void {
+  create(data?: { stageId?: string; settings?: { mergeRule?: 'random' | 'fixed'; sellEnabled?: boolean } }): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
 
     const stageId = data?.stageId ?? 'redline-routine';
@@ -69,7 +75,9 @@ export class StageScene extends Phaser.Scene {
     }
 
     const mergeRule = data?.settings?.mergeRule ?? 'random';
+    const sellEnabled = data?.settings?.sellEnabled ?? true;
     const mergeStrategy = mergeRule === 'fixed' ? new FixedMergeStrategy() : undefined;
+    this.sellEnabled_ = sellEnabled;
     this.runtime = createStageRuntime(stageConfig, mergeStrategy);
 
     this.renderLayout();
@@ -234,6 +242,41 @@ export class StageScene extends Phaser.Scene {
         },
         onStatusChanged: (msg) => {
           this.transientStatusText = msg;
+        },
+        onSellDragStart: (pawnId, tier, slotIndex) => {
+          if (!this.sellEnabled_) {
+            return;
+          }
+          this.sellDragPawnId_ = pawnId;
+          this.sellDragTier_ = tier;
+          this.sellDragSlotIndex_ = slotIndex;
+          const pawnDef = getCombatPawnDefinitionById(pawnId);
+          const shopPrice = pawnDef?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
+          const fairPrice = shopPrice * Math.pow(2, tier - 1);
+          const sellPrice = Math.ceil(fairPrice * StageFlowConfig.SELL_RATIO);
+          this.shopView.showSellOverlay(sellPrice);
+        },
+        onSellAttempt: () => {
+          if (!this.sellEnabled_ || this.sellDragSlotIndex_ < 0) {
+            return false;
+          }
+          const slotIndex = this.sellDragSlotIndex_;
+          const success = sellStagePawnFromSlot(this.runtime, slotIndex);
+          if (success) {
+            this.sellDragSlotIndex_ = -1;
+            // Animate pawn removal
+            this.animatePawnSell(slotIndex);
+            this.sellDragPawnId_ = null;
+            this.sellDragTier_ = 1;
+            return true;
+          }
+          return false;
+        },
+        onSellDragEnd: () => {
+          this.shopView.hideSellOverlay();
+          this.sellDragPawnId_ = null;
+          this.sellDragTier_ = 1;
+          this.sellDragSlotIndex_ = -1;
         },
       },
     );
@@ -448,6 +491,38 @@ export class StageScene extends Phaser.Scene {
       yoyo: true,
       onComplete: () => {
         this.coinsGlowLabel?.setAlpha(0).setScale(1);
+      },
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Pawn sell animation                                                */
+  /* ------------------------------------------------------------------ */
+
+  private animatePawnSell(slotIndex: number): void {
+    const slotView = this.recordView.slotViews.find((sv) => sv.slotIndex === slotIndex);
+    if (!slotView?.pawnContainer) {
+      // No visual to animate; just refresh UI
+      this.refreshBuildUI();
+      this.publishSnapshot();
+      return;
+    }
+
+    const pawnContainer = slotView.pawnContainer;
+
+    this.tweens.add({
+      targets: pawnContainer,
+      scaleX: 0.1,
+      scaleY: 0.1,
+      alpha: 0,
+      duration: 200,
+      ease: 'Back.easeIn',
+      onComplete: () => {
+        pawnContainer.destroy();
+        slotView.pawnContainer = undefined;
+        this.refreshBuildUI();
+        this.publishSnapshot();
+        this.playCoinFeedbackIfNeeded();
       },
     });
   }

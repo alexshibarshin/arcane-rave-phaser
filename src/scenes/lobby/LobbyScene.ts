@@ -72,6 +72,7 @@ interface LobbyState {
   showResultModal: boolean;
   resultStageId: string | null;
   mergeRule: 'random' | 'fixed';
+  sellEnabled: boolean;
 }
 
 export class LobbyScene extends Phaser.Scene {
@@ -80,6 +81,7 @@ export class LobbyScene extends Phaser.Scene {
     showResultModal: false,
     resultStageId: null,
     mergeRule: 'random',
+    sellEnabled: true,
   };
 
   private cardContainers: Phaser.GameObjects.Container[] = [];
@@ -105,6 +107,7 @@ export class LobbyScene extends Phaser.Scene {
       showResultModal: data?.showResult ?? false,
       resultStageId: data?.stageId ?? null,
       mergeRule: SessionProgressStore.getMergeRule(),
+      sellEnabled: SessionProgressStore.getSellEnabled(),
     };
 
     if (this.state_.selectedStageId) {
@@ -594,7 +597,7 @@ export class LobbyScene extends Phaser.Scene {
       if (this.state_.selectedStageId) {
         this.scene.start(SceneKeys.STAGE, {
           stageId: this.state_.selectedStageId,
-          settings: { mergeRule: this.state_.mergeRule },
+          settings: { mergeRule: this.state_.mergeRule, sellEnabled: this.state_.sellEnabled },
         });
       }
     });
@@ -642,6 +645,14 @@ export class LobbyScene extends Phaser.Scene {
     ], this.state_.mergeRule, (value) => {
       this.state_.mergeRule = value;
       SessionProgressStore.setMergeRule(value);
+      this.buildRadioBlocks();
+    });
+
+    // Block 1: Pawn Sell
+    const sellBlockX = BLOCK_WIDTH + BLOCK_GAP;
+    this.buildSellRadioBlock(sellBlockX, 0, this.state_.sellEnabled, (enabled) => {
+      this.state_.sellEnabled = enabled;
+      SessionProgressStore.setSellEnabled(enabled);
       this.buildRadioBlocks();
     });
   }
@@ -712,6 +723,70 @@ export class LobbyScene extends Phaser.Scene {
     this.radioBlockContainer!.add(block);
   }
 
+  private buildSellRadioBlock(x: number, y: number, selectedValue: boolean, onSelect: (enabled: boolean) => void): void {
+    const block = this.add.container(x, y);
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(BG_DEFAULT, 1);
+    bg.fillRoundedRect(0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, 8);
+    bg.lineStyle(1, BORDER_DEFAULT, 1);
+    bg.strokeRoundedRect(0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, 8);
+    block.add(bg);
+
+    // Header
+    const header = this.add.text(16, 14, 'PAWN SELL', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: BLOCK_HEADER_FONT_SIZE,
+      color: 'rgba(255,255,255,0.3)',
+      letterSpacing: 2,
+    });
+    block.add(header);
+
+    // Options
+    const options: Array<{ value: boolean; label: string }> = [
+      { value: true, label: 'Enabled' },
+      { value: false, label: 'Disabled' },
+    ];
+
+    let optionY = 44;
+    for (const opt of options) {
+      const isSelected = opt.value === selectedValue;
+
+      // Radio circle
+      const circle = this.add.graphics();
+      const cy = optionY + 8;
+      circle.lineStyle(2, isSelected ? 0x4a80d0 : 0x3a4050, 1);
+      circle.strokeCircle(16, cy, 8);
+      if (isSelected) {
+        circle.fillStyle(0x4a80d0, 1);
+        circle.fillCircle(16, cy, 4);
+      }
+      block.add(circle);
+
+      // Label
+      const label = this.add.text(34, optionY, opt.label, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: BLOCK_LABEL_FONT_SIZE,
+        color: isSelected ? '#EAEAEA' : 'rgba(255,255,255,0.55)',
+      });
+      block.add(label);
+
+      // Hit area
+      label.setInteractive(
+        new Phaser.Geom.Rectangle(-34, -4, BLOCK_WIDTH - 8, 32),
+        Phaser.Geom.Rectangle.Contains,
+      );
+      label.on('pointerdown', () => {
+        onSelect(opt.value);
+      });
+
+      optionY += 32;
+    }
+
+    this.radioBlockContainer!.add(block);
+  }
+
   /* ========== RESULT MODAL ========== */
 
   private showResultModal(stageId: string): void {
@@ -740,7 +815,7 @@ export class LobbyScene extends Phaser.Scene {
         this.state_.showResultModal = false;
         this.scene.start(SceneKeys.STAGE, {
           stageId,
-          settings: { mergeRule: this.state_.mergeRule },
+          settings: { mergeRule: this.state_.mergeRule, sellEnabled: this.state_.sellEnabled },
         });
       },
       () => {

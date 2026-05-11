@@ -34,10 +34,14 @@ export interface StageDragCallbacks {
   onApplied: () => void;
   onFailed: () => void;
   onStatusChanged: (message: string | null) => void;
+  onSellDragStart?: (pawnId: string, tier: number, slotIndex: number) => void;
+  onSellAttempt?: (slotIndex: number) => boolean;
+  onSellDragEnd?: () => void;
 }
 
 export class StageDragController {
   private activeDropSlotIndex: number | null = null;
+  private activeDragPayload: DragPayload | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -66,6 +70,11 @@ export class StageDragController {
         gameObject.setScale(1.06);
         this.tooltipController.setDragLocked(true);
         this.updateMergeHighlights(payload);
+        this.activeDragPayload = payload;
+
+        if (payload.kind === 'slot-pawn') {
+          this.callbacks.onSellDragStart?.(payload.pawnId, payload.tier, payload.slotIndex);
+        }
       },
     );
 
@@ -99,7 +108,7 @@ export class StageDragController {
           return;
         }
 
-        const targetSlotIndex = this.getClosestSlotIndex(pointer.worldX, pointer.worldY);
+        const target = this.getDropTarget(pointer.worldX, pointer.worldY);
         gameObject.setDepth(0);
         gameObject.setScale(1);
 
@@ -107,7 +116,14 @@ export class StageDragController {
         let errorMsg: string | null = null;
         const runtime = this.getRuntime();
 
-        if (payload.kind === 'shop-offer' && targetSlotIndex !== null) {
+        if (target.kind === 'sell') {
+          const slotIndex = payload.kind === 'slot-pawn' ? payload.slotIndex : -1;
+          applied = this.callbacks.onSellAttempt?.(slotIndex) ?? false;
+          if (applied) {
+            this.callbacks.onSellDragEnd?.();
+          }
+        } else if (payload.kind === 'shop-offer' && target.kind === 'slot' && target.slotIndex !== undefined) {
+          const targetSlotIndex = target.slotIndex!;
           const def = findPawnDefinition(payload.pawnId);
           const price = def?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
           applied = purchaseStagePawnIntoSlot(runtime, payload.offerIndex, targetSlotIndex);
@@ -119,15 +135,18 @@ export class StageDragController {
             : `Need ${price} coins and either an empty slot or a matching same-tier pawn.`;
         }
 
-        if (payload.kind === 'slot-pawn' && targetSlotIndex !== null) {
-          applied = mergeStagePawnSlots(runtime, payload.slotIndex, targetSlotIndex);
-          errorMsg = applied ? null : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
+        if (payload.kind === 'slot-pawn' && target.kind === 'slot') {
+          const targetSlotIndex = target.slotIndex!;
+          if (targetSlotIndex !== null) {
+            applied = mergeStagePawnSlots(runtime, payload.slotIndex, targetSlotIndex);
+            errorMsg = applied ? null : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
 
-          if (!applied) {
-            applied = repositionStagePawn(runtime, payload.slotIndex, targetSlotIndex);
-            errorMsg = applied
-              ? null
-              : 'Need matching duplicate to merge, or 1 coin and a different destination slot to move.';
+            if (!applied) {
+              applied = repositionStagePawn(runtime, payload.slotIndex, targetSlotIndex);
+              errorMsg = applied
+                ? null
+                : 'Need matching duplicate to merge, or 1 coin and a different destination slot to move.';
+            }
           }
         }
 
@@ -135,16 +154,22 @@ export class StageDragController {
         this.tooltipController.setDragLocked(false);
         this.callbacks.onStatusChanged(errorMsg);
 
+        if (payload.kind === 'slot-pawn') {
+          this.callbacks.onSellDragEnd?.();
+        }
+
         if (applied) {
           this.callbacks.onApplied();
-          if (targetSlotIndex !== null) {
-            this.tooltipController.showCompatibilityLinkIfApplicable(targetSlotIndex);
+          if (target.kind === 'slot' && target.slotIndex !== undefined) {
+            this.tooltipController.showCompatibilityLinkIfApplicable(target.slotIndex!);
           }
         } else {
           gameObject.x = payload.homeX;
           gameObject.y = payload.homeY;
           this.callbacks.onFailed();
         }
+
+        this.activeDragPayload = null;
       },
     );
 
@@ -158,6 +183,21 @@ export class StageDragController {
     this.scene.input.off(Phaser.Input.Events.DRAG);
     this.scene.input.off(Phaser.Input.Events.DRAG_END);
     this.scene.input.off(Phaser.Input.Events.POINTER_UP);
+  }
+
+  getDropTarget(worldX: number, worldY: number): { kind: 'sell' | 'slot' | 'none'; slotIndex?: number } {
+    if (this.callbacks.onSellAttempt && this.activeDragPayload?.kind === 'slot-pawn') {
+      if (this.shopView.isSellOverlayVisible() && this.shopView.containsSellOverlayPoint(worldX, worldY)) {
+        return { kind: 'sell' };
+      }
+    }
+
+    const slotIndex = this.getClosestSlotIndex(worldX, worldY);
+    if (slotIndex !== null) {
+      return { kind: 'slot', slotIndex };
+    }
+
+    return { kind: 'none' };
   }
 
   private resolvePayload(gameObject: Phaser.GameObjects.Container): DragPayload | null {

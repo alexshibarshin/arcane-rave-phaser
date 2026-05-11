@@ -24,6 +24,7 @@ function createStore() {
   const results = new Map<string, StageEntry>();
   let lastSelectedStageId: string | null = null;
   let mergeRule: 'random' | 'fixed' = 'random';
+  let sellEnabled = true;
 
   return {
     getResult(stageId: string): StageResult | null {
@@ -55,6 +56,14 @@ function createStore() {
 
     setMergeRule(rule: 'random' | 'fixed'): void {
       mergeRule = rule;
+    },
+
+    getSellEnabled(): boolean {
+      return sellEnabled;
+    },
+
+    setSellEnabled(enabled: boolean): void {
+      sellEnabled = enabled;
     },
   };
 }

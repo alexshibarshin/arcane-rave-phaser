@@ -219,6 +219,34 @@ export function getStageShopRerollCost(runtime: StageRuntime): number {
   return getStageRerollCost(runtime.build);
 }
 
+export function sellStagePawnFromSlot(
+  runtime: StageRuntime,
+  slotIndex: number,
+): boolean {
+  if (runtime.phase !== 'build') {
+    return false;
+  }
+
+  const slot = runtime.build.slots[slotIndex];
+  if (!slot) {
+    return false;
+  }
+
+  const pawnDef = getCombatPawnDefinitionById(slot.pawnId);
+  if (!pawnDef) {
+    return false;
+  }
+
+  const shopPrice = pawnDef.shopPrice;
+  const tier = slot.tier;
+  const fairPrice = shopPrice * Math.pow(2, tier - 1);
+  const sellPrice = Math.ceil(fairPrice * StageFlowConfig.SELL_RATIO);
+
+  runtime.build.slots[slotIndex] = null;
+  runtime.coins += sellPrice;
+  return true;
+}
+
 export function rerollStageShopOffers(
   runtime: StageRuntime,
   random: () => number = Math.random,
