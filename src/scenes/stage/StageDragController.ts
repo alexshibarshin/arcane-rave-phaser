@@ -12,6 +12,7 @@ import { findPawnDefinition, getPawnAccentColor } from './StageRenderHelpers';
 import type { StageRecordView } from './StageRecordView';
 import type { StageShopView } from './StageShopView';
 import type { StageTooltipController } from './StageTooltipController';
+import { resolveStageDropTarget } from './StageDropTarget';
 
 type DragPayload =
   | {
@@ -186,18 +187,13 @@ export class StageDragController {
   }
 
   getDropTarget(worldX: number, worldY: number): { kind: 'sell' | 'slot' | 'none'; slotIndex?: number } {
-    if (this.callbacks.onSellAttempt && this.activeDragPayload?.kind === 'slot-pawn') {
-      if (this.shopView.isSellOverlayVisible() && this.shopView.containsSellOverlayPoint(worldX, worldY)) {
-        return { kind: 'sell' };
-      }
-    }
-
-    const slotIndex = this.getClosestSlotIndex(worldX, worldY);
-    if (slotIndex !== null) {
-      return { kind: 'slot', slotIndex };
-    }
-
-    return { kind: 'none' };
+    return resolveStageDropTarget({
+      closestSlotIndex: this.getClosestSlotIndex(worldX, worldY),
+      sellOverlayVisible: this.shopView.isSellOverlayVisible(),
+      sellOverlayContainsPoint: this.shopView.containsSellOverlayPoint(worldX, worldY),
+      canSell: this.callbacks.onSellAttempt !== undefined,
+      activeDragKind: this.activeDragPayload?.kind ?? null,
+    });
   }
 
   private resolvePayload(gameObject: Phaser.GameObjects.Container): DragPayload | null {
