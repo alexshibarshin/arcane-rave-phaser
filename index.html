@@ -2,8 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Arcane Rave!</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #101418;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    body {
+      height: 100dvh;
+    }
+
+    #game {
+      width: 100%;
+      height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    #game canvas {
+      display: block;
+    }
+  </style>
 </head>
 <body>
   <div id="game"></div>

@@ -5,12 +5,13 @@ import { GameConfig } from '@config/GameConfig';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
+  parent: 'game',
   width: GameConfig.VIEWPORT_WIDTH,
   height: GameConfig.VIEWPORT_HEIGHT,
   backgroundColor: GameConfig.BACKGROUND_COLOR,
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    autoCenter: Phaser.Scale.NO_CENTER,
   },
   scene: appScenes,
   physics: {
