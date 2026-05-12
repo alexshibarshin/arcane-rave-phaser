@@ -19,7 +19,7 @@ export const greenroomCollapseConfig = {
   bossEnemyId: 'verdant-encore',
   totalWaves: 10,
   initialCoins: 25,
-  hpMultipliers: [1.0, 1.2, 1.4, 1.7, 2.0, 2.35, 2.75, 3.2, 3.6, 4.1],
+  hpMultipliers: [1.0, 1.2, 1.5, 1.9, 2.4, 2.95, 3.6, 4.35, 5.2, 6.5],
   slotModifierCountWeights: { 0: 0, 1: 0, 2: 0, 3: 1 },
   waves: [
     // ── Wave 1: Green, Mixed, Fast (3 sub-waves, 7 enemies) ──

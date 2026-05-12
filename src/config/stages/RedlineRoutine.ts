@@ -19,7 +19,7 @@ export const redlineRoutineConfig = {
   bossEnemyId: 'redline-headliner',
   totalWaves: 10,
   initialCoins: 25,
-  hpMultipliers: [1.0, 1.1, 1.3, 1.5, 1.75, 2.05, 2.4, 2.8, 3.2, 3.7],
+  hpMultipliers: [1.0, 1.1, 1.25, 1.45, 1.7, 2.0, 2.4, 2.85, 3.35, 4.0],
   slotModifierCountWeights: { 0: 1, 1: 0, 2: 0, 3: 0 },
   waves: [
     // ── Wave 1: Red, Single-Target, Fast (3 sub-waves, 7 enemies) ──

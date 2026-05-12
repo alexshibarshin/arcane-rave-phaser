@@ -1,6 +1,6 @@
 # AGENTS.md — Arcane Rave (Phaser 3 + TypeScript + Vite)
 
-Вижн: VISION.md. Глоссарий: CONTEXT.md.
+ЧИТАЙ ПЕРЕД КАЖДОЙ ЗАДАЧЕЙ ЭТИ ДОКУМЕНТЫ -> Вижн: [VISION](VISION.md). Глоссарий: [CONTEXT](CONTEXT.md).
 
 ---
 
