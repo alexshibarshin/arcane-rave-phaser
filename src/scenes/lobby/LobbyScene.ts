@@ -4,6 +4,8 @@ import { getAllStageConfigs, getStageConfig } from '../../config/StageRegistry';
 import { SessionProgressStore } from '../../session/SessionProgressStore';
 import { buildLobbyCards, type LobbyCardModel } from './LobbyCardBuilder';
 import { buildLobbyDetailModel } from './LobbyDetailBuilder';
+import { LobbyDeckPopup } from './LobbyDeckPopup';
+import { buildStageStartData } from './buildStageStartData';
 import { createPillTag, measurePillTagWidth } from '../../ui/PillTag';
 import { createSpecialEnemyCard } from '../../ui/SpecialEnemyCard';
 import { createResultModal, type ResultModalData } from '../../ui/ResultModal';
@@ -54,6 +56,7 @@ const DETAIL_PANEL_TOP = 476;
 const DETAIL_START_BTN_W = 280;
 const DETAIL_START_BTN_H = 56;
 const DETAIL_START_BTN_Y_OFFSET = 32;
+const DETAIL_ACTION_BTN_GAP = 16;
 const DETAIL_CARDS_Y_OFFSET = 24;
 const DETAIL_RESULT_Y_OFFSET = 16;
 const DETAIL_TAGS_Y_OFFSET = 16;
@@ -73,6 +76,7 @@ interface LobbyState {
   resultStageId: string | null;
   mergeRule: 'random' | 'fixed';
   sellEnabled: boolean;
+  activeDeckIds: string[];
 }
 
 export class LobbyScene extends Phaser.Scene {
@@ -82,6 +86,7 @@ export class LobbyScene extends Phaser.Scene {
     resultStageId: null,
     mergeRule: 'random',
     sellEnabled: true,
+    activeDeckIds: SessionProgressStore.getActiveDeckIds(),
   };
 
   private cardContainers: Phaser.GameObjects.Container[] = [];
@@ -89,6 +94,7 @@ export class LobbyScene extends Phaser.Scene {
   private detailContainer: Phaser.GameObjects.Container | null = null;
   private resultModalContainer: Phaser.GameObjects.Container | null = null;
   private radioBlockContainer: Phaser.GameObjects.Container | null = null;
+  private deckPopup: LobbyDeckPopup | null = null;
 
   constructor() {
     super({ key: SceneKeys.LOBBY });
@@ -108,6 +114,7 @@ export class LobbyScene extends Phaser.Scene {
       resultStageId: data?.stageId ?? null,
       mergeRule: SessionProgressStore.getMergeRule(),
       sellEnabled: SessionProgressStore.getSellEnabled(),
+      activeDeckIds: SessionProgressStore.getActiveDeckIds(),
     };
 
     if (this.state_.selectedStageId) {
@@ -140,6 +147,10 @@ export class LobbyScene extends Phaser.Scene {
     if (this.radioBlockContainer) {
       this.radioBlockContainer.destroy();
       this.radioBlockContainer = null;
+    }
+    if (this.deckPopup) {
+      this.deckPopup.destroy();
+      this.deckPopup = null;
     }
   }
 
@@ -429,8 +440,8 @@ export class LobbyScene extends Phaser.Scene {
     }
 
     // Start button
-    const startBtn = this.createStartButton(currentY);
-    this.detailContainer.add(startBtn);
+    const actionButtons = this.createActionButtonsRow(currentY);
+    this.detailContainer.add(actionButtons);
   }
 
   private buildDetailNameText(
@@ -565,17 +576,47 @@ export class LobbyScene extends Phaser.Scene {
     return row;
   }
 
-  private createStartButton(y: number): Phaser.GameObjects.Container {
-    const container = this.add.container(VIEWPORT_W / 2 - DETAIL_START_BTN_W / 2, y);
+  private createActionButtonsRow(y: number): Phaser.GameObjects.Container {
+    const container = this.add.container(0, y);
+    const totalWidth = DETAIL_START_BTN_W * 2 + DETAIL_ACTION_BTN_GAP;
+    const startX = VIEWPORT_W / 2 - totalWidth / 2;
+    const deckBtn = this.createActionButton(startX, 0, 'DECK', {
+      fillColor: 0x203b60,
+      borderColor: 0x4c86d7,
+    }, () => {
+      if (this.deckPopup || this.resultModalContainer) {
+        return;
+      }
+      this.openDeckPopup();
+    });
+    const startBtn = this.createActionButton(startX + DETAIL_START_BTN_W + DETAIL_ACTION_BTN_GAP, 0, 'START', {
+      fillColor: 0x1d4a34,
+      borderColor: 0x45c97f,
+    }, () => {
+      this.startSelectedStage();
+    });
 
+    container.add(deckBtn);
+    container.add(startBtn);
+    return container;
+  }
+
+  private createActionButton(
+    x: number,
+    y: number,
+    label: string,
+    colors: { fillColor: number; borderColor: number },
+    onClick: () => void,
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y);
     const bg = this.add.graphics();
-    bg.fillStyle(0x2a4060, 1);
+    bg.fillStyle(colors.fillColor, 1);
     bg.fillRoundedRect(0, 0, DETAIL_START_BTN_W, DETAIL_START_BTN_H, 8);
-    bg.lineStyle(2, 0x4a80d0, 1);
+    bg.lineStyle(2, colors.borderColor, 1);
     bg.strokeRoundedRect(0, 0, DETAIL_START_BTN_W, DETAIL_START_BTN_H, 8);
 
     const text = this.add
-      .text(DETAIL_START_BTN_W / 2, DETAIL_START_BTN_H / 2, 'START', {
+      .text(DETAIL_START_BTN_W / 2, DETAIL_START_BTN_H / 2, label, {
         fontFamily: 'Arial, sans-serif',
         fontSize: '24px',
         color: '#FFFFFF',
@@ -593,14 +634,7 @@ export class LobbyScene extends Phaser.Scene {
       Phaser.Geom.Rectangle.Contains,
     );
 
-    container.on('pointerdown', () => {
-      if (this.state_.selectedStageId) {
-        this.scene.start(SceneKeys.STAGE, {
-          stageId: this.state_.selectedStageId,
-          settings: { mergeRule: this.state_.mergeRule, sellEnabled: this.state_.sellEnabled },
-        });
-      }
-    });
+    container.on('pointerdown', onClick);
 
     // Pulsing glow
     this.tweens.add({
@@ -613,6 +647,35 @@ export class LobbyScene extends Phaser.Scene {
     });
 
     return container;
+  }
+
+  private startSelectedStage(): void {
+    if (!this.state_.selectedStageId) {
+      return;
+    }
+
+    this.scene.start(SceneKeys.STAGE, {
+      ...buildStageStartData({
+        stageId: this.state_.selectedStageId,
+        activeDeckIds: this.state_.activeDeckIds,
+        settings: { mergeRule: this.state_.mergeRule, sellEnabled: this.state_.sellEnabled },
+      }),
+    });
+  }
+
+  private openDeckPopup(): void {
+    this.deckPopup = new LobbyDeckPopup(
+      this,
+      this.state_.activeDeckIds,
+      (deckIds) => {
+        this.state_.activeDeckIds = [...deckIds];
+        SessionProgressStore.setActiveDeckIds(deckIds);
+      },
+      () => {
+        this.deckPopup?.destroy();
+        this.deckPopup = null;
+      },
+    );
   }
 
   /* ========== RADIO BLOCKS (playtest toggles) ========== */
@@ -813,10 +876,7 @@ export class LobbyScene extends Phaser.Scene {
           this.resultModalContainer = null;
         }
         this.state_.showResultModal = false;
-        this.scene.start(SceneKeys.STAGE, {
-          stageId,
-          settings: { mergeRule: this.state_.mergeRule, sellEnabled: this.state_.sellEnabled },
-        });
+        this.startSelectedStage();
       },
       () => {
         // CLOSE: dismiss modal, select the stage card

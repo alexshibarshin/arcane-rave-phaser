@@ -1,14 +1,9 @@
 import Phaser from 'phaser';
-import { CombatContentConfig, type CombatPawnDefinition } from '@config/CombatContentConfig';
+import type { CombatPawnDefinition } from '@config/CombatContentConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { StagePresentationConfig } from '@config/StagePresentationConfig';
-import {
-  findPawnDefinition,
-  createPawnSprite,
-  createRuleLabelContainer,
-  getPawnAccentColor,
-  formatPawnTitle,
-} from './StageRenderHelpers';
+import { createPawnSelectionCard } from '../../ui/PawnSelectionCard';
+import { findPawnDefinition } from '../../ui/PawnDisplay';
 
 export interface StageShopCardView {
   offerIndex: number;
@@ -173,45 +168,18 @@ export class StageShopView {
     pawn: CombatPawnDefinition,
     coins: number,
   ): StageShopCardView {
-    const container = this.scene.add.container(x, y);
-    const graphics = this.scene.add.graphics();
     const width = StagePresentationConfig.SHOP_CARD_WIDTH;
     const height = StagePresentationConfig.SHOP_CARD_HEIGHT;
-    const left = -width / 2;
-    const top = -height / 2;
-    const accent = getPawnAccentColor(pawn.color);
     const price = pawn.shopPrice;
     const affordable = coins >= price;
-    const borderAlpha = affordable ? 0.88 : 0.48;
-    const radius = StagePresentationConfig.SHOP_BORDER_RADIUS;
-
-    graphics.fillStyle(0x0b1520, 1);
-    graphics.fillRoundedRect(left, top, width, height, radius);
-    graphics.fillStyle(accent, 0.08);
-    graphics.fillRoundedRect(left + 12, top + 12, width - 24, 68, 16);
-    graphics.lineStyle(2, accent, borderAlpha);
-    graphics.strokeRoundedRect(left, top, width, height, radius);
-    graphics.lineStyle(1, 0xffffff, 0.08);
-    graphics.strokeRoundedRect(left + 12, top + 12, width - 24, height - 24, 16);
-
-    const hoverGlow = this.scene.add.graphics();
-    hoverGlow.lineStyle(2, accent, 1);
-    hoverGlow.strokeRoundedRect(left, top, width, height, radius);
-    hoverGlow.setAlpha(0);
-
-    const title = this.scene.add.text(0, top + 74, formatPawnTitle(pawn), {
-      color: '#f5f7ff',
-      fontFamily: 'Helvetica, Arial, sans-serif',
-      fontSize: '17px',
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
-    const spriteFrame = createPawnSprite(this.scene, pawn, 86);
-    spriteFrame.y = top + 26;
-
-    const ruleLabel = createRuleLabelContainer(this.scene, pawn, accent);
-    ruleLabel.x = 0;
-    ruleLabel.y = top + 102;
+    const top = -height / 2;
+    const card = createPawnSelectionCard(this.scene, x, y, pawn, {
+      width,
+      height,
+      radius: StagePresentationConfig.SHOP_BORDER_RADIUS,
+      affordable,
+    });
+    const container = card.container;
 
     const priceChip = this.scene.add.text(0, top + 137, `${price}c`, {
       color: '#071019',
@@ -222,31 +190,13 @@ export class StageShopView {
       padding: { left: 10, right: 10, top: 5, bottom: 5 },
     }).setOrigin(0.5, 0.5);
 
-    container.add([graphics, hoverGlow, spriteFrame, title, ruleLabel, priceChip]);
-    container.setSize(width, height);
+    container.add(priceChip);
     container.setData('homeX', x);
     container.setData('homeY', y);
-    container.setInteractive(
-      new Phaser.Geom.Rectangle(0, 0, width, height),
-      Phaser.Geom.Rectangle.Contains,
-    );
     this.scene.input.setDraggable(container);
     if (container.input) {
       container.input.cursor = 'grab';
     }
-
-    container.on('pointerover', () => {
-      this.scene.tweens.killTweensOf(container);
-      this.scene.tweens.killTweensOf(hoverGlow);
-      this.scene.tweens.add({ targets: container, scaleX: 1.04, scaleY: 1.04, duration: 120, ease: 'Sine.easeOut' });
-      this.scene.tweens.add({ targets: hoverGlow, alpha: 1, duration: 120, ease: 'Sine.easeOut' });
-    });
-    container.on('pointerout', () => {
-      this.scene.tweens.killTweensOf(container);
-      this.scene.tweens.killTweensOf(hoverGlow);
-      this.scene.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 150, ease: 'Sine.easeOut' });
-      this.scene.tweens.add({ targets: hoverGlow, alpha: 0, duration: 150, ease: 'Sine.easeOut' });
-    });
 
     return {
       offerIndex,

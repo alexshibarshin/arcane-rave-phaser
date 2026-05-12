@@ -1,3 +1,5 @@
+import { CombatContentConfig, getCombatDefaultPawnDeckIds } from '@config/CombatContentConfig';
+
 export interface StageResult {
   stageId: string;
   stars: number;
@@ -7,6 +9,27 @@ export interface StageResult {
 interface StageEntry {
   stars: number;
   bestRemainingBaseHp: number | null;
+}
+
+function normalizeActiveDeckIds(activeDeckIds: readonly string[]): string[] {
+  if (activeDeckIds.length !== CombatContentConfig.SLOT_COUNT) {
+    throw new Error(`Session deck must contain exactly ${CombatContentConfig.SLOT_COUNT} pawn ids.`);
+  }
+
+  const knownPawnIds = new Set(CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => pawn.id));
+  const uniquePawnIds = new Set<string>();
+
+  for (const pawnId of activeDeckIds) {
+    if (!knownPawnIds.has(pawnId)) {
+      throw new Error(`Session deck references unknown pawn "${pawnId}".`);
+    }
+    if (uniquePawnIds.has(pawnId)) {
+      throw new Error(`Session deck references duplicate pawn "${pawnId}".`);
+    }
+    uniquePawnIds.add(pawnId);
+  }
+
+  return [...activeDeckIds];
 }
 
 function isBetter(newResult: StageResult, oldEntry: StageEntry | undefined): boolean {
@@ -25,6 +48,7 @@ function createStore() {
   let lastSelectedStageId: string | null = null;
   let mergeRule: 'random' | 'fixed' = 'random';
   let sellEnabled = true;
+  let activeDeckIds = normalizeActiveDeckIds(getCombatDefaultPawnDeckIds());
 
   return {
     getResult(stageId: string): StageResult | null {
@@ -64,6 +88,14 @@ function createStore() {
 
     setSellEnabled(enabled: boolean): void {
       sellEnabled = enabled;
+    },
+
+    getActiveDeckIds(): string[] {
+      return [...activeDeckIds];
+    },
+
+    setActiveDeckIds(nextDeckIds: readonly string[]): void {
+      activeDeckIds = normalizeActiveDeckIds(nextDeckIds);
     },
   };
 }

@@ -17,8 +17,10 @@ import {
 import { RandomMergeStrategy } from '@stage/MergeStrategy';
 
 describe('StageBuild', () => {
+  const activeDeckIds = CombatContentConfig.ACTIVE_PAWN_DECK_IDS;
+
   it('creates empty slots and shop offers for the build phase', () => {
-    const build = createStageBuildState(() => 0);
+    const build = createStageBuildState(activeDeckIds, () => 0);
 
     expect(build.slots).toHaveLength(CombatContentConfig.SLOT_COUNT);
     expect(build.slots.every((slot) => slot === null)).toBe(true);
@@ -28,7 +30,7 @@ describe('StageBuild', () => {
   });
 
   it('buys a pawn from shop into an empty slot and spends coins', () => {
-    const build = createStageBuildState(() => 0);
+    const build = createStageBuildState(activeDeckIds, () => 0);
     const purchased = purchaseStagePawn(build, 6, 0, 0, 5);
 
     expect(purchased).toBe(true);
@@ -39,7 +41,7 @@ describe('StageBuild', () => {
   });
 
   it('refuses purchases into occupied slots or without enough coins', () => {
-    const build = createStageBuildState(() => 0);
+    const build = createStageBuildState(activeDeckIds, () => 0);
 
     expect(purchaseStagePawn(build, 2, 0, 0, 5)).toBe(false);
     expect(purchaseStagePawn(build, 6, 0, 0, 5)).toBe(true);
@@ -107,7 +109,7 @@ describe('StageBuild', () => {
       rerollCount: 0,
     };
 
-    expect(mergeStagePawn(build, 0, 1, strategy, () => 0.5)).toBe(true);
+    expect(mergeStagePawn(build, activeDeckIds, 0, 1, strategy, () => 0.5)).toBe(true);
     expect(build.slots[0]).toBeNull();
     expect(build.slots[1]?.tier).toBe(2);
     expect(typeof build.slots[1]?.pawnId).toBe('string');
@@ -130,8 +132,8 @@ describe('StageBuild', () => {
       rerollCount: 0,
     };
 
-    expect(mergeStagePawn(build, 0, 1, strategy)).toBe(false);
-    expect(mergeStagePawn(build, 0, 2, strategy)).toBe(false);
+    expect(mergeStagePawn(build, activeDeckIds, 0, 1, strategy)).toBe(false);
+    expect(mergeStagePawn(build, activeDeckIds, 0, 2, strategy)).toBe(false);
   });
 
   it('exposes slot pawn ids for systems that only need definitions', () => {
@@ -171,7 +173,7 @@ describe('StageBuild', () => {
       rerollCount: 0,
     };
 
-    expect(purchaseStagePawnMerge(build, 5, 0, 0, 5, strategy, () => 0.5)).toBe(true);
+    expect(purchaseStagePawnMerge(build, activeDeckIds, 5, 0, 0, 5, strategy, () => 0.5)).toBe(true);
     expect(build.slots[0]?.tier).toBe(2);
     expect(typeof build.slots[0]?.pawnId).toBe('string');
     expect(build.shopOffers).toEqual([]);
@@ -345,11 +347,11 @@ describe('StageBuild', () => {
   });
 
   it('rerolls the shop and increases reroll cost for the current build phase', () => {
-    const build = createStageBuildState(() => 0);
+    const build = createStageBuildState(activeDeckIds, () => 0);
 
     const initialCost = getStageRerollCost(build);
     expect(initialCost).toBeGreaterThan(0);
-    expect(rerollStageShop(build, 1, () => 0.5)).toBe(true);
+    expect(rerollStageShop(build, activeDeckIds, 1, () => 0.5)).toBe(true);
     expect(build.shopOffers.length).toBeGreaterThan(0);
     expect(build.rerollCount).toBe(1);
     expect(getStageRerollCost(build)).toBeGreaterThan(initialCost);

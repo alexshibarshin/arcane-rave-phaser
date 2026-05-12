@@ -701,11 +701,11 @@ export function getScaledPawnDamage(baseDamage: number, tier: number): number {
   return Math.round(baseDamage * multiplier);
 }
 
-export function getCombatActivePawnDeckIds(): readonly string[] {
+export function getCombatDefaultPawnDeckIds(): readonly string[] {
   return combatContentConfig.ACTIVE_PAWN_DECK_IDS;
 }
 
-export function getCombatActivePawnDefinitions(): CombatPawnDefinition[] {
+export function getCombatDefaultPawnDefinitions(): CombatPawnDefinition[] {
   const activeIds = new Set(combatContentConfig.ACTIVE_PAWN_DECK_IDS);
   return combatContentConfig.PAWN_DEFINITIONS.filter((pawn) => activeIds.has(pawn.id));
 }

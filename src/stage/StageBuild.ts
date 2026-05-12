@@ -1,6 +1,6 @@
 import {
   CombatContentConfig,
-  getCombatActivePawnDeckIds,
+  getCombatDefaultPawnDeckIds,
 } from '@config/CombatContentConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import type { MergeStrategy } from './MergeStrategy';
@@ -17,18 +17,19 @@ export interface StageBuildState {
   rerollCount: number;
 }
 
-export function createStageBuildState(random: () => number = Math.random): StageBuildState {
+export function createStageBuildState(
+  activeDeckIds: readonly string[] = getCombatDefaultPawnDeckIds(),
+  random: () => number = Math.random,
+): StageBuildState {
   return {
     slots: Array.from({ length: CombatContentConfig.SLOT_COUNT }, () => null),
-    shopOffers: drawStageShopOffers(random),
+    shopOffers: drawStageShopOffers(activeDeckIds, random),
     shopPurchaseCounts: {},
     rerollCount: 0,
   };
 }
 
-export function drawStageShopOffers(random: () => number = Math.random): string[] {
-  const activeDeckIds = getCombatActivePawnDeckIds();
-
+export function drawStageShopOffers(activeDeckIds: readonly string[], random: () => number = Math.random): string[] {
   return Array.from({ length: StageFlowConfig.SHOP_OFFER_COUNT }, () => {
     const index = Math.floor(random() * activeDeckIds.length);
     return activeDeckIds[index] ?? activeDeckIds[0]!;
@@ -63,6 +64,7 @@ export function purchaseStagePawn(
 
 export function purchaseStagePawnMerge(
   build: StageBuildState,
+  activeDeckIds: readonly string[],
   coins: number,
   offerIndex: number,
   slotIndex: number,
@@ -86,7 +88,7 @@ export function purchaseStagePawnMerge(
     return false;
   }
 
-  const result = strategy.tryResolve(targetPawn.pawnId, targetPawn.tier, random);
+  const result = strategy.tryResolve(targetPawn.pawnId, targetPawn.tier, activeDeckIds, random);
   if (!result) {
     return false;
   }
@@ -127,6 +129,7 @@ export function moveStagePawn(
 
 export function mergeStagePawn(
   build: StageBuildState,
+  activeDeckIds: readonly string[],
   fromSlotIndex: number,
   toSlotIndex: number,
   strategy: MergeStrategy,
@@ -143,7 +146,7 @@ export function mergeStagePawn(
     return false;
   }
 
-  const result = strategy.tryResolve(toPawn.pawnId, toPawn.tier, random);
+  const result = strategy.tryResolve(toPawn.pawnId, toPawn.tier, activeDeckIds, random);
   if (!result) {
     return false;
   }
@@ -193,6 +196,7 @@ export function getMergeTargetsForPawn(
 
 export function rerollStageShop(
   build: StageBuildState,
+  activeDeckIds: readonly string[],
   coins: number,
   random: () => number = Math.random,
 ): boolean {
@@ -200,7 +204,7 @@ export function rerollStageShop(
     return false;
   }
 
-  build.shopOffers = drawStageShopOffers(random);
+  build.shopOffers = drawStageShopOffers(activeDeckIds, random);
   build.rerollCount += 1;
   return true;
 }

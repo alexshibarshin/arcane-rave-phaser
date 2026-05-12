@@ -64,7 +64,11 @@ export class StageScene extends Phaser.Scene {
     super({ key: SceneKeys.STAGE });
   }
 
-  create(data?: { stageId?: string; settings?: { mergeRule?: 'random' | 'fixed'; sellEnabled?: boolean } }): void {
+  create(data?: {
+    stageId?: string;
+    activeDeckIds?: readonly string[];
+    settings?: { mergeRule?: 'random' | 'fixed'; sellEnabled?: boolean };
+  }): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
 
     const stageId = data?.stageId ?? 'redline-routine';
@@ -78,7 +82,7 @@ export class StageScene extends Phaser.Scene {
     const sellEnabled = data?.settings?.sellEnabled ?? true;
     const mergeStrategy = mergeRule === 'fixed' ? new FixedMergeStrategy() : undefined;
     this.sellEnabled_ = sellEnabled;
-    this.runtime = createStageRuntime(stageConfig, mergeStrategy);
+    this.runtime = createStageRuntime(stageConfig, data?.activeDeckIds, mergeStrategy);
 
     this.renderLayout();
     this.createAdapters();

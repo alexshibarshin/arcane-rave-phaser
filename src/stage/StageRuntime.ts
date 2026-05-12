@@ -1,4 +1,5 @@
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
+import { CombatContentConfig, getCombatDefaultPawnDeckIds } from '@config/CombatContentConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import type { StageConfig, SubWaveDefinition } from '@config/StageConfig';
 import { getCombatPawnDefinitionById, getEnemyDefinitionById } from '@config/CombatContentConfig';
@@ -23,6 +24,7 @@ export type StagePhase = 'build' | 'combat' | 'stage_complete' | 'stage_failed';
 export type StageCombatOutcome = 'victory' | 'defeat';
 
 export interface StageRuntime {
+  activeDeckIds: string[];
   phase: StagePhase;
   currentWaveIndex: number;
   totalWaves: number;
@@ -47,13 +49,16 @@ export interface ResolveStageCombatOutcomeOptions {
 
 export function createStageRuntime(
   stageConfig: StageConfig,
+  activeDeckIds: readonly string[] = getCombatDefaultPawnDeckIds(),
   mergeStrategy?: MergeStrategy,
   random: () => number = Math.random,
 ): StageRuntime {
   const totalWaves = Math.max(0, stageConfig.totalWaves);
   const initialCoins = Math.max(0, stageConfig.initialCoins);
+  const normalizedDeckIds = normalizeStageActiveDeckIds(activeDeckIds);
 
   return {
+    activeDeckIds: normalizedDeckIds,
     phase: totalWaves > 0 ? 'build' : 'stage_complete',
     currentWaveIndex: 0,
     totalWaves,
@@ -63,7 +68,7 @@ export function createStageRuntime(
       max: CombatTimeControlConfig.CHRONO_MAX,
     },
     lastCombatOutcome: null,
-    build: createStageBuildState(random),
+    build: createStageBuildState(normalizedDeckIds, random),
     slotModifiers: generateStageSlotModifiers(
       random,
       stageConfig,
@@ -116,7 +121,7 @@ export function resolveStageCombatOutcome(
 
   runtime.currentWaveIndex += 1;
   runtime.phase = 'build';
-  runtime.build.shopOffers = drawStageShopOffers(options.random ?? Math.random);
+  runtime.build.shopOffers = drawStageShopOffers(runtime.activeDeckIds, options.random ?? Math.random);
   runtime.build.rerollCount = 0;
   return runtime.phase;
 }
@@ -169,7 +174,16 @@ export function purchaseStagePawnIntoMergeSlot(
   }
 
   const price = getCombatPawnDefinitionById(offerPawnId)?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
-  const merged = purchaseStagePawnMerge(runtime.build, runtime.coins, offerIndex, slotIndex, price, runtime.mergeStrategy, random);
+  const merged = purchaseStagePawnMerge(
+    runtime.build,
+    runtime.activeDeckIds,
+    runtime.coins,
+    offerIndex,
+    slotIndex,
+    price,
+    runtime.mergeStrategy,
+    random,
+  );
 
   if (!merged) {
     return false;
@@ -186,7 +200,14 @@ export function mergeStagePawnSlots(
   toSlotIndex: number,
   random: () => number = Math.random,
 ): boolean {
-  const merged = mergeStagePawn(runtime.build, fromSlotIndex, toSlotIndex, runtime.mergeStrategy, random);
+  const merged = mergeStagePawn(
+    runtime.build,
+    runtime.activeDeckIds,
+    fromSlotIndex,
+    toSlotIndex,
+    runtime.mergeStrategy,
+    random,
+  );
 
   if (!merged) {
     return false;
@@ -252,7 +273,7 @@ export function rerollStageShopOffers(
   random: () => number = Math.random,
 ): boolean {
   const rerollCost = getStageShopRerollCost(runtime);
-  const rerolled = rerollStageShop(runtime.build, runtime.coins, random);
+  const rerolled = rerollStageShop(runtime.build, runtime.activeDeckIds, runtime.coins, random);
 
   if (!rerolled) {
     return false;
@@ -268,6 +289,27 @@ function grantStageMergeReward(runtime: StageRuntime): void {
   }
 
   runtime.coins += StageFlowConfig.MERGE_REWARD_COINS;
+}
+
+function normalizeStageActiveDeckIds(activeDeckIds: readonly string[]): string[] {
+  if (activeDeckIds.length !== CombatContentConfig.SLOT_COUNT) {
+    throw new Error(`Stage runtime requires exactly ${CombatContentConfig.SLOT_COUNT} active deck ids.`);
+  }
+
+  const knownPawnIds = new Set(CombatContentConfig.PAWN_DEFINITIONS.map((pawn) => pawn.id));
+  const uniqueDeckIds = new Set<string>();
+
+  for (const pawnId of activeDeckIds) {
+    if (!knownPawnIds.has(pawnId)) {
+      throw new Error(`Stage runtime deck references unknown pawn "${pawnId}".`);
+    }
+    if (uniqueDeckIds.has(pawnId)) {
+      throw new Error(`Stage runtime deck references duplicate pawn "${pawnId}".`);
+    }
+    uniqueDeckIds.add(pawnId);
+  }
+
+  return [...activeDeckIds];
 }
 
 function clampChrono(value: number, max: number): number {

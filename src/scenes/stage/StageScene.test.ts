@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CombatContentConfig } from '@config/CombatContentConfig';
 import {
   canStageStartWave,
   createStageRuntime,
@@ -30,8 +31,10 @@ function makeStageConfig(overrides: Partial<StageConfig>): StageConfig {
 }
 
 describe('StageRuntime', () => {
+  const defaultDeckIds = CombatContentConfig.ACTIVE_PAWN_DECK_IDS;
+
   it('creates a build-phase runtime for authored stages', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 3, initialCoins: 6 }), undefined, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 3, initialCoins: 6 }), defaultDeckIds, undefined, () => 0);
 
     expect(runtime.phase).toBe('build');
     expect(runtime.currentWaveIndex).toBe(0);
@@ -50,7 +53,7 @@ describe('StageRuntime', () => {
   });
 
   it('starts combat only from build phase with a valid next wave', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }));
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), defaultDeckIds);
 
     expect(requestStageWaveStart(runtime)).toBe(true);
     expect(runtime.phase).toBe('combat');
@@ -58,7 +61,7 @@ describe('StageRuntime', () => {
   });
 
   it('returns to build, increments wave, and grants reward after non-final victory', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), undefined, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), defaultDeckIds, undefined, () => 0);
     purchaseStagePawnIntoSlot(runtime, 0, 0);
     const coinsBeforeCombat = runtime.coins;
     requestStageWaveStart(runtime);
@@ -83,7 +86,7 @@ describe('StageRuntime', () => {
   });
 
   it('uses the current build slots as the combat loadout', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), undefined, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), defaultDeckIds, undefined, () => 0);
     purchaseStagePawnIntoSlot(runtime, 0, 0);
 
     expect(typeof getStageCombatLoadout(runtime)[0]).toBe('string');
@@ -91,7 +94,7 @@ describe('StageRuntime', () => {
   });
 
   it('keeps merged pawn tiers aligned with pawn ids in the combat loadout snapshot', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), undefined, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), defaultDeckIds, undefined, () => 0);
 
     purchaseStagePawnIntoSlot(runtime, 0, 0);
     purchaseStagePawnIntoSlot(runtime, 0, 1);
@@ -106,7 +109,7 @@ describe('StageRuntime', () => {
   });
 
   it('grants merge reward coins when buying a matching pawn from the shop into a merge', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 10 }), undefined, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 10 }), defaultDeckIds, undefined, () => 0);
 
     purchaseStagePawnIntoSlot(runtime, 0, 0);
     const coinsBeforeMerge = runtime.coins;
@@ -122,7 +125,7 @@ describe('StageRuntime', () => {
     (StageFlowConfig as { MERGE_REWARD_COINS: number }).MERGE_REWARD_COINS = 0;
 
     try {
-      const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), undefined, () => 0);
+      const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 12 }), defaultDeckIds, undefined, () => 0);
 
       purchaseStagePawnIntoSlot(runtime, 0, 0);
       purchaseStagePawnIntoSlot(runtime, 0, 1);
@@ -136,7 +139,7 @@ describe('StageRuntime', () => {
   });
 
   it('rerolls the shop, spends coins, and increases reroll cost inside the build phase', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), undefined, () => 0);
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), defaultDeckIds, undefined, () => 0);
 
     const initialCost = getStageShopRerollCost(runtime);
     expect(initialCost).toBeGreaterThan(0);
@@ -148,7 +151,7 @@ describe('StageRuntime', () => {
   });
 
   it('completes the stage after final-wave victory', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 1, initialCoins: 6 }));
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 1, initialCoins: 6 }), defaultDeckIds);
     const coinsBeforeCombat = runtime.coins;
     requestStageWaveStart(runtime);
 
@@ -167,7 +170,7 @@ describe('StageRuntime', () => {
   });
 
   it('fails the stage on defeat without granting reward', () => {
-    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }));
+    const runtime = createStageRuntime(makeStageConfig({ totalWaves: 2, initialCoins: 6 }), defaultDeckIds);
     const coinsBeforeCombat = runtime.coins;
     requestStageWaveStart(runtime);
 
@@ -185,5 +188,28 @@ describe('StageRuntime', () => {
     expect(runtime.chrono.current).toBeLessThanOrEqual(CombatTimeControlConfig.CHRONO_MAX);
     expect(runtime.lastCombatOutcome).toBe('defeat');
     expect(canStageStartWave(runtime)).toBe(false);
+  });
+
+  it('uses the provided stage deck snapshot for shop offers instead of the config default deck', () => {
+    const customDeckIds = [
+      'lifebloom-scatter',
+      'pulse-garden',
+      'prism-volley',
+      'pressure-burst',
+      'ruby-needle',
+      'bass-bomb',
+      'heatline',
+      'moss-patch',
+    ];
+
+    const runtime = createStageRuntime(
+      makeStageConfig({ totalWaves: 2, initialCoins: 6 }),
+      customDeckIds,
+      undefined,
+      () => 0,
+    );
+
+    expect(runtime.activeDeckIds).toEqual(customDeckIds);
+    expect(runtime.build.shopOffers.every((pawnId) => pawnId === 'lifebloom-scatter')).toBe(true);
   });
 });

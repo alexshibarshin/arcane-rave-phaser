@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { getCombatDefaultPawnDeckIds } from '@config/CombatContentConfig';
 import { SessionProgressStore, StageResult } from './SessionProgressStore';
 
 describe('SessionProgressStore', () => {
@@ -32,6 +33,30 @@ describe('SessionProgressStore', () => {
   it('is a singleton — same store reference across accesses', () => {
     SessionProgressStore.setLastSelectedStageId('singleton-test');
     expect(SessionProgressStore.getLastSelectedStageId()).toBe('singleton-test');
+  });
+
+  it('starts with the default combat deck and keeps a copy in session state', () => {
+    const deckIds = SessionProgressStore.getActiveDeckIds();
+
+    expect(deckIds).toEqual(getCombatDefaultPawnDeckIds());
+    expect(deckIds).not.toBe(getCombatDefaultPawnDeckIds());
+  });
+
+  it('stores an updated active deck with exactly eight unique known pawn ids', () => {
+    const nextDeckIds = [
+      'lifebloom-scatter',
+      'pulse-garden',
+      'prism-volley',
+      'pressure-burst',
+      'ruby-needle',
+      'bass-bomb',
+      'heatline',
+      'moss-patch',
+    ];
+
+    SessionProgressStore.setActiveDeckIds(nextDeckIds);
+
+    expect(SessionProgressStore.getActiveDeckIds()).toEqual(nextDeckIds);
   });
 });
 
