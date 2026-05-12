@@ -1,5 +1,5 @@
 export interface LobbyStageStartSettings {
-  mergeRule: 'random' | 'fixed';
+  mergeRule: 'random' | 'fixed' | 'choose';
   sellEnabled: boolean;
 }
 

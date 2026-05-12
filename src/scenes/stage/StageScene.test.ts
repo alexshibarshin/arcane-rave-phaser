@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { CombatContentConfig } from '@config/CombatContentConfig';
 import {
+  attemptMergeStagePawnSlots,
+  attemptPurchaseStagePawnIntoMergeSlot,
+  confirmPendingStageMerge,
   canStageStartWave,
   createStageRuntime,
   getStageCombatLoadout,
@@ -16,6 +19,7 @@ import {
 import { STAGE_CONFIGS, type StageConfig } from '@config/StageConfig';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import { CombatTimeControlConfig } from '@config/CombatTimeControlConfig';
+import { ChooseMergeStrategy } from '@stage/MergeStrategy';
 
 function makeStageConfig(overrides: Partial<StageConfig>): StageConfig {
   const base = STAGE_CONFIGS[0]!;
@@ -49,6 +53,7 @@ describe('StageRuntime', () => {
     expect(runtime.build.shopPurchaseCounts).toEqual({});
     expect(runtime.build.rerollCount).toBe(0);
     expect(runtime.slotModifiers).toEqual([]);
+    expect(runtime.pendingMerge).toBeNull();
     expect(canStageStartWave(runtime)).toBe(true);
   });
 
@@ -118,6 +123,56 @@ describe('StageRuntime', () => {
     expect(runtime.coins).toBeLessThan(coinsBeforeMerge);
     expect(runtime.build.slots[0]?.tier).toBe(2);
     expect(typeof runtime.build.slots[0]?.pawnId).toBe('string');
+  });
+
+  it('creates a pending slot merge for choose strategy and resolves it on selection', () => {
+    const runtime = createStageRuntime(
+      makeStageConfig({ totalWaves: 2, initialCoins: 12 }),
+      defaultDeckIds,
+      new ChooseMergeStrategy(),
+      () => 0,
+    );
+
+    purchaseStagePawnIntoSlot(runtime, 0, 0);
+    purchaseStagePawnIntoSlot(runtime, 0, 1);
+
+    expect(attemptMergeStagePawnSlots(runtime, 0, 1, () => 0)).toBe('pending');
+    expect(runtime.pendingMerge?.source).toBe('slots');
+    expect(runtime.pendingMerge?.choices).toHaveLength(3);
+    expect(runtime.build.slots[0]?.pawnId).toBe('ruby-needle');
+    expect(canStageStartWave(runtime)).toBe(false);
+
+    const chosenResult = runtime.pendingMerge!.choices[1]!;
+    expect(confirmPendingStageMerge(runtime, 1)).toBe(true);
+    expect(runtime.pendingMerge).toBeNull();
+    expect(runtime.build.slots[0]).toBeNull();
+    expect(runtime.build.slots[1]?.tier).toBe(2);
+    expect(runtime.build.slots[1]?.pawnId).toBe(chosenResult.pawnId);
+  });
+
+  it('creates a pending shop merge for choose strategy and only spends coins after choice confirmation', () => {
+    const runtime = createStageRuntime(
+      makeStageConfig({ totalWaves: 2, initialCoins: 10 }),
+      defaultDeckIds,
+      new ChooseMergeStrategy(),
+      () => 0,
+    );
+
+    purchaseStagePawnIntoSlot(runtime, 0, 0);
+    const coinsBeforePendingMerge = runtime.coins;
+
+    expect(attemptPurchaseStagePawnIntoMergeSlot(runtime, 0, 0, () => 0)).toBe('pending');
+    expect(runtime.pendingMerge?.source).toBe('shop');
+    expect(runtime.coins).toBe(coinsBeforePendingMerge);
+    expect(runtime.build.shopOffers).toEqual(['ruby-needle', 'ruby-needle']);
+
+    const chosenResult = runtime.pendingMerge!.choices[2]!;
+    expect(confirmPendingStageMerge(runtime, 2)).toBe(true);
+    expect(runtime.pendingMerge).toBeNull();
+    expect(runtime.coins).toBeLessThan(coinsBeforePendingMerge);
+    expect(runtime.build.shopOffers).toEqual(['ruby-needle']);
+    expect(runtime.build.slots[0]?.tier).toBe(2);
+    expect(runtime.build.slots[0]?.pawnId).toBe(chosenResult.pawnId);
   });
 
   it('disables merge reward coins when the config value is set to zero', () => {

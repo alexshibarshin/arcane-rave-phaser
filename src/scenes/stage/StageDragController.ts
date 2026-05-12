@@ -2,9 +2,9 @@ import Phaser from 'phaser';
 import { StageFlowConfig } from '@config/StageFlowConfig';
 import type { StageRuntime } from '@stage/StageRuntime';
 import {
+  attemptMergeStagePawnSlots,
+  attemptPurchaseStagePawnIntoMergeSlot,
   purchaseStagePawnIntoSlot,
-  purchaseStagePawnIntoMergeSlot,
-  mergeStagePawnSlots,
   repositionStagePawn,
 } from '@stage/StageRuntime';
 import { getMergeTargets, getMergeTargetsForPawn } from '@stage/StageBuild';
@@ -34,6 +34,7 @@ type DragPayload =
 export interface StageDragCallbacks {
   onApplied: () => void;
   onFailed: () => void;
+  onPending: () => void;
   onStatusChanged: (message: string | null) => void;
   onSellDragStart?: (pawnId: string, tier: number, slotIndex: number) => void;
   onSellAttempt?: (slotIndex: number) => boolean;
@@ -114,6 +115,7 @@ export class StageDragController {
         gameObject.setScale(1);
 
         let applied = false;
+        let pending = false;
         let errorMsg: string | null = null;
         const runtime = this.getRuntime();
 
@@ -129,9 +131,11 @@ export class StageDragController {
           const price = def?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
           applied = purchaseStagePawnIntoSlot(runtime, payload.offerIndex, targetSlotIndex);
           if (!applied) {
-            applied = purchaseStagePawnIntoMergeSlot(runtime, payload.offerIndex, targetSlotIndex);
+            const mergeResult = attemptPurchaseStagePawnIntoMergeSlot(runtime, payload.offerIndex, targetSlotIndex);
+            applied = mergeResult === 'applied';
+            pending = mergeResult === 'pending';
           }
-          errorMsg = applied
+          errorMsg = applied || pending
             ? null
             : `Need ${price} coins and either an empty slot or a matching same-tier pawn.`;
         }
@@ -139,10 +143,12 @@ export class StageDragController {
         if (payload.kind === 'slot-pawn' && target.kind === 'slot') {
           const targetSlotIndex = target.slotIndex!;
           if (targetSlotIndex !== null) {
-            applied = mergeStagePawnSlots(runtime, payload.slotIndex, targetSlotIndex);
-            errorMsg = applied ? null : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
+            const mergeResult = attemptMergeStagePawnSlots(runtime, payload.slotIndex, targetSlotIndex);
+            applied = mergeResult === 'applied';
+            pending = mergeResult === 'pending';
+            errorMsg = applied || pending ? null : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
 
-            if (!applied) {
+            if (!applied && !pending) {
               applied = repositionStagePawn(runtime, payload.slotIndex, targetSlotIndex);
               errorMsg = applied
                 ? null
@@ -164,6 +170,10 @@ export class StageDragController {
           if (target.kind === 'slot' && target.slotIndex !== undefined) {
             this.tooltipController.showCompatibilityLinkIfApplicable(target.slotIndex!);
           }
+        } else if (pending) {
+          gameObject.x = payload.homeX;
+          gameObject.y = payload.homeY;
+          this.callbacks.onPending();
         } else {
           gameObject.x = payload.homeX;
           gameObject.y = payload.homeY;

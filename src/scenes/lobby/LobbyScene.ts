@@ -65,7 +65,7 @@ const DETAIL_NAME_Y_OFFSET = 64;
 // Radio blocks (playtest toggles)
 const BLOCK_MARGIN_X = 16;
 const BLOCK_WIDTH = 338;
-const BLOCK_HEIGHT = 120;
+const BLOCK_HEIGHT = 152;
 const BLOCK_GAP = 12;
 const BLOCK_HEADER_FONT_SIZE = '13px';
 const BLOCK_LABEL_FONT_SIZE = '18px';
@@ -74,7 +74,7 @@ interface LobbyState {
   selectedStageId: string | null;
   showResultModal: boolean;
   resultStageId: string | null;
-  mergeRule: 'random' | 'fixed';
+  mergeRule: 'random' | 'fixed' | 'choose';
   sellEnabled: boolean;
   activeDeckIds: string[];
 }
@@ -705,6 +705,7 @@ export class LobbyScene extends Phaser.Scene {
     this.buildRadioBlock(0, 0, 'MERGE RULE', [
       { value: 'random' as const, label: 'Random merge' },
       { value: 'fixed' as const, label: 'Fixed merge' },
+      { value: 'choose' as const, label: 'Choose merge' },
     ], this.state_.mergeRule, (value) => {
       this.state_.mergeRule = value;
       SessionProgressStore.setMergeRule(value);
@@ -724,9 +725,9 @@ export class LobbyScene extends Phaser.Scene {
     x: number,
     y: number,
     title: string,
-    options: Array<{ value: 'random' | 'fixed'; label: string }>,
+    options: Array<{ value: 'random' | 'fixed' | 'choose'; label: string }>,
     selectedValue: string,
-    onSelect: (value: 'random' | 'fixed') => void,
+    onSelect: (value: 'random' | 'fixed' | 'choose') => void,
   ): void {
     const block = this.add.container(x, y);
 

@@ -46,7 +46,7 @@ function isBetter(newResult: StageResult, oldEntry: StageEntry | undefined): boo
 function createStore() {
   const results = new Map<string, StageEntry>();
   let lastSelectedStageId: string | null = null;
-  let mergeRule: 'random' | 'fixed' = 'random';
+  let mergeRule: 'random' | 'fixed' | 'choose' = 'random';
   let sellEnabled = true;
   let activeDeckIds = normalizeActiveDeckIds(getCombatDefaultPawnDeckIds());
 
@@ -74,11 +74,11 @@ function createStore() {
       lastSelectedStageId = stageId;
     },
 
-    getMergeRule(): 'random' | 'fixed' {
+    getMergeRule(): 'random' | 'fixed' | 'choose' {
       return mergeRule;
     },
 
-    setMergeRule(rule: 'random' | 'fixed'): void {
+    setMergeRule(rule: 'random' | 'fixed' | 'choose'): void {
       mergeRule = rule;
     },
 

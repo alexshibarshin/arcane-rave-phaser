@@ -11,13 +11,15 @@ import { StagePresentationConfig } from '@config/StagePresentationConfig';
 import { SceneKeys } from '@config/GameConfig';
 import { emit, off, on } from '@events/EventBus';
 import {
+  canStageStartWave,
+  confirmPendingStageMerge,
   createStageRuntime,
   getStageShopRerollCost,
   rerollStageShopOffers,
   sellStagePawnFromSlot,
   type StageRuntime,
 } from '@stage/StageRuntime';
-import { FixedMergeStrategy } from '@stage/MergeStrategy';
+import { ChooseMergeStrategy, FixedMergeStrategy } from '@stage/MergeStrategy';
 import { createStageWavePreview } from '@stage/StageWavePreview';
 import { getStageCoinFeedback } from './StageCoinFeedback';
 import {
@@ -35,6 +37,7 @@ import { StageTooltipController } from './StageTooltipController';
 import { StageFlowAnimator } from './StageFlowAnimator';
 import { handleReturnToLobby } from './handleReturnToLobby';
 import { populatePreviewCard, type PreviewCardState } from './StagePreviewCard';
+import { createChooseMergeModal } from '../../ui/ChooseMergeModal';
 
 export class StageScene extends Phaser.Scene {
   private runtime!: StageRuntime;
@@ -59,6 +62,7 @@ export class StageScene extends Phaser.Scene {
   private dragController!: StageDragController;
   private tooltipController!: StageTooltipController;
   private flowAnimator!: StageFlowAnimator;
+  private chooseMergeModal?: Phaser.GameObjects.Container;
 
   constructor() {
     super({ key: SceneKeys.STAGE });
@@ -67,7 +71,7 @@ export class StageScene extends Phaser.Scene {
   create(data?: {
     stageId?: string;
     activeDeckIds?: readonly string[];
-    settings?: { mergeRule?: 'random' | 'fixed'; sellEnabled?: boolean };
+    settings?: { mergeRule?: 'random' | 'fixed' | 'choose'; sellEnabled?: boolean };
   }): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
 
@@ -80,7 +84,11 @@ export class StageScene extends Phaser.Scene {
 
     const mergeRule = data?.settings?.mergeRule ?? 'random';
     const sellEnabled = data?.settings?.sellEnabled ?? true;
-    const mergeStrategy = mergeRule === 'fixed' ? new FixedMergeStrategy() : undefined;
+    const mergeStrategy = mergeRule === 'fixed'
+      ? new FixedMergeStrategy()
+      : mergeRule === 'choose'
+        ? new ChooseMergeStrategy()
+        : undefined;
     this.sellEnabled_ = sellEnabled;
     this.runtime = createStageRuntime(stageConfig, data?.activeDeckIds, mergeStrategy);
 
@@ -235,11 +243,15 @@ export class StageScene extends Phaser.Scene {
       this.shopView,
       this.tooltipController,
       () => this.runtime,
-      () => this.stageFlowCoordination.isTransitioning,
+      () => this.isBuildInteractionBlocked(),
       {
         onApplied: () => {
           this.refreshBuildUI();
           this.publishSnapshot();
+        },
+        onPending: () => {
+          this.openChooseMergeModal();
+          this.syncPresentation();
         },
         onFailed: () => {
           this.syncPresentation();
@@ -325,7 +337,7 @@ export class StageScene extends Phaser.Scene {
   };
 
   private readonly handleRerollPressed = (): void => {
-    if (this.runtime.phase !== 'build' || this.stageFlowCoordination.isTransitioning) {
+    if (this.runtime.phase !== 'build' || this.isBuildInteractionBlocked()) {
       return;
     }
 
@@ -343,6 +355,9 @@ export class StageScene extends Phaser.Scene {
   };
 
   private readonly handleStartWaveRequested = (): void => {
+    if (this.isBuildInteractionBlocked()) {
+      return;
+    }
     this.runStageFlowIntent({ type: 'stage:start-wave-requested' });
   };
 
@@ -387,11 +402,11 @@ export class StageScene extends Phaser.Scene {
     this.startWaveButton?.disableInteractive();
     this.shopView.rerollButton.disableInteractive();
 
-    if (canStartWave && !this.stageFlowCoordination.isTransitioning) {
+    if (canStartWave && !this.isBuildInteractionBlocked()) {
       this.startWaveButton?.setInteractive({ useHandCursor: true });
     }
 
-    if (this.runtime.phase === 'build' && !this.stageFlowCoordination.isTransitioning) {
+    if (this.runtime.phase === 'build' && !this.isBuildInteractionBlocked()) {
       this.shopView.rerollButton.setInteractive({ useHandCursor: true });
     }
 
@@ -440,7 +455,11 @@ export class StageScene extends Phaser.Scene {
   }
 
   private canStageStartWave(): boolean {
-    return this.runtime.phase === 'build' && this.runtime.currentWaveIndex < this.runtime.totalWaves;
+    return canStageStartWave(this.runtime);
+  }
+
+  private isBuildInteractionBlocked(): boolean {
+    return this.stageFlowCoordination.isTransitioning || this.runtime.pendingMerge !== null;
   }
 
   /* ------------------------------------------------------------------ */
@@ -528,6 +547,26 @@ export class StageScene extends Phaser.Scene {
         this.publishSnapshot();
         this.playCoinFeedbackIfNeeded();
       },
+    });
+  }
+
+  private openChooseMergeModal(): void {
+    const pendingMerge = this.runtime.pendingMerge;
+    if (!pendingMerge) {
+      return;
+    }
+
+    this.tooltipController.clearOnPointerUp();
+    this.chooseMergeModal?.destroy();
+    this.chooseMergeModal = createChooseMergeModal(this, pendingMerge.choices, (choiceIndex: number) => {
+      const confirmed = confirmPendingStageMerge(this.runtime, choiceIndex);
+      if (!confirmed) {
+        return;
+      }
+      this.chooseMergeModal?.destroy();
+      this.chooseMergeModal = undefined;
+      this.refreshBuildUI();
+      this.publishSnapshot();
     });
   }
 
@@ -634,6 +673,8 @@ export class StageScene extends Phaser.Scene {
     off('combat:ended', this.handleCombatEnded);
     this.startWaveButton?.off('pointerdown', this.handleStartWavePressed);
     this.dragController.unbind();
+    this.chooseMergeModal?.destroy();
+    this.chooseMergeModal = undefined;
     if (this.coinFeedbackLabel) {
       this.tweens.killTweensOf(this.coinFeedbackLabel);
     }

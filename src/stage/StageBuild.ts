@@ -93,12 +93,7 @@ export function purchaseStagePawnMerge(
     return false;
   }
 
-  build.slots[slotIndex] = {
-    pawnId: result.pawnId,
-    tier: Math.min(result.tier, StageFlowConfig.MAX_PAWN_TIER),
-  };
-  build.shopOffers.splice(offerIndex, 1);
-  build.shopPurchaseCounts[offer] = (build.shopPurchaseCounts[offer] ?? 0) + 1;
+  applyPurchasedStagePawnMergeResult(build, offerIndex, slotIndex, result);
   return true;
 }
 
@@ -151,11 +146,7 @@ export function mergeStagePawn(
     return false;
   }
 
-  build.slots[fromSlotIndex] = null;
-  build.slots[toSlotIndex] = {
-    pawnId: result.pawnId,
-    tier: Math.min(result.tier, StageFlowConfig.MAX_PAWN_TIER),
-  };
+  applyStagePawnMergeResult(build, fromSlotIndex, toSlotIndex, result);
   return true;
 }
 
@@ -215,6 +206,45 @@ export function getStageRerollCost(build: StageBuildState): number {
 
 function canMergeStagePawns(left: StagePawnInstance, right: StagePawnInstance): boolean {
   return left.pawnId === right.pawnId && left.tier === right.tier && left.tier < StageFlowConfig.MAX_PAWN_TIER;
+}
+
+export function canMergeStagePawnPair(
+  left: StagePawnInstance | null | undefined,
+  right: StagePawnInstance | null | undefined,
+): boolean {
+  return left != null && right != null && canMergeStagePawns(left, right);
+}
+
+export function applyStagePawnMergeResult(
+  build: StageBuildState,
+  fromSlotIndex: number,
+  toSlotIndex: number,
+  result: StagePawnInstance,
+): void {
+  build.slots[fromSlotIndex] = null;
+  build.slots[toSlotIndex] = {
+    pawnId: result.pawnId,
+    tier: Math.min(result.tier, StageFlowConfig.MAX_PAWN_TIER),
+  };
+}
+
+export function applyPurchasedStagePawnMergeResult(
+  build: StageBuildState,
+  offerIndex: number,
+  slotIndex: number,
+  result: StagePawnInstance,
+): void {
+  const offer = build.shopOffers[offerIndex];
+  if (!offer) {
+    return;
+  }
+
+  build.slots[slotIndex] = {
+    pawnId: result.pawnId,
+    tier: Math.min(result.tier, StageFlowConfig.MAX_PAWN_TIER),
+  };
+  build.shopOffers.splice(offerIndex, 1);
+  build.shopPurchaseCounts[offer] = (build.shopPurchaseCounts[offer] ?? 0) + 1;
 }
 
 function createStagePawnInstance(pawnId: string): StagePawnInstance {

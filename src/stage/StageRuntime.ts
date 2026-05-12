@@ -5,6 +5,9 @@ import type { StageConfig, SubWaveDefinition } from '@config/StageConfig';
 import { getCombatPawnDefinitionById, getEnemyDefinitionById } from '@config/CombatContentConfig';
 import { SLOT_MODIFIER_CONFIG } from '@config/SlotModifierConfig';
 import {
+  applyPurchasedStagePawnMergeResult,
+  applyStagePawnMergeResult,
+  canMergeStagePawnPair,
   drawStageShopOffers,
   createStageBuildState,
   getStageRerollCost,
@@ -22,6 +25,15 @@ import type { CombatLoadoutSlot } from '@combat/CombatRuntime';
 
 export type StagePhase = 'build' | 'combat' | 'stage_complete' | 'stage_failed';
 export type StageCombatOutcome = 'victory' | 'defeat';
+export type StageMergeAttemptResult = 'applied' | 'pending' | 'failed';
+
+export interface PendingStageMerge {
+  source: 'slots' | 'shop';
+  targetSlotIndex: number;
+  fromSlotIndex?: number;
+  offerIndex?: number;
+  choices: Array<{ pawnId: string; tier: number }>;
+}
 
 export interface StageRuntime {
   activeDeckIds: string[];
@@ -38,6 +50,7 @@ export interface StageRuntime {
   slotModifiers: SlotModifierAssignment[];
   stageConfig: StageConfig;
   mergeStrategy: MergeStrategy;
+  pendingMerge: PendingStageMerge | null;
 }
 
 export interface ResolveStageCombatOutcomeOptions {
@@ -76,11 +89,12 @@ export function createStageRuntime(
     ),
     stageConfig,
     mergeStrategy: mergeStrategy ?? new RandomMergeStrategy(),
+    pendingMerge: null,
   };
 }
 
 export function canStageStartWave(runtime: StageRuntime): boolean {
-  return runtime.phase === 'build' && runtime.currentWaveIndex < runtime.totalWaves;
+  return runtime.phase === 'build' && runtime.currentWaveIndex < runtime.totalWaves && runtime.pendingMerge === null;
 }
 
 export function requestStageWaveStart(runtime: StageRuntime): boolean {
@@ -123,6 +137,7 @@ export function resolveStageCombatOutcome(
   runtime.phase = 'build';
   runtime.build.shopOffers = drawStageShopOffers(runtime.activeDeckIds, options.random ?? Math.random);
   runtime.build.rerollCount = 0;
+  runtime.pendingMerge = null;
   return runtime.phase;
 }
 
@@ -168,30 +183,54 @@ export function purchaseStagePawnIntoMergeSlot(
   slotIndex: number,
   random: () => number = Math.random,
 ): boolean {
+  return attemptPurchaseStagePawnIntoMergeSlot(runtime, offerIndex, slotIndex, random) === 'applied';
+}
+
+export function attemptPurchaseStagePawnIntoMergeSlot(
+  runtime: StageRuntime,
+  offerIndex: number,
+  slotIndex: number,
+  random: () => number = Math.random,
+): StageMergeAttemptResult {
+  if (runtime.pendingMerge !== null || runtime.phase !== 'build') {
+    return 'failed';
+  }
+
   const offerPawnId = runtime.build.shopOffers[offerIndex];
   if (!offerPawnId) {
-    return false;
+    return 'failed';
   }
 
   const price = getCombatPawnDefinitionById(offerPawnId)?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
-  const merged = purchaseStagePawnMerge(
-    runtime.build,
-    runtime.activeDeckIds,
-    runtime.coins,
-    offerIndex,
-    slotIndex,
-    price,
-    runtime.mergeStrategy,
-    random,
-  );
-
-  if (!merged) {
-    return false;
+  const targetPawn = runtime.build.slots[slotIndex];
+  const purchasedPawn = { pawnId: offerPawnId, tier: 1 };
+  if (runtime.coins < price || !canMergeStagePawnPair(purchasedPawn, targetPawn)) {
+    return 'failed';
+  }
+  if (!targetPawn) {
+    return 'failed';
   }
 
-  runtime.coins -= price;
-  grantStageMergeReward(runtime);
-  return true;
+  const result = runtime.mergeStrategy.tryResolve(targetPawn.pawnId, targetPawn.tier, runtime.activeDeckIds, random);
+  if (result) {
+    applyPurchasedStagePawnMergeResult(runtime.build, offerIndex, slotIndex, result);
+    runtime.coins -= price;
+    grantStageMergeReward(runtime);
+    return 'applied';
+  }
+
+  const choices = runtime.mergeStrategy.getChoices(targetPawn.pawnId, targetPawn.tier, runtime.activeDeckIds, random);
+  if (choices.length === 0) {
+    return 'failed';
+  }
+
+  runtime.pendingMerge = {
+    source: 'shop',
+    offerIndex,
+    targetSlotIndex: slotIndex,
+    choices,
+  };
+  return 'pending';
 }
 
 export function mergeStagePawnSlots(
@@ -200,19 +239,87 @@ export function mergeStagePawnSlots(
   toSlotIndex: number,
   random: () => number = Math.random,
 ): boolean {
-  const merged = mergeStagePawn(
-    runtime.build,
-    runtime.activeDeckIds,
-    fromSlotIndex,
-    toSlotIndex,
-    runtime.mergeStrategy,
-    random,
-  );
+  return attemptMergeStagePawnSlots(runtime, fromSlotIndex, toSlotIndex, random) === 'applied';
+}
 
-  if (!merged) {
+export function attemptMergeStagePawnSlots(
+  runtime: StageRuntime,
+  fromSlotIndex: number,
+  toSlotIndex: number,
+  random: () => number = Math.random,
+): StageMergeAttemptResult {
+  if (runtime.pendingMerge !== null || runtime.phase !== 'build') {
+    return 'failed';
+  }
+
+  const fromPawn = runtime.build.slots[fromSlotIndex];
+  const toPawn = runtime.build.slots[toSlotIndex];
+  if (!canMergeStagePawnPair(fromPawn, toPawn)) {
+    return 'failed';
+  }
+  if (!toPawn) {
+    return 'failed';
+  }
+
+  const result = runtime.mergeStrategy.tryResolve(toPawn.pawnId, toPawn.tier, runtime.activeDeckIds, random);
+  if (result) {
+    applyStagePawnMergeResult(runtime.build, fromSlotIndex, toSlotIndex, result);
+    grantStageMergeReward(runtime);
+    return 'applied';
+  }
+
+  const choices = runtime.mergeStrategy.getChoices(toPawn.pawnId, toPawn.tier, runtime.activeDeckIds, random);
+  if (choices.length === 0) {
+    return 'failed';
+  }
+
+  runtime.pendingMerge = {
+    source: 'slots',
+    fromSlotIndex,
+    targetSlotIndex: toSlotIndex,
+    choices,
+  };
+  return 'pending';
+}
+
+export function confirmPendingStageMerge(
+  runtime: StageRuntime,
+  choiceIndex: number,
+): boolean {
+  const pendingMerge = runtime.pendingMerge;
+  if (!pendingMerge) {
     return false;
   }
 
+  const result = pendingMerge.choices[choiceIndex];
+  if (!result) {
+    return false;
+  }
+
+  if (pendingMerge.source === 'slots') {
+    const fromSlotIndex = pendingMerge.fromSlotIndex;
+    if (fromSlotIndex === undefined) {
+      return false;
+    }
+    applyStagePawnMergeResult(runtime.build, fromSlotIndex, pendingMerge.targetSlotIndex, result);
+  } else {
+    const offerIndex = pendingMerge.offerIndex;
+    if (offerIndex === undefined) {
+      return false;
+    }
+    const offerPawnId = runtime.build.shopOffers[offerIndex];
+    if (!offerPawnId) {
+      return false;
+    }
+    const price = getCombatPawnDefinitionById(offerPawnId)?.shopPrice ?? StageFlowConfig.SHOP_PURCHASE_COST;
+    if (runtime.coins < price) {
+      return false;
+    }
+    applyPurchasedStagePawnMergeResult(runtime.build, offerIndex, pendingMerge.targetSlotIndex, result);
+    runtime.coins -= price;
+  }
+
+  runtime.pendingMerge = null;
   grantStageMergeReward(runtime);
   return true;
 }
@@ -244,7 +351,7 @@ export function sellStagePawnFromSlot(
   runtime: StageRuntime,
   slotIndex: number,
 ): boolean {
-  if (runtime.phase !== 'build') {
+  if (runtime.phase !== 'build' || runtime.pendingMerge !== null) {
     return false;
   }
 
@@ -272,6 +379,10 @@ export function rerollStageShopOffers(
   runtime: StageRuntime,
   random: () => number = Math.random,
 ): boolean {
+  if (runtime.pendingMerge !== null || runtime.phase !== 'build') {
+    return false;
+  }
+
   const rerollCost = getStageShopRerollCost(runtime);
   const rerolled = rerollStageShop(runtime.build, runtime.activeDeckIds, runtime.coins, random);
 
