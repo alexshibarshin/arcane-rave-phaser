@@ -19,7 +19,6 @@ import { advanceCombatStatuses, clearCombatEnemyStatuses } from './CombatStatuse
 import {
   initializeCombatWaveRuntime,
   activatePendingCombatSubWaves,
-  calculateCombatEnemiesRemaining,
   createInitialCombatWaveState,
   spawnCombatEnemies,
 } from './CombatWaveRuntime';
@@ -155,7 +154,7 @@ export interface CombatBeamRuntime {
   sweepEndAngleRad: number | null;
   sweepLengthPx: number | null;
   sweepHitRadiusPx: number | null;
-  previouslyIntersectedEnemyRuntimeIds: string[];
+  previouslyIntersectedEnemyRuntimeIds: Set<string>;
   slowOnHit: {
     slowMultiplier: number;
     durationMs: number;
@@ -198,6 +197,7 @@ export interface CombatScheduledActivationRuntime {
 
 export interface CombatSubWaveSpawnBag {
   enemyRuntimeIds: string[];
+  nextEnemyIndex: number;
   nextSpawnAtMs: number;
   intervalMs: number;
 }
@@ -241,6 +241,9 @@ export interface CombatRuntime {
   slotModifiers: Array<SlotModifierAssignment | null>;
   notePacket: CombatNotePacketRuntime;
   enemies: CombatEnemyRuntime[];
+  enemyById: Map<string, CombatEnemyRuntime>;
+  enemyQueuesByDefinitionId: Map<string, CombatEnemyRuntime[]>;
+  enemyQueueCursorByDefinitionId: Map<string, number>;
   projectiles: CombatProjectileRuntime[];
   queuedVolleys: CombatQueuedVolleyRuntime[];
   pendingExplosions: CombatPendingExplosionRuntime[];
@@ -301,6 +304,8 @@ export function createCombatRuntime(
   const slotPawns = resolveCombatLoadoutSlots(options, []);
   const slotModifiers = resolveCombatSlotModifiers(options.slotModifiers);
   const enemies = createCombatEnemyRuntimes(subWaves, enemyStatOverrides);
+  const enemyById = new Map(enemies.map((enemy) => [enemy.runtimeId, enemy]));
+  const enemyQueuesByDefinitionId = createEnemyQueuesByDefinitionId(enemies);
   const chronoMax = Math.max(0, options.chronoMax ?? CombatTimeControlConfig.CHRONO_MAX);
   const chronoCurrent = PhaserMathClamp(
     options.chronoCurrent ?? CombatTimeControlConfig.CHRONO_START,
@@ -350,6 +355,11 @@ export function createCombatRuntime(
       visuals: [],
     },
     enemies,
+    enemyById,
+    enemyQueuesByDefinitionId,
+    enemyQueueCursorByDefinitionId: new Map(
+      Array.from(enemyQueuesByDefinitionId.keys(), (definitionId) => [definitionId, 0]),
+    ),
     projectiles: [],
     queuedVolleys: [],
     pendingExplosions: [],
@@ -448,7 +458,6 @@ export function advanceCombatRuntime(
     advanceCombatPawnBuffs(runtime);
     advanceCombatEnemyPressure(runtime, deltaMs);
     spawnCombatEnemies(runtime, options.random ?? Math.random);
-    runtime.wave.enemiesRemaining = calculateCombatEnemiesRemaining(runtime);
     evaluateCombatOutcome(runtime);
 
     return;
@@ -623,18 +632,45 @@ function advanceCombatScheduledActivations(runtime: CombatRuntime): void {
     return;
   }
 
-  const dueActivations = runtime.scheduledActivations
-    .filter((activation) => activation.triggerAtMs <= runtime.combatElapsedMs)
-    .sort((left, right) => left.triggerAtMs - right.triggerAtMs);
+  const dueActivations: CombatScheduledActivationRuntime[] = [];
+  const pendingActivations: CombatScheduledActivationRuntime[] = [];
+
+  for (const activation of runtime.scheduledActivations) {
+    if (activation.triggerAtMs <= runtime.combatElapsedMs) {
+      dueActivations.push(activation);
+      continue;
+    }
+
+    pendingActivations.push(activation);
+  }
 
   if (dueActivations.length === 0) {
     return;
   }
 
-  runtime.scheduledActivations = runtime.scheduledActivations
-    .filter((activation) => activation.triggerAtMs > runtime.combatElapsedMs);
+  dueActivations.sort((left, right) => left.triggerAtMs - right.triggerAtMs);
+  runtime.scheduledActivations = pendingActivations;
 
   resolveCombatActivations(runtime, [], {
     scheduledActivations: dueActivations,
   });
+}
+
+function createEnemyQueuesByDefinitionId(
+  enemies: CombatEnemyRuntime[],
+): Map<string, CombatEnemyRuntime[]> {
+  const queues = new Map<string, CombatEnemyRuntime[]>();
+
+  for (const enemy of enemies) {
+    const existingQueue = queues.get(enemy.definitionId);
+
+    if (existingQueue) {
+      existingQueue.push(enemy);
+      continue;
+    }
+
+    queues.set(enemy.definitionId, [enemy]);
+  }
+
+  return queues;
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
+import { getCombatPawnDefinitionById } from '@config/CombatContentConfig';
+import { applyCombatHit } from './CombatDamage';
 import { COMBAT_NEEDLE_ANGLE_DEGREES } from './CombatLayout';
 import {
   advanceCombatRuntime,
@@ -399,6 +401,60 @@ describe('CombatRuntime', () => {
     // The sub-wave with startTimeMs=0 is activated immediately by initializeCombatWaveRuntime
     expect(runtime.wave.activeSubWaves).toHaveLength(1);
     expect(runtime.wave.activeSubWaves[0]?.id).toBe('test-sub-1');
+  });
+
+  it('keeps an enemy runtime index by runtime id for fast lookups', () => {
+    const runtime = createCombatRuntime(undefined, {
+      subWaves: [{ id: 'test', startTimeMs: 0, spawnIntervalMs: 1000, enemies: { 'enemy-red-basic': 2 } }],
+    });
+
+    expect(runtime.enemyById.size).toBe(runtime.enemies.length);
+
+    for (const enemy of runtime.enemies) {
+      expect(runtime.enemyById.get(enemy.runtimeId)).toBe(enemy);
+    }
+  });
+
+  it('tracks enemiesRemaining as a wave-wide invariant instead of changing during spawn timing', () => {
+    const runtime = createCombatRuntime(undefined, {
+      subWaves: [{ id: 'test', startTimeMs: 0, spawnIntervalMs: 500, enemies: { 'enemy-red-basic': 2 } }],
+    });
+    setCombatState(runtime, 'running');
+    runtime.preview.elapsedMs = runtime.preview.durationMs;
+
+    expect(runtime.wave.enemiesRemaining).toBe(2);
+
+    advanceCombatRuntime(runtime, 500);
+    expect(runtime.wave.enemiesRemaining).toBe(2);
+
+    const firstSpawnedEnemy = runtime.enemies.find((enemy) => enemy.spawned);
+    expect(firstSpawnedEnemy).toBeDefined();
+    if (!firstSpawnedEnemy) {
+      return;
+    }
+
+    const pawn = getCombatPawnDefinitionById('ruby-needle');
+    expect(pawn).toBeDefined();
+    if (!pawn) {
+      return;
+    }
+
+    applyCombatHit({
+      runtime,
+      enemy: firstSpawnedEnemy,
+      slotIndex: 0,
+      pawn,
+      baseDamage: firstSpawnedEnemy.currentHp,
+      sourceSnapshot: {
+        damageMultiplier: 1,
+        finisherConsumedNotes: 0,
+        finisherDamageMultiplier: 1,
+        nextSlotBuffBonusPercent: 0,
+      },
+      attackerColor: pawn.color,
+    });
+
+    expect(runtime.wave.enemiesRemaining).toBe(1);
   });
 });
 

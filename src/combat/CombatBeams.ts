@@ -60,7 +60,7 @@ export function createBeam(
     sweepEndAngleRad: beamType === 'sweeping' ? SWEEP_REFERENCE_ANGLE + sweepHalfArcRad : null,
     sweepLengthPx: beamType === 'sweeping' ? configuredSweepLengthPx : null,
     sweepHitRadiusPx: beamType === 'sweeping' ? configuredSweepHitRadiusPx : null,
-    previouslyIntersectedEnemyRuntimeIds: [],
+    previouslyIntersectedEnemyRuntimeIds: new Set(),
     slowOnHit: pawn.ability.secondaryEffect?.kind === 'slow-on-hit'
       ? {
           slowMultiplier: pawn.ability.secondaryEffect.slowMultiplier,
@@ -107,7 +107,7 @@ function tickLockOnBeam(
   pawn: CombatPawnDefinition,
 ): boolean {
   let target: CombatRuntime['enemies'][number] | null =
-    runtime.enemies.find((enemy) => enemy.runtimeId === beam.targetEnemyRuntimeId)
+    (beam.targetEnemyRuntimeId === null ? null : runtime.enemyById.get(beam.targetEnemyRuntimeId))
     ?? null;
 
   if (!target || !target.spawned || target.state === 'dead' || target.currentHp <= 0) {
@@ -170,7 +170,7 @@ function tickSweepingBeam(
   const angle = beam.sweepStartAngleRad + (beam.sweepEndAngleRad - beam.sweepStartAngleRad) * progress;
   const endX = beam.originX + Math.cos(angle) * beam.sweepLengthPx;
   const endY = beam.originY + Math.sin(angle) * beam.sweepLengthPx;
-  const currentlyIntersected: string[] = [];
+  const currentlyIntersected = new Set<string>();
   let hitCount = 0;
 
   for (const enemy of runtime.enemies) {
@@ -182,9 +182,9 @@ function tickSweepingBeam(
       continue;
     }
 
-    currentlyIntersected.push(enemy.runtimeId);
+    currentlyIntersected.add(enemy.runtimeId);
 
-    if (beam.previouslyIntersectedEnemyRuntimeIds.includes(enemy.runtimeId)) {
+    if (beam.previouslyIntersectedEnemyRuntimeIds.has(enemy.runtimeId)) {
       continue;
     }
 

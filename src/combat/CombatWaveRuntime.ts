@@ -39,14 +39,15 @@ export function spawnCombatEnemies(
       continue;
     }
 
-    while (bag.enemyRuntimeIds.length > 0 && runtime.waveElapsedMs >= bag.nextSpawnAtMs) {
-      const enemyRuntimeId = bag.enemyRuntimeIds.shift();
+    while (bag.nextEnemyIndex < bag.enemyRuntimeIds.length && runtime.waveElapsedMs >= bag.nextSpawnAtMs) {
+      const enemyRuntimeId = bag.enemyRuntimeIds[bag.nextEnemyIndex];
+      bag.nextEnemyIndex += 1;
 
       if (!enemyRuntimeId) {
         continue;
       }
 
-      const enemy = runtime.enemies.find((entry) => entry.runtimeId === enemyRuntimeId);
+      const enemy = runtime.enemyById.get(enemyRuntimeId);
 
       if (!enemy) {
         continue;
@@ -61,25 +62,6 @@ export function spawnCombatEnemies(
       bag.nextSpawnAtMs += bag.intervalMs;
     }
   }
-}
-
-export function calculateCombatEnemiesRemaining(runtime: CombatRuntime): number {
-  const livingEnemies = runtime.enemies.filter(
-    (enemy) => enemy.spawned && enemy.state !== 'dead',
-  ).length;
-
-  const pendingInBags = Array.from(runtime.wave.spawnBags.values()).reduce(
-    (sum, bag) => sum + bag.enemyRuntimeIds.length,
-    0,
-  );
-
-  const pendingInSubWaves = runtime.wave.pendingSubWaves.reduce(
-    (sum, subWave) =>
-      sum + Object.values(subWave.enemies).reduce((a, b) => a + b, 0),
-    0,
-  );
-
-  return livingEnemies + pendingInBags + pendingInSubWaves;
 }
 
 export function createInitialCombatWaveState(
@@ -115,28 +97,35 @@ function activateCombatSubWave(
   activeSubWaves.push(subWave);
 
   const alreadyAllocatedIds = new Set(
-    Array.from(spawnBags.values()).flatMap((bag) => bag.enemyRuntimeIds),
+    Array.from(spawnBags.values()).flatMap((bag) => bag.enemyRuntimeIds.slice(bag.nextEnemyIndex)),
   );
 
-  const enemyRuntimeIds: string[] = Object.entries(subWave.enemies).flatMap(
-    ([definitionId, count]) => {
-      const matchingEnemies = runtime.enemies.filter(
-        (enemy) =>
-          enemy.definitionId === definitionId
-          && !enemy.spawned
-          && !alreadyAllocatedIds.has(enemy.runtimeId),
-      );
+  const enemyRuntimeIds: string[] = [];
 
-      for (const enemy of matchingEnemies.slice(0, count)) {
-        alreadyAllocatedIds.add(enemy.runtimeId);
+  for (const [definitionId, count] of Object.entries(subWave.enemies)) {
+    const queue = runtime.enemyQueuesByDefinitionId.get(definitionId) ?? [];
+    let queueIndex = runtime.enemyQueueCursorByDefinitionId.get(definitionId) ?? 0;
+    let allocated = 0;
+
+    while (queueIndex < queue.length && allocated < count) {
+      const enemy = queue[queueIndex];
+      queueIndex += 1;
+
+      if (!enemy || enemy.spawned || alreadyAllocatedIds.has(enemy.runtimeId)) {
+        continue;
       }
 
-      return matchingEnemies.slice(0, count).map((enemy) => enemy.runtimeId);
-    },
-  );
+      enemyRuntimeIds.push(enemy.runtimeId);
+      alreadyAllocatedIds.add(enemy.runtimeId);
+      allocated += 1;
+    }
+
+    runtime.enemyQueueCursorByDefinitionId.set(definitionId, queueIndex);
+  }
 
   spawnBags.set(subWave.id, {
     enemyRuntimeIds: shuffleArray(enemyRuntimeIds, random),
+    nextEnemyIndex: 0,
     nextSpawnAtMs: subWave.startTimeMs,
     intervalMs: subWave.spawnIntervalMs,
   });

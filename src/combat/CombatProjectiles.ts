@@ -254,7 +254,7 @@ function emitVolleyShot(runtime: CombatRuntime, volley: CombatQueuedVolleyRuntim
 }
 
 function resolveProjectileHit(runtime: CombatRuntime, projectile: CombatProjectileRuntime, enemyRuntimeId: string): void {
-  const enemy = runtime.enemies.find((item) => item.runtimeId === enemyRuntimeId);
+  const enemy = runtime.enemyById.get(enemyRuntimeId);
   const pawn = getCombatPawnDefinitionById(projectile.pawnId);
 
   if (!enemy || !pawn) {

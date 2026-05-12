@@ -36,11 +36,14 @@ export function selectFrontmostEnemyExcluding(
   runtime: CombatRuntime,
   excludedEnemyRuntimeIds: string[],
 ): CombatEnemyRuntime | null {
+  const excludedIds = excludedEnemyRuntimeIds.length > 0
+    ? new Set(excludedEnemyRuntimeIds)
+    : null;
   let frontmostEnemy: CombatEnemyRuntime | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const enemy of runtime.enemies) {
-    if (!isEnemyTargetable(enemy) || excludedEnemyRuntimeIds.includes(enemy.runtimeId)) {
+    if (!isEnemyTargetable(enemy) || excludedIds?.has(enemy.runtimeId)) {
       continue;
     }
 
@@ -59,18 +62,22 @@ export function selectRandomEnemy(
   runtime: CombatRuntime,
   random: () => number = Math.random,
 ): CombatEnemyRuntime | null {
-  const candidates = runtime.enemies.filter(isEnemyTargetable);
+  let selected: CombatEnemyRuntime | null = null;
+  let candidateCount = 0;
 
-  if (candidates.length === 0) {
-    return null;
+  for (const enemy of runtime.enemies) {
+    if (!isEnemyTargetable(enemy)) {
+      continue;
+    }
+
+    candidateCount += 1;
+
+    if (random() * candidateCount < 1) {
+      selected = enemy;
+    }
   }
 
-  if (candidates.length === 1) {
-    return candidates[0] ?? null;
-  }
-
-  const index = Math.floor(random() * candidates.length);
-  return candidates[index] ?? candidates[0] ?? null;
+  return selected;
 }
 
 export function getSlotOrigin(slot: CombatSlotRuntime): { x: number; y: number } | null {

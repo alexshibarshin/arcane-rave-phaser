@@ -5,15 +5,7 @@ export function evaluateCombatOutcome(runtime: CombatRuntime): void {
     return;
   }
 
-  const allSubWavesActivated = runtime.wave.pendingSubWaves.length === 0;
-  const allBagsEmpty = Array.from(runtime.wave.spawnBags.values()).every(
-    (bag) => bag.enemyRuntimeIds.length === 0,
-  );
-  const noLivingEnemies = runtime.enemies.every(
-    (enemy) => !enemy.spawned || enemy.state === 'dead',
-  );
-
-  if (allSubWavesActivated && allBagsEmpty && noLivingEnemies) {
+  if (runtime.wave.enemiesRemaining <= 0) {
     setCombatState(runtime, 'victory');
   }
 }

@@ -52,7 +52,7 @@ describe('CombatBeams', () => {
       sweepEndAngleRad: null,
       sweepLengthPx: null,
       sweepHitRadiusPx: null,
-      previouslyIntersectedEnemyRuntimeIds: [],
+      previouslyIntersectedEnemyRuntimeIds: new Set(),
       slowOnHit: null,
     });
 
