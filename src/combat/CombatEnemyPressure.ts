@@ -1,3 +1,4 @@
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { CombatContentConfig } from '@config/CombatContentConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import { setCombatState, type CombatRuntime } from './CombatRuntime';
@@ -61,6 +62,7 @@ export function advanceCombatEnemyPressure(
     }
 
     enemy.y = nextY;
+    runtime.targeting.dirty = true;
   }
 }
 
@@ -75,7 +77,13 @@ function updateEnemyBaseAttacks(
     return;
   }
 
-  while (runtime.state === 'running' && runtime.combatElapsedMs >= enemy.nextAttackAtMs) {
+  let processedAttacks = 0;
+
+  while (
+    runtime.state === 'running'
+    && runtime.combatElapsedMs >= enemy.nextAttackAtMs
+    && processedAttacks < CombatBalanceConfig.MAX_ENEMY_ATTACKS_PER_STEP
+  ) {
     runtime.baseHp = Math.max(0, runtime.baseHp - attackDamage);
     pushCombatBaseDamaged(runtime, attackDamage);
 
@@ -85,6 +93,7 @@ function updateEnemyBaseAttacks(
     }
 
     enemy.nextAttackAtMs += attackCooldownMs;
+    processedAttacks += 1;
   }
 }
 

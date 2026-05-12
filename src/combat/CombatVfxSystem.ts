@@ -420,6 +420,10 @@ export class CombatVfxSystem {
       return;
     }
 
+    if (this.enemyHitFlashes.length >= CombatVfxConfig.POOL_LIMITS.MAX_ACTIVE_ENEMY_HIT_FLASHES) {
+      this.enemyHitFlashes.shift();
+    }
+
     this.enemyHitFlashes.push({
       id: `enemy-hit-flash:${this.nextEnemyHitFlashId}`,
       enemyId: payload.enemyId,
@@ -443,6 +447,10 @@ export class CombatVfxSystem {
     }
 
     for (let index = 0; index < payload.count; index += 1) {
+      if (this.noteFlights.length >= CombatVfxConfig.POOL_LIMITS.MAX_ACTIVE_NOTE_FLIGHTS) {
+        break;
+      }
+
       const packetNoteAnchor = getPacketGlyphAnchor(packetAnchor, index, payload.count);
       this.noteFlights.push({
         id: `note-flight:${this.nextNoteFlightId}`,
@@ -471,6 +479,10 @@ export class CombatVfxSystem {
     let latestArrivalMs = 0;
 
     for (let index = 0; index < payload.consumedNotes; index += 1) {
+      if (this.noteFlights.length >= CombatVfxConfig.POOL_LIMITS.MAX_ACTIVE_NOTE_FLIGHTS) {
+        break;
+      }
+
       const delayMs = index * CombatVfxConfig.FINISHER.INPUT_STAGGER_MS;
       latestArrivalMs = delayMs + CombatVfxConfig.NOTE_FLIGHT.DURATION_MS;
       const packetNoteAnchor = getPacketGlyphAnchor(packetAnchor, index, payload.consumedNotes);
@@ -507,6 +519,10 @@ export class CombatVfxSystem {
     this.finisherOutputReadyAtMsBySlot.delete(payload.slotIndex);
 
     for (let index = 0; index < payload.count; index += 1) {
+      if (this.noteFlights.length >= CombatVfxConfig.POOL_LIMITS.MAX_ACTIVE_NOTE_FLIGHTS) {
+        break;
+      }
+
       const packetNoteAnchor = getPacketGlyphAnchor(packetAnchor, index, payload.count);
       this.noteFlights.push({
         id: `note-flight:${this.nextNoteFlightId}`,
@@ -525,6 +541,10 @@ export class CombatVfxSystem {
   private handleNotePacketColorBroke(
     payload: Extract<CombatVfxEvent, { event: 'combat:note-packet-color-broke' }>['payload'],
   ): void {
+    if (this.packetBreakBursts.length >= CombatVfxConfig.POOL_LIMITS.MAX_ACTIVE_PACKET_BREAK_BURSTS) {
+      this.packetBreakBursts.shift();
+    }
+
     this.packetBreakBursts.push({
       id: `packet-break:${this.nextPacketBreakBurstId}`,
       previousColor: payload.previousColor,
@@ -537,6 +557,10 @@ export class CombatVfxSystem {
   }
 
   private handleBaseDamaged(): void {
+    if (this.baseHitFlashes.length >= CombatVfxConfig.POOL_LIMITS.MAX_ACTIVE_BASE_HIT_FLASHES) {
+      this.baseHitFlashes.shift();
+    }
+
     this.baseHitFlashes.push({
       id: `base-hit:${this.nextBaseHitFlashId}`,
       anchor: this.anchors.getBaseAnchor(),

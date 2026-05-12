@@ -1,9 +1,10 @@
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { getCombatPawnDefinitionById, type CombatPawnDefinition } from '@config/CombatContentConfig';
 import { applyCombatHit } from './CombatDamage';
-import { createRuntimeEffectId, getSlotOrigin, resolveTarget } from './CombatTargeting';
+import { createRuntimeEffectId, getNearbyTargetableEnemies, getSlotOrigin, resolveTarget } from './CombatTargeting';
 import type { CombatTargetingRule } from '@config/CombatContentConfig';
 import { applyEnemySlow } from './CombatStatuses';
-import { pushCombatBeamStarted, pushCombatBeamTicked } from './CombatRuntimeEvents';
+import { pushCombatBeamStarted } from './CombatRuntimeEvents';
 import type { CombatBeamRuntime, CombatEnemyRuntime, CombatRuntime, CombatSourceSnapshot } from './CombatRuntime';
 
 export const DEFAULT_SWEEP_ARC_DEG = 72;
@@ -124,7 +125,12 @@ function tickLockOnBeam(
     return false;
   }
 
-  while (beam.nextTickAtMs <= runtime.combatElapsedMs) {
+  let processedTicks = 0;
+
+  while (
+    beam.nextTickAtMs <= runtime.combatElapsedMs
+    && processedTicks < CombatBalanceConfig.MAX_BEAM_TICKS_PER_STEP
+  ) {
     applyCombatHit({
       runtime,
       enemy: target,
@@ -134,8 +140,8 @@ function tickLockOnBeam(
       sourceSnapshot: beam.sourceSnapshot,
       attackerColor: beam.color,
     });
-    pushCombatBeamTicked(runtime, beam.runtimeId, beam.slotIndex, beam.pawnId, 1);
     beam.nextTickAtMs += beam.tickIntervalMs;
+    processedTicks += 1;
   }
 
   if (target.currentHp > 0) {
@@ -173,11 +179,15 @@ function tickSweepingBeam(
   const currentlyIntersected = new Set<string>();
   let hitCount = 0;
 
-  for (const enemy of runtime.enemies) {
-    if (!enemy.spawned || enemy.state === 'dead' || enemy.currentHp <= 0) {
-      continue;
-    }
+  const candidateEnemies = getNearbyTargetableEnemies(runtime, {
+    minX: Math.min(beam.originX, endX),
+    maxX: Math.max(beam.originX, endX),
+    minY: Math.min(beam.originY, endY),
+    maxY: Math.max(beam.originY, endY),
+    paddingPx: beam.sweepHitRadiusPx,
+  });
 
+  for (const enemy of candidateEnemies) {
     if (!segmentHitsCircle(beam.originX, beam.originY, endX, endY, enemy.x, enemy.y, beam.sweepHitRadiusPx)) {
       continue;
     }
@@ -205,10 +215,6 @@ function tickSweepingBeam(
   }
 
   beam.previouslyIntersectedEnemyRuntimeIds = currentlyIntersected;
-
-  if (hitCount > 0) {
-    pushCombatBeamTicked(runtime, beam.runtimeId, beam.slotIndex, beam.pawnId, hitCount);
-  }
 }
 
 function segmentHitsCircle(

@@ -1,9 +1,11 @@
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { getCombatPawnDefinitionById, type CombatPawnDefinition } from '@config/CombatContentConfig';
 import { applyCombatHit } from './CombatDamage';
 import {
   createDirectionToEnemy,
   createRuntimeEffectId,
   createVolleyAngles,
+  getNearbyTargetableEnemies,
   getSlotOrigin,
   resolveTarget,
   rotateDirection,
@@ -49,10 +51,17 @@ export function advanceCombatQueuedVolleys(runtime: CombatRuntime): void {
   const remainingVolleys: CombatQueuedVolleyRuntime[] = [];
 
   for (const volley of runtime.queuedVolleys) {
-    while (volley.shotsRemaining > 0 && volley.nextFireAtMs <= runtime.combatElapsedMs) {
+    let firedShots = 0;
+
+    while (
+      volley.shotsRemaining > 0
+      && volley.nextFireAtMs <= runtime.combatElapsedMs
+      && firedShots < CombatBalanceConfig.MAX_VOLLEY_SHOTS_PER_STEP
+    ) {
       emitVolleyShot(runtime, volley);
       volley.shotsRemaining -= 1;
       volley.nextFireAtMs += volley.intervalMs;
+      firedShots += 1;
     }
 
     if (volley.shotsRemaining > 0) {
@@ -72,12 +81,18 @@ export function advanceCombatProjectiles(runtime: CombatRuntime, deltaMs: number
     projectile.previousY = projectile.y;
     projectile.x += projectile.directionX * projectile.speedPxPerSec * deltaSeconds;
     projectile.y += projectile.directionY * projectile.speedPxPerSec * deltaSeconds;
+    const candidateEnemies = getNearbyTargetableEnemies(runtime, {
+      minX: Math.min(projectile.previousX, projectile.x),
+      maxX: Math.max(projectile.previousX, projectile.x),
+      minY: Math.min(projectile.previousY, projectile.y),
+      maxY: Math.max(projectile.previousY, projectile.y),
+    });
+    const ignoredEnemyIds = projectile.ignoredEnemyRuntimeIds.length > 0
+      ? new Set(projectile.ignoredEnemyRuntimeIds)
+      : null;
 
-    const hitEnemy = runtime.enemies.find((enemy) =>
-      !projectile.ignoredEnemyRuntimeIds.includes(enemy.runtimeId)
-      && enemy.spawned
-      && enemy.state !== 'dead'
-      && enemy.currentHp > 0
+    const hitEnemy = candidateEnemies.find((enemy) =>
+      !ignoredEnemyIds?.has(enemy.runtimeId)
       && segmentIntersectsEnemy(projectile.previousX, projectile.previousY, projectile.x, projectile.y, enemy),
     );
 

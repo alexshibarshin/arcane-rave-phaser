@@ -1,6 +1,7 @@
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import { getCombatPawnDefinitionById, type CombatPawnDefinition, type CombatTargetingRule } from '@config/CombatContentConfig';
 import { applyCombatHit } from './CombatDamage';
-import { createRuntimeEffectId, resolveTarget } from './CombatTargeting';
+import { createRuntimeEffectId, getNearbyTargetableEnemies, resolveTarget } from './CombatTargeting';
 import { pushCombatZoneSpawned, pushCombatZoneTicked } from './CombatRuntimeEvents';
 import type { CombatRuntime, CombatSourceSnapshot, CombatZoneRuntime } from './CombatRuntime';
 
@@ -81,14 +82,23 @@ export function advanceCombatZones(runtime: CombatRuntime): void {
       continue;
     }
 
-    while (zone.nextTickAtMs <= runtime.combatElapsedMs && zone.expiresAtMs >= zone.nextTickAtMs) {
+    let processedTicks = 0;
+
+    while (
+      zone.nextTickAtMs <= runtime.combatElapsedMs
+      && zone.expiresAtMs >= zone.nextTickAtMs
+      && processedTicks < CombatBalanceConfig.MAX_ZONE_TICKS_PER_STEP
+    ) {
       let hitCount = 0;
+      const candidateEnemies = getNearbyTargetableEnemies(runtime, {
+        minX: zone.centerX - zone.radius,
+        maxX: zone.centerX + zone.radius,
+        minY: zone.centerY - zone.radius,
+        maxY: zone.centerY + zone.radius,
+        paddingPx: 0,
+      });
 
-      for (const enemy of runtime.enemies) {
-        if (!enemy.spawned || enemy.state === 'dead' || enemy.currentHp <= 0) {
-          continue;
-        }
-
+      for (const enemy of candidateEnemies) {
         if (Math.hypot(enemy.x - zone.centerX, enemy.y - zone.centerY) > zone.radius) {
           continue;
         }
@@ -107,6 +117,7 @@ export function advanceCombatZones(runtime: CombatRuntime): void {
 
       pushCombatZoneTicked(runtime, zone.runtimeId, zone.slotIndex, zone.pawnId, hitCount);
       zone.nextTickAtMs += zone.tickIntervalMs;
+      processedTicks += 1;
     }
 
     if (zone.expiresAtMs > runtime.combatElapsedMs) {

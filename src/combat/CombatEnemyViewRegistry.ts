@@ -31,7 +31,7 @@ export interface CombatEnemyView {
   glowGraphics: Phaser.GameObjects.Graphics | null;
   sortY: number;
   hpBarBg: Phaser.GameObjects.Graphics;
-  hpBarFill: Phaser.GameObjects.Graphics;
+  hpBarFill: Phaser.GameObjects.Rectangle;
   hpBarX: number;
   hpBarY: number;
   hpBarWidth: number;
@@ -170,15 +170,13 @@ export function createCombatEnemyViewRegistry(
       view.hpBarBg.fillStyle(0x201927, 1);
       view.hpBarBg.fillRoundedRect(hpBarX, hpBarY, hpBarWidth, hpBarHeight, 6);
 
-      view.hpBarFill.clear();
-      view.hpBarFill.fillStyle(0xff0000, 1);
-      view.hpBarFill.fillRoundedRect(
-        hpBarX + 2,
-        hpBarY + 2,
-        hpBarWidth - 4,
-        hpBarHeight - 4,
-        4,
-      );
+      const innerPadding = 2;
+      const innerWidth = hpBarWidth - innerPadding * 2;
+      const innerHeight = hpBarHeight - innerPadding * 2;
+      view.hpBarFill.setPosition(hpBarX + innerPadding, hpBarY + innerPadding);
+      view.hpBarFill.setSize(innerWidth, innerHeight);
+      view.hpBarFill.setDisplaySize(innerWidth, innerHeight);
+      view.hpBarFill.setVisible(true);
 
       view.container.setPosition(enemy.x, enemy.y);
       view.container.setVisible(false);
@@ -198,7 +196,18 @@ export function createCombatEnemyViewRegistry(
     const body = options.scene.add.graphics();
     const flashOverlay = options.scene.add.graphics();
     const hpBarBg = options.scene.add.graphics();
-    const hpBarFill = options.scene.add.graphics();
+    const innerPadding = 2;
+    const hpBarInnerWidth = hpBarWidth - innerPadding * 2;
+    const hpBarInnerHeight = hpBarHeight - innerPadding * 2;
+    const hpBarFill = options.scene.add.rectangle(
+      hpBarX + innerPadding,
+      hpBarY + innerPadding,
+      hpBarInnerWidth,
+      hpBarInnerHeight,
+      0xff0000,
+      1,
+    );
+    hpBarFill.setOrigin(0, 0);
 
     container.name = renderModel?.container.name ?? enemy.renderContainerName;
     container.setDepth(getEnemyContainerDepth(enemy.y));
@@ -231,15 +240,6 @@ export function createCombatEnemyViewRegistry(
 
     hpBarBg.fillStyle(0x201927, 1);
     hpBarBg.fillRoundedRect(hpBarX, hpBarY, hpBarWidth, hpBarHeight, 6);
-
-    hpBarFill.fillStyle(0xff0000, 1);
-    hpBarFill.fillRoundedRect(
-      hpBarX + 2,
-      hpBarY + 2,
-      hpBarWidth - 4,
-      hpBarHeight - 4,
-      4,
-    );
 
     const containerChildren: Phaser.GameObjects.GameObject[] = [body, flashOverlay, hpBarBg, hpBarFill];
 
@@ -357,15 +357,18 @@ export function createCombatEnemyViewRegistry(
       const innerHeight = view.hpBarHeight - innerPadding * 2;
       const metrics = getCombatBaseHpBarFillMetrics(currentHp, maxHp, innerWidth);
 
-      view.hpBarFill.clear();
-      view.hpBarFill.fillStyle(0xff0000, 1);
-      view.hpBarFill.fillRoundedRect(
+      if (metrics.width <= 0) {
+        view.hpBarFill.setVisible(false);
+        return;
+      }
+
+      view.hpBarFill.setVisible(true);
+      view.hpBarFill.setPosition(
         view.hpBarX + innerPadding,
         view.hpBarY + innerPadding,
-        metrics.width,
-        innerHeight,
-        4,
       );
+      view.hpBarFill.setSize(metrics.width, innerHeight);
+      view.hpBarFill.setDisplaySize(metrics.width, innerHeight);
     },
     getEnemyView(enemyId) {
       return enemyViews.get(enemyId) ?? null;

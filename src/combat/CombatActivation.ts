@@ -79,6 +79,7 @@ function resolveSlotActivation(
   }
 
   const pendingBuff = readPendingSlotDamageBuff(runtime, slot.slotIndex);
+  const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
   const consumedNotes = pawn.type === 'finisher'
     ? getFinisherConsumedNotes(runtime, pawn.color)
     : 0;
@@ -108,15 +109,13 @@ function resolveSlotActivation(
     });
   }
 
-  resolvePawnAbility(runtime, slot, pawn, sourceSnapshot);
-  applyNoteRuleMutation(runtime, slot, pawn);
+  resolvePawnAbility(runtime, slot, pawn, sourceSnapshot, mutations);
+  applyNoteRuleMutation(runtime, slot, pawn, mutations);
   consumePendingSlotDamageBuff(runtime, slot.slotIndex);
 
   if (!options.allowDoubleActivation) {
     return;
   }
-
-  const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
 
   if (!mutations.doubleActivation || mutations.extraActivations <= 0) {
     return;
@@ -149,8 +148,8 @@ export function resolvePawnAbility(
     finisherDamageMultiplier: number;
     nextSlotBuffBonusPercent: number;
   },
+  mutations: SlotModifierMutations,
 ): void {
-  const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
   ABILITY_EXECUTORS[pawn.ability.primaryArchetype].execute({ runtime, slot, pawn, sourceSnapshot, mutations });
 }
 
@@ -158,8 +157,8 @@ function applyNoteRuleMutation(
   runtime: CombatRuntime,
   slot: CombatSlotRuntime,
   pawn: CombatPawnDefinition,
+  mutations: SlotModifierMutations,
 ): void {
-  const mutations = resolveSlotModifierMutations(runtime, slot.slotIndex);
   const outputColor = pawn.type === 'generator' ? pawn.color : pawn.outputNoteColor;
   const bonusNotes = mutations.colorFilter !== null && mutations.colorFilter !== outputColor
     ? 0

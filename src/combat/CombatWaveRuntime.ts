@@ -39,7 +39,13 @@ export function spawnCombatEnemies(
       continue;
     }
 
-    while (bag.nextEnemyIndex < bag.enemyRuntimeIds.length && runtime.waveElapsedMs >= bag.nextSpawnAtMs) {
+    let spawnedThisStep = 0;
+
+    while (
+      bag.nextEnemyIndex < bag.enemyRuntimeIds.length
+      && runtime.waveElapsedMs >= bag.nextSpawnAtMs
+      && spawnedThisStep < CombatBalanceConfig.MAX_ENEMY_SPAWNS_PER_STEP
+    ) {
       const enemyRuntimeId = bag.enemyRuntimeIds[bag.nextEnemyIndex];
       bag.nextEnemyIndex += 1;
 
@@ -60,6 +66,8 @@ export function spawnCombatEnemies(
       enemy.y = CombatLayoutConfig.ENEMY_SPAWN_Y;
       runtime.wave.lastSpawnX = enemy.x;
       bag.nextSpawnAtMs += bag.intervalMs;
+      runtime.targeting.dirty = true;
+      spawnedThisStep += 1;
     }
   }
 }

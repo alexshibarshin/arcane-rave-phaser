@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { CombatVfxConfig } from '@config/CombatVfxConfig';
 import type { CombatRuntime } from '@combat/CombatRuntime';
 import type { CombatRuntimeEvent } from '@combat/CombatRuntimeEvents';
 import {
@@ -66,11 +67,15 @@ export function createCombatPresentationRuntime(
 
   let notePacketElapsedMs = 0;
   let lastCombatElapsedMs = 0;
+  let enemyHitEventsThisFrame = 0;
+  let noteEventsThisFrame = 0;
 
   return {
     sync(runtime, deltaMs) {
       const presentationDelta = getCombatPresentationDelta(runtime.state, deltaMs);
       lastCombatElapsedMs = runtime.combatElapsedMs;
+      enemyHitEventsThisFrame = 0;
+      noteEventsThisFrame = 0;
 
       notePacketElapsedMs += presentationDelta;
       combatVfx.update(presentationDelta);
@@ -114,24 +119,48 @@ export function createCombatPresentationRuntime(
     },
 
     handleEvent(event) {
+      const isEnemyHitEvent = event.event === 'combat:enemy-hit';
+      const isNoteEvent =
+        event.event === 'combat:generator-notes-emitted'
+        || event.event === 'combat:finisher-consumed-notes'
+        || event.event === 'combat:finisher-output-note-emitted';
+      const allowEnemyHitPresentation =
+        !isEnemyHitEvent
+        || enemyHitEventsThisFrame < CombatVfxConfig.FRAME_BUDGET.MAX_ENEMY_HIT_EVENTS;
+      const allowNotePresentation =
+        !isNoteEvent
+        || noteEventsThisFrame < CombatVfxConfig.FRAME_BUDGET.MAX_NOTE_EVENTS;
+
       // Route to VFX system (produces snapshot consumed in next sync)
-      switch (event.event) {
-        case 'combat:slot-activated':
-        case 'combat:enemy-hit':
-        case 'combat:generator-notes-emitted':
-        case 'combat:finisher-consumed-notes':
-        case 'combat:finisher-output-note-emitted':
-        case 'combat:note-packet-color-broke':
-        case 'combat:base-damaged':
-        case 'combat:ended':
-          combatVfx.handleEvent(event);
-          break;
-        default:
-          break;
+      if (allowEnemyHitPresentation && allowNotePresentation) {
+        switch (event.event) {
+          case 'combat:slot-activated':
+          case 'combat:enemy-hit':
+          case 'combat:generator-notes-emitted':
+          case 'combat:finisher-consumed-notes':
+          case 'combat:finisher-output-note-emitted':
+          case 'combat:note-packet-color-broke':
+          case 'combat:base-damaged':
+          case 'combat:ended':
+            combatVfx.handleEvent(event);
+            break;
+          default:
+            break;
+        }
       }
 
       // Damage numbers spawn from certain events
-      damageNumberRenderer.handleEvent(options.viewGraph, event, lastCombatElapsedMs);
+      if (allowEnemyHitPresentation || !isEnemyHitEvent) {
+        damageNumberRenderer.handleEvent(options.viewGraph, event, lastCombatElapsedMs);
+      }
+
+      if (isEnemyHitEvent) {
+        enemyHitEventsThisFrame += 1;
+      }
+
+      if (isNoteEvent) {
+        noteEventsThisFrame += 1;
+      }
     },
 
     destroy() {
@@ -154,5 +183,4 @@ export function createCombatPresentationRuntime(
     },
   };
 }
-
 

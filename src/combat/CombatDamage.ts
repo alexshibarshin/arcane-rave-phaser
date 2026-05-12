@@ -14,6 +14,7 @@ import {
   pushCombatEnemyDied,
   pushCombatEnemyHit,
 } from './CombatRuntimeEvents';
+import { invalidateCombatTargeting } from './CombatTargeting';
 
 export interface CombatHitResolutionOptions {
   runtime: CombatRuntime;
@@ -69,6 +70,7 @@ export function applyCombatHit(options: CombatHitResolutionOptions): CombatHitRe
   if (options.enemy.currentHp <= 0 && options.enemy.state !== 'dead') {
     options.enemy.state = 'dead';
     options.runtime.wave.enemiesRemaining = Math.max(0, options.runtime.wave.enemiesRemaining - 1);
+    invalidateCombatTargeting(options.runtime);
     pushCombatEnemyDied(options.runtime, options.enemy.runtimeId);
   }
 

@@ -31,7 +31,7 @@ export function createCombatNotePacketViewModel(
     * Math.PI
     * 2;
 
-  return packet.visuals.map((id, index) => {
+  return Array.from({ length: packet.count }, (_, index) => {
     const distanceFromCenter = Math.abs(index - centerIndex);
     const baseY =
       anchor.y
@@ -48,7 +48,7 @@ export function createCombatNotePacketViewModel(
     const floatOffsetY = Math.round(Math.sin(instancePhase) * floatAmplitude);
 
     return {
-      id,
+      id: `note-packet:${packet.color}:${index}`,
       color: packet.color!,
       tint: CombatVisualConfig.NOTE_COLORS[packet.color!],
       x: anchor.x + (index - centerIndex) * CombatVisualConfig.NOTE_PACKET.SPACING_X,

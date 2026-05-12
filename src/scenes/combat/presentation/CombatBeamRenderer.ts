@@ -14,11 +14,16 @@ import {
 export class CombatBeamRenderer {
   private readonly views = new Map<string, Phaser.GameObjects.Image>();
   private readonly pool: Phaser.GameObjects.Image[] = [];
+  private readonly activeIds = new Set<string>();
 
   sync(scene: Phaser.Scene, viewGraph: CombatSceneViewGraph, runtime: CombatRuntime): void {
-    const activeIds = new Set(runtime.beams.map((beam) => beam.runtimeId));
+    this.activeIds.clear();
 
-    reclaimImageViews(this.views, this.pool, activeIds);
+    for (const beam of runtime.beams) {
+      this.activeIds.add(beam.runtimeId);
+    }
+
+    reclaimImageViews(this.views, this.pool, this.activeIds);
 
     for (const beam of runtime.beams) {
       let beamView = this.views.get(beam.runtimeId);
@@ -31,6 +36,9 @@ export class CombatBeamRenderer {
           COMBAT_VFX_BEAM_TEXTURE_KEY,
         );
         beamView.setBlendMode(Phaser.BlendModes.ADD);
+        beamView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.05);
+        beamView.setTint(CombatVisualConfig.NOTE_COLORS[beam.color]);
+        beamView.setAlpha(0.9);
         this.views.set(beam.runtimeId, beamView);
       }
 
@@ -40,12 +48,15 @@ export class CombatBeamRenderer {
       if (beam.beamType === 'sweeping') {
         from = { x: beam.originX, y: beam.originY };
       } else {
-        const slotAnchor = viewGraph.anchors.getSlotAnchor(beam.slotIndex);
-        if (!slotAnchor) {
+        const slotRuntime = runtime.slots[beam.slotIndex];
+        const slotPosition = slotRuntime?.worldPosition;
+
+        if (!slotPosition) {
           beamView.setVisible(false);
           continue;
         }
-        from = { x: slotAnchor.x, y: slotAnchor.y };
+
+        from = { x: slotPosition.x, y: slotPosition.y };
       }
 
       if (beam.beamType === 'lock-on') {
@@ -82,9 +93,6 @@ export class CombatBeamRenderer {
       const deltaX = to.x - from.x;
       const deltaY = to.y - from.y;
       const length = Math.hypot(deltaX, deltaY);
-      beamView.setDepth(CombatLayoutConfig.DEPTH.VFX + 0.05);
-      beamView.setTint(CombatVisualConfig.NOTE_COLORS[beam.color]);
-      beamView.setAlpha(0.9);
       beamView.setPosition((from.x + to.x) / 2, (from.y + to.y) / 2);
       beamView.setRotation(Math.atan2(deltaY, deltaX));
       beamView.setScale(

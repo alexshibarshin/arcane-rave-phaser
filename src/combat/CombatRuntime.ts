@@ -30,6 +30,8 @@ import { advanceCombatZones, clearCombatZones } from './CombatZones';
 import type { CombatSubWaveConfig } from '@config/CombatWaveConfig';
 
 const SLOT_SPRITE_REST_OFFSET_Y_PX = -2;
+const EMPTY_NOTE_PACKET_VISUALS: string[] = [];
+const NOTE_PACKET_VISUALS_CACHE = new Map<string, string[]>();
 
 export type CombatState = 'preview' | 'running' | 'paused' | 'victory' | 'defeat';
 export type NoteColor = (typeof CombatContentConfig.NOTE_COLORS)[number];
@@ -213,10 +215,20 @@ export interface CombatWaveRuntime {
   lastSpawnX: number | null;
 }
 
+export interface CombatTargetingRuntime {
+  dirty: boolean;
+  targetableEnemies: CombatEnemyRuntime[];
+  frontmostEnemy: CombatEnemyRuntime | null;
+  bucketsByRow: Map<number, CombatEnemyRuntime[]>;
+}
+
 export interface CombatRuntime {
   state: CombatState;
   combatElapsedMs: number;
   waveElapsedMs: number;
+  simulation: {
+    accumulatorMs: number;
+  };
   preview: {
     elapsedMs: number;
     durationMs: number;
@@ -244,6 +256,7 @@ export interface CombatRuntime {
   enemyById: Map<string, CombatEnemyRuntime>;
   enemyQueuesByDefinitionId: Map<string, CombatEnemyRuntime[]>;
   enemyQueueCursorByDefinitionId: Map<string, number>;
+  targeting: CombatTargetingRuntime;
   projectiles: CombatProjectileRuntime[];
   queuedVolleys: CombatQueuedVolleyRuntime[];
   pendingExplosions: CombatPendingExplosionRuntime[];
@@ -317,6 +330,9 @@ export function createCombatRuntime(
     state: 'preview',
     combatElapsedMs: 0,
     waveElapsedMs: 0,
+    simulation: {
+      accumulatorMs: 0,
+    },
     preview: {
       elapsedMs: 0,
       durationMs: CombatBalanceConfig.PREVIEW_DURATION_MS,
@@ -360,6 +376,12 @@ export function createCombatRuntime(
     enemyQueueCursorByDefinitionId: new Map(
       Array.from(enemyQueuesByDefinitionId.keys(), (definitionId) => [definitionId, 0]),
     ),
+    targeting: {
+      dirty: true,
+      targetableEnemies: [],
+      frontmostEnemy: null,
+      bucketsByRow: new Map(),
+    },
     projectiles: [],
     queuedVolleys: [],
     pendingExplosions: [],
@@ -439,26 +461,47 @@ export function advanceCombatRuntime(
   deltaMs: number,
   options: CombatRuntimeAdvanceOptions = {},
 ): void {
+  const clampedFrameDeltaMs = Math.min(deltaMs, CombatBalanceConfig.MAX_FRAME_DELTA_MS);
+
   if (runtime.state === 'running') {
-    runtime.combatElapsedMs += deltaMs;
-    runtime.waveElapsedMs += deltaMs;
-    activatePendingCombatSubWaves(runtime, options.random ?? Math.random);
     resetCombatFrameEffects(runtime);
-    const forwardDeltaMs = advanceCombatTimeControl(runtime, deltaMs);
-    const crossings = forwardDeltaMs > 0 ? advanceCombatRotation(runtime, forwardDeltaMs) : [];
-    syncCombatSlotWorldPositions(runtime);
-    resolveCombatActivations(runtime, crossings);
-    advanceCombatScheduledActivations(runtime);
-    advanceCombatQueuedVolleys(runtime);
-    advanceCombatProjectiles(runtime, forwardDeltaMs);
-    advanceCombatPendingExplosions(runtime);
-    advanceCombatBeams(runtime, forwardDeltaMs);
-    advanceCombatZones(runtime);
-    advanceCombatStatuses(runtime);
-    advanceCombatPawnBuffs(runtime);
-    advanceCombatEnemyPressure(runtime, deltaMs);
-    spawnCombatEnemies(runtime, options.random ?? Math.random);
-    evaluateCombatOutcome(runtime);
+
+    if (deltaMs <= CombatBalanceConfig.MAX_FRAME_DELTA_MS) {
+      runtime.simulation.accumulatorMs = 0;
+      simulateCombatRuntimeStep(
+        runtime,
+        clampedFrameDeltaMs,
+        options.random ?? Math.random,
+      );
+      return;
+    }
+
+    runtime.simulation.accumulatorMs = Math.min(
+      clampedFrameDeltaMs,
+      CombatBalanceConfig.SIMULATION_STEP_MS * CombatBalanceConfig.MAX_SIMULATION_STEPS_PER_FRAME,
+    );
+
+    let processedSteps = 0;
+
+    while (
+      runtime.simulation.accumulatorMs > 0
+      && processedSteps < CombatBalanceConfig.MAX_SIMULATION_STEPS_PER_FRAME
+    ) {
+      const stepDeltaMs = Math.min(
+        CombatBalanceConfig.SIMULATION_STEP_MS,
+        runtime.simulation.accumulatorMs,
+      );
+      simulateCombatRuntimeStep(runtime, stepDeltaMs, options.random ?? Math.random);
+      runtime.simulation.accumulatorMs -= stepDeltaMs;
+      processedSteps += 1;
+
+      if (runtime.state !== 'running') {
+        runtime.simulation.accumulatorMs = 0;
+        break;
+      }
+    }
+
+    runtime.simulation.accumulatorMs = 0;
 
     return;
   }
@@ -467,15 +510,42 @@ export function advanceCombatRuntime(
     return;
   }
 
-  runtime.combatElapsedMs += deltaMs;
+  runtime.combatElapsedMs += clampedFrameDeltaMs;
   runtime.preview.elapsedMs = Math.min(
-    runtime.preview.elapsedMs + deltaMs,
+    runtime.preview.elapsedMs + clampedFrameDeltaMs,
     runtime.preview.durationMs,
   );
 
   if (runtime.preview.elapsedMs >= runtime.preview.durationMs) {
     setCombatState(runtime, 'running');
   }
+}
+
+function simulateCombatRuntimeStep(
+  runtime: CombatRuntime,
+  deltaMs: number,
+  random: () => number,
+): void {
+  runtime.combatElapsedMs += deltaMs;
+  runtime.waveElapsedMs += deltaMs;
+  runtime.targeting.dirty = true;
+  activatePendingCombatSubWaves(runtime, random);
+  const forwardDeltaMs = advanceCombatTimeControl(runtime, deltaMs);
+  const crossings = forwardDeltaMs > 0 ? advanceCombatRotation(runtime, forwardDeltaMs) : [];
+  syncCombatSlotWorldPositions(runtime);
+  resolveCombatActivations(runtime, crossings);
+  advanceCombatScheduledActivations(runtime);
+  advanceCombatQueuedVolleys(runtime);
+  advanceCombatProjectiles(runtime, forwardDeltaMs);
+  advanceCombatPendingExplosions(runtime);
+  advanceCombatBeams(runtime, forwardDeltaMs);
+  advanceCombatZones(runtime);
+  advanceCombatStatuses(runtime);
+  advanceCombatPawnBuffs(runtime);
+  advanceCombatEnemyPressure(runtime, deltaMs);
+  runtime.targeting.dirty = true;
+  spawnCombatEnemies(runtime, random);
+  evaluateCombatOutcome(runtime);
 }
 
 export function setCombatTimeControlMode(
@@ -532,8 +602,8 @@ export function setCombatNotePacket(
   runtime.notePacket.count = clampedCount;
   runtime.notePacket.visuals =
     nextColor === null
-      ? []
-      : Array.from({ length: clampedCount }, (_, index) => `note-packet:${nextColor}:${index}`);
+      ? EMPTY_NOTE_PACKET_VISUALS
+      : getCachedNotePacketVisualIds(nextColor, clampedCount);
 }
 
 export function syncCombatSlotWorldPositions(runtime: CombatRuntime): void {
@@ -625,6 +695,19 @@ function clearCombatTransientState(runtime: CombatRuntime): void {
   clearCombatEnemyStatuses(runtime);
   clearCombatPawnBuffs(runtime);
   runtime.scheduledActivations = [];
+}
+
+function getCachedNotePacketVisualIds(color: NoteColor, count: number): string[] {
+  const cacheKey = `${color}:${count}`;
+  const cachedIds = NOTE_PACKET_VISUALS_CACHE.get(cacheKey);
+
+  if (cachedIds) {
+    return cachedIds;
+  }
+
+  const ids = Array.from({ length: count }, (_, index) => `note-packet:${color}:${index}`);
+  NOTE_PACKET_VISUALS_CACHE.set(cacheKey, ids);
+  return ids;
 }
 
 function advanceCombatScheduledActivations(runtime: CombatRuntime): void {

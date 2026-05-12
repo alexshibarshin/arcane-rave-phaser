@@ -1,7 +1,7 @@
 import { getCombatPawnDefinitionById, type CombatPawnDefinition } from '@config/CombatContentConfig';
 import { applyCombatHit } from './CombatDamage';
 import { spawnZone } from './CombatZones';
-import { createRuntimeEffectId, resolveTarget } from './CombatTargeting';
+import { createRuntimeEffectId, getNearbyTargetableEnemies, resolveTarget } from './CombatTargeting';
 import type { CombatTargetingRule } from '@config/CombatContentConfig';
 import {
   pushCombatDelayedExplosionSpawned,
@@ -27,11 +27,15 @@ export function createImmediateTargetedExplosion(
     return;
   }
 
-  for (const enemy of runtime.enemies) {
-    if (!enemy.spawned || enemy.state === 'dead' || enemy.currentHp <= 0) {
-      continue;
-    }
+  const candidateEnemies = getNearbyTargetableEnemies(runtime, {
+    minX: target.x - radius,
+    maxX: target.x + radius,
+    minY: target.y - radius,
+    maxY: target.y + radius,
+    paddingPx: 0,
+  });
 
+  for (const enemy of candidateEnemies) {
     if (Math.hypot(enemy.x - target.x, enemy.y - target.y) > radius) {
       continue;
     }
@@ -115,11 +119,15 @@ function detonatePendingExplosion(runtime: CombatRuntime, pendingExplosion: Comb
     return;
   }
 
-  for (const enemy of runtime.enemies) {
-    if (!enemy.spawned || enemy.state === 'dead' || enemy.currentHp <= 0) {
-      continue;
-    }
+  const candidateEnemies = getNearbyTargetableEnemies(runtime, {
+    minX: pendingExplosion.centerX - pendingExplosion.radius,
+    maxX: pendingExplosion.centerX + pendingExplosion.radius,
+    minY: pendingExplosion.centerY - pendingExplosion.radius,
+    maxY: pendingExplosion.centerY + pendingExplosion.radius,
+    paddingPx: 0,
+  });
 
+  for (const enemy of candidateEnemies) {
     if (Math.hypot(enemy.x - pendingExplosion.centerX, enemy.y - pendingExplosion.centerY) > pendingExplosion.radius) {
       continue;
     }

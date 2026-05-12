@@ -337,7 +337,7 @@ export class CombatScene extends GameScene {
   }
 
   private routeFrameEvents = (events: CombatRuntimeEvent[]): void => {
-    for (const event of events) {
+    for (const event of coalesceCombatPresentationEvents(events)) {
       switch (event.event) {
         case 'combat:slot-activated':
           this.handleSlotActivated(event.payload);
@@ -389,4 +389,64 @@ export class CombatScene extends GameScene {
     this.subWaves = undefined;
     this.enemyStatOverrides = undefined;
   }
+}
+
+function coalesceCombatPresentationEvents(events: CombatRuntimeEvent[]): CombatRuntimeEvent[] {
+  const coalescedEvents: CombatRuntimeEvent[] = [];
+  const enemyHitIndexByEnemyId = new Map<string, number>();
+  const baseDamageEventIndex: number[] = [];
+
+  for (const event of events) {
+    if (event.event === 'combat:enemy-hit') {
+      const existingIndex = enemyHitIndexByEnemyId.get(event.payload.enemyId);
+
+      if (existingIndex === undefined) {
+        enemyHitIndexByEnemyId.set(event.payload.enemyId, coalescedEvents.length);
+        coalescedEvents.push(event);
+        continue;
+      }
+
+      const existingEvent = coalescedEvents[existingIndex];
+
+      if (!existingEvent || existingEvent.event !== 'combat:enemy-hit') {
+        coalescedEvents.push(event);
+        continue;
+      }
+
+      existingEvent.payload.damage += event.payload.damage;
+      existingEvent.payload.currentHp = event.payload.currentHp;
+      existingEvent.payload.maxHp = event.payload.maxHp;
+      existingEvent.payload.slotIndex = event.payload.slotIndex;
+      existingEvent.payload.attackerColor = event.payload.attackerColor;
+      existingEvent.payload.wasWeaknessHit =
+        existingEvent.payload.wasWeaknessHit || event.payload.wasWeaknessHit;
+      continue;
+    }
+
+    if (event.event === 'combat:base-damaged') {
+      const existingIndex = baseDamageEventIndex[0];
+
+      if (existingIndex === undefined) {
+        baseDamageEventIndex[0] = coalescedEvents.length;
+        coalescedEvents.push(event);
+        continue;
+      }
+
+      const existingEvent = coalescedEvents[existingIndex];
+
+      if (!existingEvent || existingEvent.event !== 'combat:base-damaged') {
+        coalescedEvents.push(event);
+        continue;
+      }
+
+      existingEvent.payload.damage += event.payload.damage;
+      existingEvent.payload.current = event.payload.current;
+      existingEvent.payload.max = event.payload.max;
+      continue;
+    }
+
+    coalescedEvents.push(event);
+  }
+
+  return coalescedEvents;
 }

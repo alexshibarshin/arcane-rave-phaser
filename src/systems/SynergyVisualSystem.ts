@@ -30,6 +30,7 @@ export class SynergyVisualSystem {
 
   private icons: SynergyIcon[] = [];
   private lastSlotState: Array<string | null> | null = null;
+  private cachedLinks: SynergyLink[] = [];
   private lastActivatedIndex: number = -1;
   private elapsedMs: number = 0;
 
@@ -55,12 +56,7 @@ export class SynergyVisualSystem {
       return;
     }
 
-    const links = calculateSynergy(
-      this.lastSlotState,
-      this.pawnDefinitions,
-      this.slotCount,
-    );
-    const linksByFromSlot = new Map(links.map((link) => [link.fromSlot, link]));
+    const linksByFromSlot = new Map(this.cachedLinks.map((link) => [link.fromSlot, link]));
 
     for (const icon of this.icons) {
       const link = linksByFromSlot.get(icon.fromSlot);
@@ -102,6 +98,11 @@ export class SynergyVisualSystem {
 
   updateBuildState(slotPawnIds: Array<string | null>): void {
     this.lastSlotState = [...slotPawnIds];
+    this.cachedLinks = calculateSynergy(
+      this.lastSlotState,
+      this.pawnDefinitions,
+      this.slotCount,
+    );
     this.lastActivatedIndex = -1;
   }
 
@@ -127,6 +128,7 @@ export class SynergyVisualSystem {
     }
     this.icons = [];
     this.lastSlotState = null;
+    this.cachedLinks = [];
     this.lastActivatedIndex = -1;
     this.elapsedMs = 0;
   }

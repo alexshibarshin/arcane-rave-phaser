@@ -1,3 +1,4 @@
+import { CombatBalanceConfig } from '@config/CombatBalanceConfig';
 import type { CombatTargetingRule } from '@config/CombatContentConfig';
 import { createCombatLayoutPlan } from './CombatLayout';
 import type { CombatEnemyRuntime, CombatRuntime, CombatSlotRuntime } from './CombatRuntime';
@@ -36,48 +37,38 @@ export function selectFrontmostEnemyExcluding(
   runtime: CombatRuntime,
   excludedEnemyRuntimeIds: string[],
 ): CombatEnemyRuntime | null {
+  const snapshot = getCombatTargetingSnapshot(runtime);
+
+  if (excludedEnemyRuntimeIds.length === 0) {
+    return snapshot.frontmostEnemy;
+  }
+
   const excludedIds = excludedEnemyRuntimeIds.length > 0
     ? new Set(excludedEnemyRuntimeIds)
     : null;
-  let frontmostEnemy: CombatEnemyRuntime | null = null;
-  let bestDistance = Number.POSITIVE_INFINITY;
 
-  for (const enemy of runtime.enemies) {
-    if (!isEnemyTargetable(enemy) || excludedIds?.has(enemy.runtimeId)) {
+  for (const enemy of snapshot.targetableEnemies) {
+    if (excludedIds?.has(enemy.runtimeId)) {
       continue;
     }
 
-    const distance = distanceToBase(runtime, enemy);
-
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      frontmostEnemy = enemy;
-    }
+    return enemy;
   }
 
-  return frontmostEnemy;
+  return null;
 }
 
 export function selectRandomEnemy(
   runtime: CombatRuntime,
   random: () => number = Math.random,
 ): CombatEnemyRuntime | null {
-  let selected: CombatEnemyRuntime | null = null;
-  let candidateCount = 0;
+  const targetableEnemies = getCombatTargetingSnapshot(runtime).targetableEnemies;
 
-  for (const enemy of runtime.enemies) {
-    if (!isEnemyTargetable(enemy)) {
-      continue;
-    }
-
-    candidateCount += 1;
-
-    if (random() * candidateCount < 1) {
-      selected = enemy;
-    }
+  if (targetableEnemies.length === 0) {
+    return null;
   }
 
-  return selected;
+  return targetableEnemies[Math.floor(random() * targetableEnemies.length)] ?? null;
 }
 
 export function getSlotOrigin(slot: CombatSlotRuntime): { x: number; y: number } | null {
@@ -171,7 +162,93 @@ export function distanceToBase(runtime: CombatRuntime, enemy: CombatEnemyRuntime
   );
 }
 
+export function getTargetableEnemies(runtime: CombatRuntime): CombatEnemyRuntime[] {
+  return getCombatTargetingSnapshot(runtime).targetableEnemies;
+}
+
+export function getNearbyTargetableEnemies(
+  runtime: CombatRuntime,
+  bounds: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    paddingPx?: number;
+  },
+): CombatEnemyRuntime[] {
+  const snapshot = getCombatTargetingSnapshot(runtime);
+  const paddingPx = bounds.paddingPx ?? ENEMY_COLLISION_RADIUS_PX;
+  const minRow = Math.floor((bounds.minY - paddingPx) / CombatBalanceConfig.TARGETING_BUCKET_HEIGHT_PX);
+  const maxRow = Math.floor((bounds.maxY + paddingPx) / CombatBalanceConfig.TARGETING_BUCKET_HEIGHT_PX);
+  const candidates: CombatEnemyRuntime[] = [];
+
+  for (let row = minRow; row <= maxRow; row += 1) {
+    const rowEnemies = snapshot.bucketsByRow.get(row);
+
+    if (!rowEnemies) {
+      continue;
+    }
+
+    for (const enemy of rowEnemies) {
+      if (
+        enemy.x < bounds.minX - paddingPx
+        || enemy.x > bounds.maxX + paddingPx
+        || enemy.y < bounds.minY - paddingPx
+        || enemy.y > bounds.maxY + paddingPx
+      ) {
+        continue;
+      }
+
+      candidates.push(enemy);
+    }
+  }
+
+  return candidates;
+}
+
+export function invalidateCombatTargeting(runtime: CombatRuntime): void {
+  runtime.targeting.dirty = true;
+}
+
 export function createRuntimeEffectId(runtime: CombatRuntime, prefix: string): string {
   const id = runtime.ids.nextEffectId++;
   return `${prefix}-${id}`;
+}
+
+function getCombatTargetingSnapshot(runtime: CombatRuntime): CombatRuntime['targeting'] {
+  if (!runtime.targeting.dirty) {
+    return runtime.targeting;
+  }
+
+  const targetableEnemies: CombatEnemyRuntime[] = [];
+  const bucketsByRow = new Map<number, CombatEnemyRuntime[]>();
+
+  for (const enemy of runtime.enemies) {
+    if (!isEnemyTargetable(enemy)) {
+      continue;
+    }
+
+    targetableEnemies.push(enemy);
+  }
+
+  targetableEnemies.sort((left, right) => distanceToBase(runtime, left) - distanceToBase(runtime, right));
+
+  for (const enemy of targetableEnemies) {
+    const row = Math.floor(enemy.y / CombatBalanceConfig.TARGETING_BUCKET_HEIGHT_PX);
+    const rowEnemies = bucketsByRow.get(row);
+
+    if (rowEnemies) {
+      rowEnemies.push(enemy);
+      continue;
+    }
+
+    bucketsByRow.set(row, [enemy]);
+  }
+
+  runtime.targeting.targetableEnemies = targetableEnemies;
+  runtime.targeting.frontmostEnemy = targetableEnemies[0] ?? null;
+  runtime.targeting.bucketsByRow = bucketsByRow;
+  runtime.targeting.dirty = false;
+
+  return runtime.targeting;
 }
