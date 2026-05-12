@@ -248,7 +248,7 @@ export function attemptMergeStagePawnSlots(
   toSlotIndex: number,
   random: () => number = Math.random,
 ): StageMergeAttemptResult {
-  if (runtime.pendingMerge !== null || runtime.phase !== 'build') {
+  if (runtime.pendingMerge !== null || runtime.phase !== 'build' || fromSlotIndex === toSlotIndex) {
     return 'failed';
   }
 

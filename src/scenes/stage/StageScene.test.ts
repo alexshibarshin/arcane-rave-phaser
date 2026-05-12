@@ -175,6 +175,22 @@ describe('StageRuntime', () => {
     expect(runtime.build.slots[0]?.pawnId).toBe(chosenResult.pawnId);
   });
 
+  it('refuses to merge a slot pawn with itself in choose strategy mode', () => {
+    const runtime = createStageRuntime(
+      makeStageConfig({ totalWaves: 2, initialCoins: 8 }),
+      defaultDeckIds,
+      new ChooseMergeStrategy(),
+      () => 0,
+    );
+
+    purchaseStagePawnIntoSlot(runtime, 0, 0);
+
+    expect(attemptMergeStagePawnSlots(runtime, 0, 0, () => 0)).toBe('failed');
+    expect(runtime.pendingMerge).toBeNull();
+    expect(runtime.build.slots[0]?.tier).toBe(1);
+    expect(runtime.build.slots[0]?.pawnId).toBe('ruby-needle');
+  });
+
   it('disables merge reward coins when the config value is set to zero', () => {
     const originalReward = StageFlowConfig.MERGE_REWARD_COINS;
     (StageFlowConfig as { MERGE_REWARD_COINS: number }).MERGE_REWARD_COINS = 0;
