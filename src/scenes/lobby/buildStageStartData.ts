@@ -1,6 +1,7 @@
 export interface LobbyStageStartSettings {
   mergeRule: 'random' | 'fixed' | 'choose';
   sellEnabled: boolean;
+  repositionCostEnabled: boolean;
 }
 
 export interface LobbyStageStartData {

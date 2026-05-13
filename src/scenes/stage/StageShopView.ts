@@ -18,6 +18,7 @@ export class StageShopView {
   readonly cardsLayer: Phaser.GameObjects.Container;
 
   private emptyLabel?: Phaser.GameObjects.Text;
+  private subtitle: Phaser.GameObjects.Text;
   private sellOverlay?: Phaser.GameObjects.Container;
   private sellOverlayText?: Phaser.GameObjects.Text;
   private sellPriceText?: Phaser.GameObjects.Text;
@@ -29,6 +30,7 @@ export class StageShopView {
   constructor(
     private readonly scene: Phaser.Scene,
     onReroll: () => void,
+    repositionCost: number,
     onCardsCreated?: () => void,
   ) {
     this.onCardsCreated = onCardsCreated;
@@ -51,10 +53,10 @@ export class StageShopView {
       fontFamily: 'Helvetica, Arial, sans-serif',
       fontSize: '28px',
     });
-    const subtitle = scene.add.text(
+    this.subtitle = scene.add.text(
       x + 132,
       y + 40,
-      `Drag to buy  •  Move ${StageFlowConfig.REPOSITION_COST}c`,
+      StageShopView.buildSubtitle(repositionCost),
       {
         color: '#7fbddb',
         fontFamily: 'Helvetica, Arial, sans-serif',
@@ -74,7 +76,13 @@ export class StageShopView {
     this.rerollButton.on('pointerdown', onReroll);
 
     this.cardsLayer = scene.add.container(0, 0);
-    this.container.add([background, title, subtitle, this.rerollButton, this.cardsLayer]);
+    this.container.add([background, title, this.subtitle, this.rerollButton, this.cardsLayer]);
+  }
+
+  private static buildSubtitle(repositionCost: number): string {
+    return repositionCost > 0
+      ? `Drag to buy  •  Move ${repositionCost}c`
+      : 'Drag to buy  •  Move free';
   }
 
   refresh(offers: string[], coins: number, rerollCost: number): void {

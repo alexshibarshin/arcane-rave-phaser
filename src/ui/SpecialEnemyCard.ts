@@ -13,10 +13,10 @@ import {
 const VARIANT_LAYOUT = {
   lobby: {
     cardWidth: 280,
-    cardHeight: 260,
-    visualHeight: 200,
-    nameFontSize: '20px',
-    roleFontSize: '14px',
+    cardHeight: 148,
+    visualHeight: 94,
+    nameFontSize: '18px',
+    roleFontSize: '13px',
     cornerRadius: 8,
   },
   'wave-preview': {
@@ -80,7 +80,7 @@ export function createSpecialEnemyCard(
   // positioned at the card center so everything aligns.
   const enemyGfx = scene.add.graphics();
   const bodyColor = NOTE_COLORS[enemyColor] ?? 0xe03c3c;
-  const bodyScale = variant === 'lobby' ? 3.2 : 1.0;
+  const bodyScale = variant === 'lobby' ? 1.6 : 1.0;
   const bodyW = 31 * bodyScale;
   const bodyH = 36 * bodyScale;
 
@@ -159,5 +159,4 @@ function renderEnemyByArchetype(
       break;
   }
 }
-
 

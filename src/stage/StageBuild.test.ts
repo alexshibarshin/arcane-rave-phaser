@@ -90,6 +90,19 @@ describe('StageBuild', () => {
     expect(build.slots[1]).toBeNull();
   });
 
+  it('allows repositioning for free when the runtime-configured cost is zero', () => {
+    const build: StageBuildState = {
+      slots: [{ pawnId: 'ruby-needle', tier: 1 }, null, null, null, null, null, null, null],
+      shopOffers: [],
+      shopPurchaseCounts: {},
+      rerollCount: 0,
+    };
+
+    expect(moveStagePawn(build, 0, 0, 1, 0)).toBe(true);
+    expect(build.slots[0]).toBeNull();
+    expect(build.slots[1]?.pawnId).toBe('ruby-needle');
+  });
+
   const strategy = new RandomMergeStrategy();
 
   it('merges matching same-tier pawns into a random next-tier pawn', () => {

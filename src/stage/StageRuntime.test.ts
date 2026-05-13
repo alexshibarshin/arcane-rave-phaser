@@ -43,6 +43,14 @@ describe('StageRuntime', () => {
     expect(runtime.stageConfig).toBe(config);
   });
 
+  it('stores a per-run reposition cost override when provided', () => {
+    const runtime = createStageRuntime(makeStageConfig(), undefined, undefined, Math.random, {
+      repositionCost: 0,
+    });
+
+    expect(runtime.repositionCost).toBe(0);
+  });
+
   describe('buildStageWaveEnemyPayload', () => {
     it('returns subWaves and enemyStatOverrides with scaled HP for a valid wave index', () => {
       const config = makeStageConfig({

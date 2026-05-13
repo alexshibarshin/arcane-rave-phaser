@@ -51,6 +51,7 @@ export interface StageRuntime {
   stageConfig: StageConfig;
   mergeStrategy: MergeStrategy;
   pendingMerge: PendingStageMerge | null;
+  repositionCost: number;
 }
 
 export interface ResolveStageCombatOutcomeOptions {
@@ -65,6 +66,7 @@ export function createStageRuntime(
   activeDeckIds: readonly string[] = getCombatDefaultPawnDeckIds(),
   mergeStrategy?: MergeStrategy,
   random: () => number = Math.random,
+  settings?: { repositionCost?: number },
 ): StageRuntime {
   const totalWaves = Math.max(0, stageConfig.totalWaves);
   const initialCoins = Math.max(0, stageConfig.initialCoins);
@@ -90,6 +92,7 @@ export function createStageRuntime(
     stageConfig,
     mergeStrategy: mergeStrategy ?? new RandomMergeStrategy(),
     pendingMerge: null,
+    repositionCost: Math.max(0, settings?.repositionCost ?? StageFlowConfig.REPOSITION_COST),
   };
 }
 
@@ -167,14 +170,24 @@ export function repositionStagePawn(
   fromSlotIndex: number,
   toSlotIndex: number,
 ): boolean {
-  const moved = moveStagePawn(runtime.build, runtime.coins, fromSlotIndex, toSlotIndex);
+  const moved = moveStagePawn(
+    runtime.build,
+    runtime.coins,
+    fromSlotIndex,
+    toSlotIndex,
+    runtime.repositionCost,
+  );
 
   if (!moved) {
     return false;
   }
 
-  runtime.coins -= StageFlowConfig.REPOSITION_COST;
+  runtime.coins -= runtime.repositionCost;
   return true;
+}
+
+export function getStageRepositionCost(runtime: StageRuntime): number {
+  return runtime.repositionCost;
 }
 
 export function purchaseStagePawnIntoMergeSlot(

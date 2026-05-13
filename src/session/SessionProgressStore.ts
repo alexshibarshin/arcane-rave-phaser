@@ -48,6 +48,7 @@ function createStore() {
   let lastSelectedStageId: string | null = null;
   let mergeRule: 'random' | 'fixed' | 'choose' = 'random';
   let sellEnabled = true;
+  let repositionCostEnabled = true;
   let activeDeckIds = normalizeActiveDeckIds(getCombatDefaultPawnDeckIds());
 
   return {
@@ -88,6 +89,14 @@ function createStore() {
 
     setSellEnabled(enabled: boolean): void {
       sellEnabled = enabled;
+    },
+
+    getRepositionCostEnabled(): boolean {
+      return repositionCostEnabled;
+    },
+
+    setRepositionCostEnabled(enabled: boolean): void {
+      repositionCostEnabled = enabled;
     },
 
     getActiveDeckIds(): string[] {

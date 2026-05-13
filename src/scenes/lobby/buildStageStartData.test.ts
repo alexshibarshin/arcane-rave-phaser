@@ -15,7 +15,7 @@ describe('buildStageStartData', () => {
         'heatline',
         'moss-patch',
       ],
-      settings: { mergeRule: 'fixed', sellEnabled: true },
+      settings: { mergeRule: 'fixed', sellEnabled: true, repositionCostEnabled: true },
     });
 
     expect(payload).toEqual({
@@ -30,7 +30,7 @@ describe('buildStageStartData', () => {
         'heatline',
         'moss-patch',
       ],
-      settings: { mergeRule: 'fixed', sellEnabled: true },
+      settings: { mergeRule: 'fixed', sellEnabled: true, repositionCostEnabled: true },
     });
   });
 });

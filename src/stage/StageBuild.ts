@@ -102,8 +102,9 @@ export function moveStagePawn(
   coins: number,
   fromSlotIndex: number,
   toSlotIndex: number,
+  repositionCost: number = StageFlowConfig.REPOSITION_COST,
 ): boolean {
-  if (coins < StageFlowConfig.REPOSITION_COST) {
+  if (coins < repositionCost) {
     return false;
   }
 

@@ -4,6 +4,7 @@ import type { StageRuntime } from '@stage/StageRuntime';
 import {
   attemptMergeStagePawnSlots,
   attemptPurchaseStagePawnIntoMergeSlot,
+  getStageRepositionCost,
   purchaseStagePawnIntoSlot,
   repositionStagePawn,
 } from '@stage/StageRuntime';
@@ -143,16 +144,23 @@ export class StageDragController {
         if (payload.kind === 'slot-pawn' && target.kind === 'slot') {
           const targetSlotIndex = target.slotIndex!;
           if (targetSlotIndex !== null) {
+            const repositionCost = getStageRepositionCost(runtime);
             const mergeResult = attemptMergeStagePawnSlots(runtime, payload.slotIndex, targetSlotIndex);
             applied = mergeResult === 'applied';
             pending = mergeResult === 'pending';
-            errorMsg = applied || pending ? null : `Need ${StageFlowConfig.REPOSITION_COST} coin and a different destination slot to move.`;
+            errorMsg = applied || pending
+              ? null
+              : repositionCost > 0
+                ? `Need ${repositionCost} coin and a different destination slot to move.`
+                : 'Need a different destination slot to move.';
 
             if (!applied && !pending) {
               applied = repositionStagePawn(runtime, payload.slotIndex, targetSlotIndex);
               errorMsg = applied
                 ? null
-                : 'Need matching duplicate to merge, or 1 coin and a different destination slot to move.';
+                : repositionCost > 0
+                  ? `Need matching duplicate to merge, or ${repositionCost} coin and a different destination slot to move.`
+                  : 'Need matching duplicate to merge, or a different destination slot to move.';
             }
           }
         }

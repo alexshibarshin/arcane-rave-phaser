@@ -14,6 +14,7 @@ import {
   purchaseStagePawnIntoSlot,
   rerollStageShopOffers,
   requestStageWaveStart,
+  repositionStagePawn,
   resolveStageCombatOutcome,
 } from '@stage/StageRuntime';
 import { STAGE_CONFIGS, type StageConfig } from '@config/StageConfig';
@@ -282,5 +283,22 @@ describe('StageRuntime', () => {
 
     expect(runtime.activeDeckIds).toEqual(customDeckIds);
     expect(runtime.build.shopOffers.every((pawnId) => pawnId === 'lifebloom-scatter')).toBe(true);
+  });
+
+  it('supports free repositioning when the lobby disables move cost for the run', () => {
+    const runtime = createStageRuntime(
+      makeStageConfig({ totalWaves: 2, initialCoins: 0 }),
+      defaultDeckIds,
+      undefined,
+      () => 0,
+      { repositionCost: 0 },
+    );
+
+    runtime.build.slots[0] = { pawnId: 'ruby-needle', tier: 1 };
+
+    expect(repositionStagePawn(runtime, 0, 1)).toBe(true);
+    expect(runtime.coins).toBe(0);
+    expect(runtime.build.slots[0]).toBeNull();
+    expect(runtime.build.slots[1]?.pawnId).toBe('ruby-needle');
   });
 });

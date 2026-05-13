@@ -14,6 +14,7 @@ import {
   canStageStartWave,
   confirmPendingStageMerge,
   createStageRuntime,
+  getStageRepositionCost,
   getStageShopRerollCost,
   rerollStageShopOffers,
   sellStagePawnFromSlot,
@@ -52,6 +53,7 @@ export class StageScene extends Phaser.Scene {
   private transientStatusText: string | null = null;
   private lastPresentedCoins: number | null = null;
   private sellEnabled_: boolean = true;
+  private repositionCostEnabled_: boolean = true;
   private sellDragPawnId_: string | null = null;
   private sellDragTier_: number = 1;
   private sellDragSlotIndex_: number = -1;
@@ -71,7 +73,11 @@ export class StageScene extends Phaser.Scene {
   create(data?: {
     stageId?: string;
     activeDeckIds?: readonly string[];
-    settings?: { mergeRule?: 'random' | 'fixed' | 'choose'; sellEnabled?: boolean };
+    settings?: {
+      mergeRule?: 'random' | 'fixed' | 'choose';
+      sellEnabled?: boolean;
+      repositionCostEnabled?: boolean;
+    };
   }): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
 
@@ -84,13 +90,17 @@ export class StageScene extends Phaser.Scene {
 
     const mergeRule = data?.settings?.mergeRule ?? 'random';
     const sellEnabled = data?.settings?.sellEnabled ?? true;
+    const repositionCostEnabled = data?.settings?.repositionCostEnabled ?? true;
     const mergeStrategy = mergeRule === 'fixed'
       ? new FixedMergeStrategy()
       : mergeRule === 'choose'
         ? new ChooseMergeStrategy()
         : undefined;
     this.sellEnabled_ = sellEnabled;
-    this.runtime = createStageRuntime(stageConfig, data?.activeDeckIds, mergeStrategy);
+    this.repositionCostEnabled_ = repositionCostEnabled;
+    this.runtime = createStageRuntime(stageConfig, data?.activeDeckIds, mergeStrategy, Math.random, {
+      repositionCost: repositionCostEnabled ? undefined : 0,
+    });
 
     this.renderLayout();
     this.createAdapters();
@@ -215,7 +225,7 @@ export class StageScene extends Phaser.Scene {
     this.recordView.createSynergySystem();
     this.recordView.createModifierIcons(this.runtime);
 
-    this.shopView = new StageShopView(this, this.handleRerollPressed, () => {
+    this.shopView = new StageShopView(this, this.handleRerollPressed, getStageRepositionCost(this.runtime), () => {
       for (const cardView of this.shopView.cardViews) {
         this.tooltipController.bindPawnInspection(cardView.container, {
           pawnId: cardView.pawnId,

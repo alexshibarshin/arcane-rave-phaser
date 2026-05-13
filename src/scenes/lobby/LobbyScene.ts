@@ -57,10 +57,13 @@ const DETAIL_START_BTN_W = 280;
 const DETAIL_START_BTN_H = 56;
 const DETAIL_START_BTN_Y_OFFSET = 32;
 const DETAIL_ACTION_BTN_GAP = 16;
-const DETAIL_CARDS_Y_OFFSET = 24;
-const DETAIL_RESULT_Y_OFFSET = 16;
+const DETAIL_CARDS_Y_OFFSET = 16;
+const DETAIL_RESULT_Y_OFFSET = 12;
 const DETAIL_TAGS_Y_OFFSET = 16;
 const DETAIL_NAME_Y_OFFSET = 64;
+const DETAIL_SPECIAL_CARD_WIDTH = 280;
+const DETAIL_SPECIAL_CARD_HEIGHT = 148;
+const DETAIL_SPECIAL_CARD_GAP = 16;
 
 // Radio blocks (playtest toggles)
 const BLOCK_MARGIN_X = 16;
@@ -69,6 +72,10 @@ const BLOCK_HEIGHT = 152;
 const BLOCK_GAP = 12;
 const BLOCK_HEADER_FONT_SIZE = '13px';
 const BLOCK_LABEL_FONT_SIZE = '18px';
+const TOGGLE_BLOCK_HEIGHT = 108;
+const TOGGLE_BLOCK_OPTION_START_Y = 38;
+const TOGGLE_BLOCK_OPTION_STEP = 28;
+const TOGGLE_BLOCK_STACK_GAP = 8;
 
 interface LobbyState {
   selectedStageId: string | null;
@@ -76,6 +83,7 @@ interface LobbyState {
   resultStageId: string | null;
   mergeRule: 'random' | 'fixed' | 'choose';
   sellEnabled: boolean;
+  repositionCostEnabled: boolean;
   activeDeckIds: string[];
 }
 
@@ -86,6 +94,7 @@ export class LobbyScene extends Phaser.Scene {
     resultStageId: null,
     mergeRule: 'random',
     sellEnabled: true,
+    repositionCostEnabled: true,
     activeDeckIds: SessionProgressStore.getActiveDeckIds(),
   };
 
@@ -114,6 +123,7 @@ export class LobbyScene extends Phaser.Scene {
       resultStageId: data?.stageId ?? null,
       mergeRule: SessionProgressStore.getMergeRule(),
       sellEnabled: SessionProgressStore.getSellEnabled(),
+      repositionCostEnabled: SessionProgressStore.getRepositionCostEnabled(),
       activeDeckIds: SessionProgressStore.getActiveDeckIds(),
     };
 
@@ -425,7 +435,7 @@ export class LobbyScene extends Phaser.Scene {
     const enemyCards = this.createEnemyCardsRow(model, currentY);
     if (enemyCards) {
       this.detailContainer.add(enemyCards);
-      currentY = currentY + 260 + DETAIL_RESULT_Y_OFFSET;
+      currentY = currentY + DETAIL_SPECIAL_CARD_HEIGHT + DETAIL_RESULT_Y_OFFSET;
     } else {
       currentY = currentY + DETAIL_RESULT_Y_OFFSET;
     }
@@ -505,11 +515,9 @@ export class LobbyScene extends Phaser.Scene {
     if (!model || (!model.eliteEnemyId && !model.bossEnemyId)) return null;
 
     const row = this.add.container(0, y);
-    const cardGap = 16;
-    const cardWidth = 280;
-    const totalWidth = (model.eliteEnemyId ? cardWidth : 0) +
-      (model.bossEnemyId ? cardWidth : 0) +
-      (model.eliteEnemyId && model.bossEnemyId ? cardGap : 0);
+    const totalWidth = (model.eliteEnemyId ? DETAIL_SPECIAL_CARD_WIDTH : 0) +
+      (model.bossEnemyId ? DETAIL_SPECIAL_CARD_WIDTH : 0) +
+      (model.eliteEnemyId && model.bossEnemyId ? DETAIL_SPECIAL_CARD_GAP : 0);
 
     let x = VIEWPORT_W / 2 - totalWidth / 2;
 
@@ -517,7 +525,7 @@ export class LobbyScene extends Phaser.Scene {
       const eliteCard = createSpecialEnemyCard(this, model.eliteEnemyId, 'lobby');
       eliteCard.setPosition(x, 0);
       row.add(eliteCard);
-      x += cardWidth + cardGap;
+      x += DETAIL_SPECIAL_CARD_WIDTH + DETAIL_SPECIAL_CARD_GAP;
     }
 
     if (model.bossEnemyId) {
@@ -658,7 +666,11 @@ export class LobbyScene extends Phaser.Scene {
       ...buildStageStartData({
         stageId: this.state_.selectedStageId,
         activeDeckIds: this.state_.activeDeckIds,
-        settings: { mergeRule: this.state_.mergeRule, sellEnabled: this.state_.sellEnabled },
+        settings: {
+          mergeRule: this.state_.mergeRule,
+          sellEnabled: this.state_.sellEnabled,
+          repositionCostEnabled: this.state_.repositionCostEnabled,
+        },
       }),
     });
   }
@@ -693,7 +705,7 @@ export class LobbyScene extends Phaser.Scene {
       DETAIL_PANEL_TOP +
       DETAIL_NAME_Y_OFFSET + 40 +
       28 + DETAIL_TAGS_Y_OFFSET +
-      DETAIL_CARDS_Y_OFFSET + 260 + DETAIL_RESULT_Y_OFFSET +
+      DETAIL_CARDS_Y_OFFSET + DETAIL_SPECIAL_CARD_HEIGHT + DETAIL_RESULT_Y_OFFSET +
       28 + DETAIL_START_BTN_Y_OFFSET +
       DETAIL_START_BTN_H;
 
@@ -719,6 +731,18 @@ export class LobbyScene extends Phaser.Scene {
       SessionProgressStore.setSellEnabled(enabled);
       this.buildRadioBlocks();
     });
+
+    this.buildToggleRadioBlock(
+      sellBlockX,
+      TOGGLE_BLOCK_HEIGHT + TOGGLE_BLOCK_STACK_GAP,
+      'MOVE COST',
+      this.state_.repositionCostEnabled,
+      (enabled) => {
+        this.state_.repositionCostEnabled = enabled;
+        SessionProgressStore.setRepositionCostEnabled(enabled);
+        this.buildRadioBlocks();
+      },
+    );
   }
 
   private buildRadioBlock(
@@ -788,18 +812,28 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private buildSellRadioBlock(x: number, y: number, selectedValue: boolean, onSelect: (enabled: boolean) => void): void {
+    this.buildToggleRadioBlock(x, y, 'PAWN SELL', selectedValue, onSelect);
+  }
+
+  private buildToggleRadioBlock(
+    x: number,
+    y: number,
+    title: string,
+    selectedValue: boolean,
+    onSelect: (enabled: boolean) => void,
+  ): void {
     const block = this.add.container(x, y);
 
     // Background
     const bg = this.add.graphics();
     bg.fillStyle(BG_DEFAULT, 1);
-    bg.fillRoundedRect(0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, 8);
+    bg.fillRoundedRect(0, 0, BLOCK_WIDTH, TOGGLE_BLOCK_HEIGHT, 8);
     bg.lineStyle(1, BORDER_DEFAULT, 1);
-    bg.strokeRoundedRect(0, 0, BLOCK_WIDTH, BLOCK_HEIGHT, 8);
+    bg.strokeRoundedRect(0, 0, BLOCK_WIDTH, TOGGLE_BLOCK_HEIGHT, 8);
     block.add(bg);
 
     // Header
-    const header = this.add.text(16, 14, 'PAWN SELL', {
+    const header = this.add.text(16, 14, title, {
       fontFamily: 'Arial, sans-serif',
       fontSize: BLOCK_HEADER_FONT_SIZE,
       color: 'rgba(255,255,255,0.3)',
@@ -813,7 +847,7 @@ export class LobbyScene extends Phaser.Scene {
       { value: false, label: 'Disabled' },
     ];
 
-    let optionY = 44;
+    let optionY = TOGGLE_BLOCK_OPTION_START_Y;
     for (const opt of options) {
       const isSelected = opt.value === selectedValue;
 
@@ -845,7 +879,7 @@ export class LobbyScene extends Phaser.Scene {
         onSelect(opt.value);
       });
 
-      optionY += 32;
+      optionY += TOGGLE_BLOCK_OPTION_STEP;
     }
 
     this.radioBlockContainer!.add(block);
